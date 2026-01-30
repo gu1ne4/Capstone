@@ -1,24 +1,23 @@
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
-
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
 
-import homePage from './mainComponents/homePage';
-import loginPage from './mainComponents/loginPage';
-import createAccount from './userComponents/createAccount';
-import editAccount from './userComponents/editAccount';
-import userDashboard from './userComponents/userDashboard';
-
 import styles from './styles/StyleSheet';
-
+import HomePage from './components/HomePage';
+import LoginPage from './components/loginPage';
 
 export default function App() {
+
+  const CScreen = createNativeStackNavigator();
+
   return (
-    <View style={styles.container}>
-      <Text>Capstone File</Text>
-    </View>
+    <NavigationContainer>
+      <CScreen.Navigator>
+        <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
+        <CScreen.Screen name="Home" component={HomePage} options={{headerShown: false}} />
+      </CScreen.Navigator>
+    </NavigationContainer>
   );
 }
-
 
