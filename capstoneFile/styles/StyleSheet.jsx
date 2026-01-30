@@ -99,10 +99,32 @@ const styles = StyleSheet.create({
     marginRight: 20, 
   }, 
   
-  inputIcon: { width: 20, height: 20, marginRight: 10, }, 
-  inputField: { flex: 1, height: 40, fontSize: 16, color: '#000', }, 
-  loginButton: { backgroundColor: '#000', paddingVertical: 12, borderRadius: 8, alignItems: 'center', marginRight: 20, }, 
-  loginButtonText: { color: '#fff', fontSize: 16, fontWeight: '600', },
+  inputIcon: { 
+    width: 20, 
+    height: 20, 
+    marginRight: 10, 
+  }, 
+
+  inputField: { 
+    flex: 1, 
+    height: 40, 
+    fontSize: 16, 
+    color: '#000', 
+  }, 
+
+  loginButton: { 
+    backgroundColor: '#000', 
+    paddingVertical: 12, 
+    borderRadius: 8, 
+    alignItems: 'center', 
+    marginRight: 20, 
+  }, 
+
+  loginButtonText: { 
+    color: '#fff', 
+    fontSize: 16, 
+    fontWeight: '600', 
+  },
 
 });
 

@@ -1,12 +1,10 @@
 import { View, Text, TouchableOpacity, Image, TextInput} from 'react-native'
-import React, { use } from 'react'
 import styles from '../styles/StyleSheet'
-
 import { useNavigation } from '@react-navigation/native'
 
 export default function LoginPage() {
 
-  const ns = useNavigation();
+  const navigation = useNavigation();
 
   return (
     <View style={styles.loginContainer}>
@@ -27,6 +25,7 @@ export default function LoginPage() {
       </View>
 
       <View style={styles.loginSection}>
+
         <Text style={styles.agsikapTitle}>Agsikap</Text>
         <Text style={styles.loginHeader}>Log in to your Account</Text>
         <Text style={styles.loginSubtext}>
@@ -47,8 +46,7 @@ export default function LoginPage() {
           </TouchableOpacity>
         </View>
 
-
-        <TouchableOpacity style={styles.loginButton} >
+        <TouchableOpacity style={styles.loginButton} onPress={()=>{navigation.replace("Home")}}>
           <Text style={styles.loginButtonText}>Login</Text>
         </TouchableOpacity>
       </View>

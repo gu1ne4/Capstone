@@ -5,7 +5,7 @@ import { NavigationContainer } from '@react-navigation/native';
 
 import styles from './styles/StyleSheet';
 import HomePage from './components/HomePage';
-import LoginPage from './components/loginPage';
+import LoginPage from './components/LoginPage';
 
 export default function App() {
 
@@ -15,7 +15,7 @@ export default function App() {
     <NavigationContainer>
       <CScreen.Navigator>
         <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
-        <CScreen.Screen name="Home" component={HomePage} options={{headerShown: false}} />
+        <CScreen.Screen name="Home" component={HomePage}  options={{headerShown: false}} />
       </CScreen.Navigator>
     </NavigationContainer>
   );
