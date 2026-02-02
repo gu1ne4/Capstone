@@ -243,7 +243,7 @@ export default function HomePage() {
                     </View>
                   </DataTable.Cell>
                   <DataTable.Cell style={{ justifyContent: 'center', flex: 1 }}>
-                    <TouchableOpacity>
+                    <TouchableOpacity onPress={() => setViewAccountVisible(true)}>
                       <Ionicons name="eye" size={15} color="#3d67ee" />
                     </TouchableOpacity>
                   </DataTable.Cell>
@@ -533,6 +533,85 @@ export default function HomePage() {
           </View>
         </View>
       </Modal>
+
+      {/* VIEW ACCOUNT OVERLAY */}
+      <Modal
+        visible={viewAccountVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setViewAccountVisible(false)}
+      >
+        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
+          <View style={homeStyle.modalContainer}>
+            <View style={{marginBottom: 20, alignItems: 'center'}}>
+              <Text style={{ fontSize: 24, fontWeight: 'bold', fontFamily: 'Segoe UI' }}>Account Details</Text>
+            </View>
+
+            {/* Profile image */}
+            <View style={{ alignItems: 'center', marginBottom: 25 }}>
+              {userImage ? (
+                <Image 
+                  source={{ uri: userImage }} 
+                  style={{ width: 100, height: 100, borderRadius: 60, borderWidth: 1, borderColor: '#3d67ee' }} 
+                />
+              ) : (
+                <Ionicons name="person-circle-outline" size={100} color="#3d67ee" />
+              )}
+            </View>
+
+            {/* Details section */}
+            <View style={homeStyle.modalSections}>
+              <View style={homeStyle.leftModalSection}>
+                <Text style={homeStyle.labelStyle}>Full Name</Text>
+                <Text style={homeStyle.textInputStyle}>John Doe</Text>
+
+                <Text style={homeStyle.labelStyle}>Contact Number</Text>
+                <Text style={homeStyle.textInputStyle}>123-456-7890</Text>
+
+                <Text style={homeStyle.labelStyle}>Employee ID</Text>
+                <Text style={homeStyle.textInputStyle}>EMP-001</Text>
+
+                <Text style={homeStyle.labelStyle}>Account Creation Date</Text>
+                <Text style={homeStyle.textInputStyle}>7-7-7</Text>
+                
+              </View>
+
+              <View style={homeStyle.rightModalSection}>
+                <Text style={homeStyle.labelStyle}>E-Mail</Text>
+                <Text style={homeStyle.textInputStyle}>john@example.com</Text>
+
+                <Text style={homeStyle.labelStyle}>Role</Text>
+                <Text style={homeStyle.textInputStyle}>Admin</Text>
+
+                <Text style={homeStyle.labelStyle}>Department</Text>
+                <Text style={homeStyle.textInputStyle}>Marketing</Text>
+
+                <Text style={homeStyle.labelStyle}>Status</Text>
+                <View
+                  style={[
+                    homeStyle.statusBadge,
+                    { marginTop: 10, alignItems: 'center' },
+                    true ? homeStyle.activeBadge : homeStyle.inactiveBadge
+                  ]}
+                >
+                  <Text style={[homeStyle.statusText, true && homeStyle.activeText]}>Active</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Close button */}
+            <View style={{ alignItems: "center", marginTop: 25 }}>
+              <TouchableOpacity 
+                style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", padding: 20, backgroundColor: '#dad8d8'}]} 
+                onPress={() => setViewAccountVisible(false)}
+              >
+                <Text style={{ color: '#0c0c0c', fontSize: 14, fontWeight: '600' }}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     
     </View>
   );
