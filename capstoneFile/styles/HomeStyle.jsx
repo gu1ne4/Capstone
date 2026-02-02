@@ -13,22 +13,28 @@ const homeStyle = StyleSheet.create({
         flex: 1,
         padding: 30,
         paddingRight: 15,
-    },
 
-    navBody: {
-        padding: 30,   
-        alignItems: 'center',
-        borderRadius: 20,
-        height: '100%',
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 0 }, 
         shadowOpacity: 0.15,
         shadowRadius: 18,
     },
 
+    navBody: {
+        padding: 10,   
+        width: '81%',
+        height: '92%',
+        borderRadius: 20,
+        position: 'absolute',
+
+        display: 'flex',
+        flexDirection: 'row',
+        justifyContent: 'center',
+    },
+
     brandFont: {
          color: '#ffffff', 
-         fontSize: 20, 
+         fontSize: 18, 
          fontWeight: '600' 
     },
 
@@ -177,6 +183,93 @@ const homeStyle = StyleSheet.create({
 
     inactiveBadge: {
         backgroundColor: '#ffc3c3',
+    },
+
+    searchVisible: {
+        fontSize: 13,
+        borderWidth: 1,
+        borderColor: '#ccc',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        height: 28,
+        width: 180,           
+    },
+
+    /* Create Account Modal */ 
+
+    modalContainer: {
+        backgroundColor: 'rgb(255, 255, 255)',
+        padding: 45,
+        borderRadius: 15,
+        width: '54%',
+        height: '90%',
+
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 0 }, 
+        shadowOpacity: 0.15,
+        shadowRadius: 18,
+    },
+
+    modalSections:{
+        display: 'flex',
+        flexDirection: 'row',
+        gap: 50,
+    },
+
+    leftModalSection: {
+        flex: 1,
+    },
+
+    rightModalSection: {
+        flex: 1,
+    },
+
+    textInputStyle: {
+        borderWidth: 1,
+        borderColor: '#ccc',
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        marginTop: 5,
+        marginBottom: 15,
+    },
+
+    createPickerStyle: {
+        borderWidth: 1,
+        borderColor: '#ccc',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        marginTop: 5,
+        marginBottom: 15,
+        borderRadius: 8,
+
+    },
+
+    labelStyle: {
+        fontSize: 14,
+        fontWeight: '600',
+        fontFamily: 'Segoe UI',
+        marginBottom: 5,
+    },
+
+    uploadBtn: {
+        backgroundColor: '#fdfdfd',
+        borderRadius: 60, 
+        marginTop: 10, 
+        width: 100,
+        height: 100,
+        display: 'flex', 
+        flexDirection: 'row', 
+        gap: 5,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderColor: '#3d67ee',
+        borderWidth: 1,
+
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 0 }, 
+        shadowOpacity: 0.10,
+        shadowRadius: 12,
     },
 
 });
