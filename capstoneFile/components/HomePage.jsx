@@ -39,6 +39,8 @@ export default function HomePage() {
     { id: 2, name: 'Alice Smith', role: 'User', department: 'Sales', contact: '987-654-3210', email: 'alice@example.com', status: 'Disabled' },
     { id: 3, name: 'Bob Brown', role: 'Moderator', department: 'Human Resources', contact: '555-555-5555', email: 'bob@example.com', status: 'Active' },
     { id: 4, name: 'Charlie Davis', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
+    { id: 5, name: 'Charlie Davis', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
+    { id: 6, name: 'Charlie Davis', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
   ]);
 
    {/* FOR FILTERS */}
