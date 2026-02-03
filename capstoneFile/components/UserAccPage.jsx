@@ -13,7 +13,7 @@ import * as ImagePicker from 'expo-image-picker';
 
 {/* TEST PUSH BRANCH */}
 
-export default function HomePage() {
+export default function UserAccPage() {
 
   {/* Pop-Up Overlays for Search, FIlter, Search and etc. */}
 
@@ -45,9 +45,6 @@ export default function HomePage() {
       { id: 1, name: 'Carl Johnson', role: 'Admin', department: 'Marketing', contact: '123-456-7890', email: 'carl@example.com', status: 'Active' },
       { id: 2, name: 'Alice Smith', role: 'User', department: 'Sales', contact: '987-654-3210', email: 'alice@example.com', status: 'Disabled' },
       { id: 3, name: 'Bob Brown', role: 'Moderator', department: 'Human Resources', contact: '555-555-5555', email: 'bob@example.com', status: 'Active' },
-      { id: 4, name: 'Jarvan the Fourth D. Santos', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'jarvanIV@example.com', status: 'Disabled' },
-      { id: 5, name: 'Charlie Davis', role: 'Moderator', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
-      { id: 6, name: 'Charlie Davis', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
     ]);
 
     {/* FOR FILTERS */}
@@ -127,7 +124,7 @@ export default function HomePage() {
 
   {/* ROUTING NAME */}
   const route = useRoute();
-  const isActive = route.name === 'Accounts';
+  const isActive = route.name === 'UserAccounts';
 
   const ns = useNavigation();
 
@@ -179,9 +176,10 @@ export default function HomePage() {
               </TouchableOpacity>
             </View> 
 
-            <View style={[isActive ? homeStyle.selectedGlass : null]}>
+            <View>
               {/* Parent Button */}
-              <TouchableOpacity 
+              <View style={[isActive ? homeStyle.selectedGlass : null]}> 
+                <TouchableOpacity 
                 style={homeStyle.navBtn} 
                 onPress={() => setShowAccountDropdown(!showAccountDropdown)}
               >
@@ -194,18 +192,19 @@ export default function HomePage() {
                   style={{marginLeft: 5, marginTop: 2}} 
                 />
               </TouchableOpacity>
+              </View>
 
               {/* Dropdown Subcategories */}
                 {showAccountDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
-                    <View style={[isActive ? homeStyle.selectedGlass : null, {width: '100%'}]}>
+                    <View>
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Accounts')}}>
                         <Ionicons name="person-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
                         <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Employees</Text>
                     </TouchableOpacity>
                     </View>
 
-                    <View >
+                    <View style={[isActive ? homeStyle.subSelectedGlass : null, {width: '100%'}]}>
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('UserAccounts')}}>
                         <Ionicons name="medkit-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
                         <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Users / Patients</Text>
@@ -213,6 +212,7 @@ export default function HomePage() {
                     </View>
                 </View>
                 )}
+
             </View>
 
 
@@ -233,7 +233,6 @@ export default function HomePage() {
           </View>
 
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-            
           <View style={[homeStyle.glassContainer, {paddingTop: 12, paddingBottom: 3}]}>
             <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Login')}}>
               <Ionicons name="log-out-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
@@ -257,7 +256,7 @@ export default function HomePage() {
 
           <View style={[homeStyle.subTopContainer]}>
             <Ionicons name="people-outline" size={23} color="#3d67ee" style={{ marginTop: 4 }} />
-            <Text style={[homeStyle.blueText, { marginLeft: 10 }]}>Account Overview / Employees</Text>
+            <Text style={[homeStyle.blueText, { marginLeft: 10 }]}>Account Overview / Users</Text>
           </View>
           <View style={[homeStyle.subTopContainer, { justifyContent: 'center', flex: 0.5, marginLeft: 12 }]}>
             <TouchableOpacity>
@@ -393,7 +392,7 @@ export default function HomePage() {
                 <DataTable.Row key={user.id}>
                   <DataTable.Cell style={{ flex: 3 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Image source={require('../assets/userImg.jpg')} style={{ width: 30, height: 30, borderRadius: 12, marginRight: 20 }} />
+                      <Image source={require('../assets/userAvatar.jpg')} style={{ width: 30, height: 30, borderRadius: 12, marginRight: 20 }} />
                       <Text style={homeStyle.tableFont}>{user.name}</Text>
                     </View>
                   </DataTable.Cell>

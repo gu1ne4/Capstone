@@ -46,7 +46,7 @@ export default function LoginPage() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.loginButton} onPress={()=>{navigation.replace("Home")}}>
+        <TouchableOpacity style={styles.loginButton} onPress={()=>{navigation.replace("Accounts")}}>
           <Text style={styles.loginButtonText}>Login</Text>
         </TouchableOpacity>
       </View>

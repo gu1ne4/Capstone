@@ -12,6 +12,7 @@ const homeStyle = StyleSheet.create({
     navbarContainer: {
         flex: 1,
         padding: 30,
+        paddingTop: 36,
         paddingRight: 15,
 
         shadowColor: '#000',
@@ -22,15 +23,94 @@ const homeStyle = StyleSheet.create({
 
     navBody: {
         padding: 10,   
-        width: '81%',
-        height: '92%',
         borderRadius: 20,
-        position: 'absolute',
+        width: '100%',
+        height: '100%',
 
         display: 'flex',
-        flexDirection: 'row',
-        justifyContent: 'center',
+        flexDirection: 'column',
     },
+
+    navTitle: {
+        width: '100%',
+        height: '12%',
+        padding: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexDirection: 'row'
+    },
+
+    glassContainer: {
+        marginTop: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+
+        width: '100%',
+        
+        backgroundColor: 'rgba(255, 255, 255, 0.15)', 
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.25)', 
+
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+
+    },
+
+    selectedGlass: {
+        width: '200',
+        marginLeft: -10,
+        marginRight: -10,
+        paddingHorizontal: 10,
+        paddingTop: 8,
+        marginBottom: 5,
+        
+        backgroundColor: 'rgba(255, 255, 255, 0.15)', 
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.25)', 
+
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+    },
+
+    subSelectedGlass: {
+        width: '200',
+        marginLeft: -10,
+        marginRight: -10,
+        paddingHorizontal: 10,
+        paddingTop: 8,
+        marginBottom: 5,
+        
+        backgroundColor: 'rgba(221, 224, 255, 0.22)', 
+        borderRadius: 10,
+    },
+
+    navFont: {
+        color: '#fff', 
+        fontSize: 13, 
+        fontWeight: '600',
+        fontFamily: 'Segoe UI'
+    },
+
+    navBtn: {
+        flexDirection: 'row', 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 7,
+        marginBottom: 10
+    },
+
+    navAccount: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+    },
+
 
     brandFont: {
          color: '#ffffff', 
@@ -75,7 +155,7 @@ const homeStyle = StyleSheet.create({
     blueText: {
         fontSize: 16,
         color: '#3d67ee',
-        fontWeight: '650',
+        fontWeight: '620',
         fontFamily: 'Segoe UI',
     },
 
