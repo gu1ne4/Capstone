@@ -38,7 +38,7 @@ export default function HomePage() {
     { id: 1, name: 'Carl Johnson', role: 'Admin', department: 'Marketing', contact: '123-456-7890', email: 'carl@example.com', status: 'Active' },
     { id: 2, name: 'Alice Smith', role: 'User', department: 'Sales', contact: '987-654-3210', email: 'alice@example.com', status: 'Disabled' },
     { id: 3, name: 'Bob Brown', role: 'Moderator', department: 'Human Resources', contact: '555-555-5555', email: 'bob@example.com', status: 'Active' },
-    { id: 4, name: 'Charlie Davis', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
+    { id: 4, name: 'Jarvan the Fourth D. Santos', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
     { id: 5, name: 'Charlie Davis', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
     { id: 6, name: 'Charlie Davis', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
   ]);
@@ -239,12 +239,12 @@ export default function HomePage() {
           <DataTable>
             <DataTable.Header style={homeStyle.tableHeader}>
               <DataTable.Title textStyle={homeStyle.tableFont} style={{ flex: 3 }}>Name</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ flex: 1.5 }}>Role</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ flex: 2 }}>Department</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ flex: 2 }}>Contact Number</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ flex: 2 }}>E-Mail</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ flex: 1.5 }}>Status</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ flex:  1}}>View Details</DataTable.Title>
+              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 1.1 }}>Role</DataTable.Title>
+              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 2 }}>Department</DataTable.Title>
+              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 2 }}>Contact Number</DataTable.Title>
+              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 2.5 }}>E-Mail</DataTable.Title>
+              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 1.5 }}>Status</DataTable.Title>
+              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex:  1}}>View Details</DataTable.Title>
               <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'flex-end' }}>Edit</DataTable.Title>
             </DataTable.Header>
 
@@ -259,11 +259,11 @@ export default function HomePage() {
                       <Text style={homeStyle.tableFont}>{user.name}</Text>
                     </View>
                   </DataTable.Cell>
-                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ flex: 1.5 }}>{user.role}</DataTable.Cell>
-                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ flex: 2 }}>{user.department}</DataTable.Cell>
-                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ flex: 2 }}>{user.contact}</DataTable.Cell>
-                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ flex: 2 }}>{user.email}</DataTable.Cell>
-                  <DataTable.Cell style={{ flex: 1.5 }}>
+                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 1.1 }}>{user.role}</DataTable.Cell>
+                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center',flex: 2 }}>{user.department}</DataTable.Cell>
+                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center',flex: 2 }}>{user.contact}</DataTable.Cell>
+                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center',flex: 2.5 }}>{user.email}</DataTable.Cell>
+                  <DataTable.Cell style={{ justifyContent: 'center', flex: 1.5 }}>
                     <View
                       style={[
                         homeStyle.statusBadge,
