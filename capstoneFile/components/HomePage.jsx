@@ -23,7 +23,25 @@ export default function HomePage() {
   const [editAccountVisible, setEditAccountVisible] = useState(false);
   const [viewAccountVisible, setViewAccountVisible] = useState(false);
 
-  {/* FOR FILTERS */}
+  {/* USER IMAGE */}
+
+  const [userImage, setUserImage] = useState(null);
+
+  {/* This is for Table Pages */}
+
+  const [page, setPage] = useState(0);
+  const itemsPerPage = 8;
+
+  {/* Sample Data */}
+
+  const [users, setUsers] = useState([
+    { id: 1, name: 'Carl Johnson', role: 'Admin', department: 'Marketing', contact: '123-456-7890', email: 'carl@example.com', status: 'Active' },
+    { id: 2, name: 'Alice Smith', role: 'User', department: 'Sales', contact: '987-654-3210', email: 'alice@example.com', status: 'Disabled' },
+    { id: 3, name: 'Bob Brown', role: 'Moderator', department: 'Human Resources', contact: '555-555-5555', email: 'bob@example.com', status: 'Active' },
+    { id: 4, name: 'Charlie Davis', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
+  ]);
+
+   {/* FOR FILTERS */}
 
   const [status, setStatus] = useState("defaultStatus");
   const [role, setRole] = useState("defaultRole");
@@ -46,24 +64,6 @@ export default function HomePage() {
     return matchesSearch && matchesStatus && matchesRole && matchesDept;
 
   });
-
-  {/* USER IMAGE */}
-
-  const [userImage, setUserImage] = useState(null);
-
-  {/* This is for Table Pages */}
-
-  const [page, setPage] = useState(0);
-  const itemsPerPage = 8;
-
-  {/* Sample Data */}
-
-  const [users, setUsers] = useState([
-    { id: 1, name: 'Carl Johnson', role: 'Admin', department: 'Marketing', contact: '123-456-7890', email: 'carl@example.com', status: 'Active' },
-    { id: 2, name: 'Alice Smith', role: 'User', department: 'Sales', contact: '987-654-3210', email: 'alice@example.com', status: 'Disabled' },
-    { id: 3, name: 'Bob Brown', role: 'Moderator', department: 'Human Resources', contact: '555-555-5555', email: 'bob@example.com', status: 'Active' },
-    { id: 4, name: 'Charlie Davis', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
-  ]);
 
   {/* FUNCTIONALITY FOR CREATE ACCOUNT */}
 
@@ -612,7 +612,7 @@ export default function HomePage() {
             </View>
 
             {/* Details section */}
-            
+
             <View style={homeStyle.modalSections}>
               <View style={homeStyle.leftModalSection}>
                 <Text style={homeStyle.labelStyle}>Full Name</Text>
@@ -665,7 +665,6 @@ export default function HomePage() {
         </View>
       </Modal>
 
-    
     </View>
   );
 }
