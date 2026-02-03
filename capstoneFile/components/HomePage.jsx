@@ -13,18 +13,50 @@ import * as ImagePicker from 'expo-image-picker';
 
 export default function HomePage() {
 
+  {/* Pop-Up Overlays for Search, FIlter, Search and etc. */}
+
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  const [addAccountVisible, setAddAccountVisible] = useState(false);
+  const [editAccountVisible, setEditAccountVisible] = useState(false);
+  const [viewAccountVisible, setViewAccountVisible] = useState(false);
+
+  {/* FOR FILTERS */}
 
   const [status, setStatus] = useState("defaultStatus");
   const [role, setRole] = useState("defaultRole");
   const [department, setDepartment] = useState("defaultDept");
 
+  const noMatchFilters =
+    status === "defaultStatus" &&
+    role === "defaultRole" &&
+    department === "defaultDept";
+
+  const filteredUsers = users.filter(user => {
+    const matchesSearch =
+      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesStatus = status !== "defaultStatus" ? user.status === status : true;
+    const matchesRole = role !== "defaultRole" ? user.role === role : true;
+    const matchesDept = department !== "defaultDept" ? user.department.toLowerCase().includes(department.toLowerCase()) : true;
+
+    return matchesSearch && matchesStatus && matchesRole && matchesDept;
+
+  });
+
+  {/* USER IMAGE */}
+
   const [userImage, setUserImage] = useState(null);
+
+  {/* This is for Table Pages */}
 
   const [page, setPage] = useState(0);
   const itemsPerPage = 8;
+
+  {/* Sample Data */}
 
   const [users, setUsers] = useState([
     { id: 1, name: 'Carl Johnson', role: 'Admin', department: 'Marketing', contact: '123-456-7890', email: 'carl@example.com', status: 'Active' },
@@ -33,9 +65,7 @@ export default function HomePage() {
     { id: 4, name: 'Charlie Davis', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
   ]);
 
-  const [addAccountVisible, setAddAccountVisible] = useState(false);
-  const [editAccountVisible, setEditAccountVisible] = useState(false);
-  const [viewAccountVisible, setViewAccountVisible] = useState(false);
+  {/* FUNCTIONALITY FOR CREATE ACCOUNT */}
 
   const [newName, setNewName] = useState('');
   const [newRole, setNewRole] = useState('');
@@ -65,23 +95,7 @@ export default function HomePage() {
     setNewStatus('');
   };
 
-  const noMatchFilters =
-    status === "defaultStatus" &&
-    role === "defaultRole" &&
-    department === "defaultDept";
-
-  const filteredUsers = users.filter(user => {
-    const matchesSearch =
-      user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesStatus = status !== "defaultStatus" ? user.status === status : true;
-    const matchesRole = role !== "defaultRole" ? user.role === role : true;
-    const matchesDept = department !== "defaultDept" ? user.department.toLowerCase().includes(department.toLowerCase()) : true;
-
-    return matchesSearch && matchesStatus && matchesRole && matchesDept;
-
-  });
+  {/* ALLOWS USER TO UPLOAD IMAGES */}
 
   const pickImage = async () => {
   const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -105,6 +119,8 @@ export default function HomePage() {
 
   return (
     <View style={homeStyle.biContainer}>
+
+      {/* NAVBAR */}
         
       <View style={homeStyle.navbarContainer}>
         <Image source={require('../assets/AgsikapBG-Gif.gif')} style={{width: '100%', height: '100%', borderRadius: 20}} />
@@ -114,9 +130,14 @@ export default function HomePage() {
         </View>
       </View>
 
+      {/* BODY */}
+
       <View style={homeStyle.bodyContainer}>
 
         <View style={homeStyle.topContainer}>
+
+          {/* UPPER LAYER OF BODY (THE ONE W/ NOTIFICATIONS) */}
+
           <View style={[homeStyle.subTopContainer]}>
             <Ionicons name="people-outline" size={23} color="#3d67ee" style={{ marginTop: 4 }} />
             <Text style={[homeStyle.blueText, { marginLeft: 10 }]}>User List</Text>
@@ -128,9 +149,13 @@ export default function HomePage() {
           </View>
         </View>
 
+        {/* TABLE CONTAINER */}
+
         <View style={homeStyle.tableContainer}>
           <View style={homeStyle.tableLayer1}>
             <View style={[homeStyle.subTable1, { flexDirection: 'row', alignItems: 'center', position: 'relative', zIndex: 1 }]}>
+
+              {/* TOGGLE BTN FOR SEARCH AND HOW TO MAKE THE OVERLAY POP-UP */}
 
               <TouchableOpacity onPress={() => setSearchVisible(!searchVisible)}>
                 <Ionicons name="search-sharp" size={25} color={searchVisible ? "#afccf8" : "#3d67ee"} style={{ marginTop: 3 }} />
@@ -144,6 +169,8 @@ export default function HomePage() {
                   style={homeStyle.searchVisible}
                 />
               )}
+
+              {/* TOGGLE BTN FOR FILTER AND HOW TO MAKE THE OVERLAY POP-UP */}
 
               <TouchableOpacity style={{ marginLeft: 10 }} onPress={() => setFilterVisible(!filterVisible)}>
                 <Ionicons name="filter-sharp" size={25} color={filterVisible ? "#afccf8" : "#3d67ee"} style={{ marginTop: 3 }} />
@@ -194,6 +221,8 @@ export default function HomePage() {
               )}
             </View>
 
+            {/* ADD ACCOUNT BTN */}
+
             <View style={[homeStyle.subTable2, { justifyContent: 'flex-end' }]}>
               <TouchableOpacity style={homeStyle.blackBtn} onPress={() => setAddAccountVisible(true)}>
                 <Text style={{ color: '#ffffff', fontWeight: '600' }}>
@@ -202,6 +231,8 @@ export default function HomePage() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* DATA TABLE */}
 
           <DataTable>
             <DataTable.Header style={homeStyle.tableHeader}>
@@ -214,6 +245,8 @@ export default function HomePage() {
               <DataTable.Title textStyle={homeStyle.tableFont} style={{ flex:  1}}>View Details</DataTable.Title>
               <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'flex-end' }}>Edit</DataTable.Title>
             </DataTable.Header>
+
+            {/* MAPS THE DATA FROM THE ARRAY */}
 
             {filteredUsers.length > 0 ? (
               filteredUsers.slice(page * itemsPerPage, (page + 1) * itemsPerPage).map(user => (
@@ -289,6 +322,8 @@ export default function HomePage() {
               <Text style={{ fontSize: 24, fontWeight: 'bold', fontFamily: 'Segoe UI' }}>Create Account</Text>
             </View>
 
+            {/* UPLOAD IMAGE BUTTON */}
+
             <View style={{ alignItems: 'center', marginBottom: 35 }}> 
               <TouchableOpacity 
                 style={[ homeStyle.uploadBtn, { justifyContent: 'center', alignItems: 'center', position: 'relative' } ]} 
@@ -323,6 +358,8 @@ export default function HomePage() {
               </TouchableOpacity>
             </View>
 
+            {/* LEFT COLUMN */}
+
             <View style={[homeStyle.modalSections]}>
               <View style={homeStyle.leftModalSection}>
                 <View>
@@ -345,12 +382,16 @@ export default function HomePage() {
                   <TextInput style={homeStyle.textInputStyle} placeholder='Enter Employee ID' placeholderTextColor={"#a8a8a8"}/>
                 </View>
 
+                {/* CANCEL BTN */}
+
                 <View style={{ alignItems: "flex-end" }}>
                     <TouchableOpacity style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 25, padding: 20, backgroundColor: '#dad8d8'}]} onPress={() => setAddAccountVisible(false)}>
                     <Text style={{ color: '#0c0c0c', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
                     </TouchableOpacity>
                   </View>
               </View>
+
+              {/* RIGHT COLUMN */}
 
               <View style={homeStyle.rightModalSection}>
                 <View>
@@ -377,7 +418,9 @@ export default function HomePage() {
                   </Picker>
                 </View>
 
-                <View style={{ height: 80 }}></View>
+                <View style={{ height: 80 }}></View> 
+
+                {/* CREATE ACCOUNT BTN */}
 
                 <View>
                   <TouchableOpacity onPress={()=> handleSaveAccount()}>
@@ -414,6 +457,8 @@ export default function HomePage() {
               <Text style={{ fontSize: 24, fontWeight: 'bold', fontFamily: 'Segoe UI' }}>Edit Account</Text>
             </View>
 
+            {/* UPLOAD IMG BTN */}
+
             <View style={{ alignItems: 'center', marginBottom: 35 }}> 
               <TouchableOpacity 
                 style={[ homeStyle.uploadBtn, { justifyContent: 'center', alignItems: 'center', position: 'relative' } ]} 
@@ -448,6 +493,8 @@ export default function HomePage() {
               </TouchableOpacity>
             </View>
 
+            {/* LEFT COLUMN */}
+
             <View style={homeStyle.modalSections}>
               <View style={homeStyle.leftModalSection}>
                 <View>
@@ -477,6 +524,8 @@ export default function HomePage() {
                   </View>
 
               </View>
+
+              {/* RIGHT COLUMN */}
 
               <View style={homeStyle.rightModalSection}>
                 <Text style={homeStyle.labelStyle}>E-Mail</Text>
@@ -534,7 +583,10 @@ export default function HomePage() {
         </View>
       </Modal>
 
+      {/* END OF EDIT ACCOUNT OVERLAY */}
+
       {/* VIEW ACCOUNT OVERLAY */}
+
       <Modal
         visible={viewAccountVisible}
         transparent={true}
@@ -560,6 +612,7 @@ export default function HomePage() {
             </View>
 
             {/* Details section */}
+            
             <View style={homeStyle.modalSections}>
               <View style={homeStyle.leftModalSection}>
                 <Text style={homeStyle.labelStyle}>Full Name</Text>
