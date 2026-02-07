@@ -1,112 +1,117 @@
-import { View, Text, TouchableOpacity, Image, TextInput, Modal, Switch, Pressable } from 'react-native';
-import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, Image, TextInput, Modal, Switch, Pressable, Platform, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import homeStyle from '../styles/HomeStyle';
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { DataTable } from 'react-native-paper';
-import { Picker } from '@react-native-picker/picker';   
-import { BlurView } from 'expo-blur';
-
+import { Picker } from '@react-native-picker/picker';    
 import * as ImagePicker from 'expo-image-picker';
 
-{/* TEST PUSH BRANCH */}
-
 export default function HomePage() {
+  const ns = useNavigation();
+  const route = useRoute();
+  const isActive = route.name === 'Accounts';
 
-  {/* Pop-Up Overlays for Search, FIlter, Search and etc. */}
+  // ==========================================
+  //  BACKEND STATE & API CONFIGURATION
+  // ==========================================
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  // API URL Selection
+  const API_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
 
-    const [searchVisible, setSearchVisible] = useState(false);
-    const [filterVisible, setFilterVisible] = useState(false);
-    const [searchQuery, setSearchQuery] = useState('');
+  // ==========================================
+  //  UI STATE (Popups, Dropdowns, etc)
+  // ==========================================
+  const [searchVisible, setSearchVisible] = useState(false);
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
-    const [addAccountVisible, setAddAccountVisible] = useState(false);
-    const [editAccountVisible, setEditAccountVisible] = useState(false);
-    const [viewAccountVisible, setViewAccountVisible] = useState(false);
+  const [addAccountVisible, setAddAccountVisible] = useState(false);
+  const [editAccountVisible, setEditAccountVisible] = useState(false);
+  const [viewAccountVisible, setViewAccountVisible] = useState(false);
 
-    const [searchHovered, setSearchHovered] = useState(false);
-    const [filterHovered, setFilterHovered] = useState(false);
+  const [searchHovered, setSearchHovered] = useState(false);
+  const [filterHovered, setFilterHovered] = useState(false);
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
 
-    const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  // Pagination
+  const [page, setPage] = useState(0);
+  const itemsPerPage = 8;
 
-    {/* USER IMAGE */}
+  // ==========================================
+  //  FORM DATA STATE (For Create/Edit/View)
+  // ==========================================
+  const [editingId, setEditingId] = useState(null);
+  const [selectedAccount, setSelectedAccount] = useState({});
 
-    const [userImage, setUserImage] = useState(null);
+  // Input Fields
+  const [newUsername, setNewUsername] = useState('');
+  const [newFullName, setNewFullName] = useState('');
+  const [newContact, setNewContact] = useState('');
+  const [newEmpID, setNewEmpID] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newRole, setNewRole] = useState('User');
+  const [newDept, setNewDept] = useState('Marketing');
+  const [newStatus, setNewStatus] = useState('Active'); // Stored as string 'Active'/'Disabled' to match your UI logic
+  
+  // Image Data
+  const [userImage, setUserImage] = useState(null); // URI for display
+  const [userImageBase64, setUserImageBase64] = useState(null); // Base64 for Backend
 
-    {/* This is for Table Pages */}
+  // Filter State
+  const [status, setStatus] = useState("defaultStatus");
+  const [role, setRole] = useState("defaultRole");
+  const [department, setDepartment] = useState("defaultDept");
 
-    const [page, setPage] = useState(0);
-    const itemsPerPage = 8;
+  // ==========================================
+  //  API FUNCTIONS
+  // ==========================================
 
-    {/* Sample Data */}
+  const fetchAccounts = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/accounts`);
+      const data = await res.json();
+      setAccounts(data);
+    } catch (error) {
+      console.error(error);
+      const msg = "Error fetching data";
+      Platform.OS === 'web' ? alert(msg) : Alert.alert("Error", msg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const [users, setUsers] = useState([
-      { id: 1, name: 'Carl Johnson', role: 'Admin', department: 'Marketing', contact: '123-456-7890', email: 'carl@example.com', status: 'Active' },
-      { id: 2, name: 'Alice Smith', role: 'User', department: 'Sales', contact: '987-654-3210', email: 'alice@example.com', status: 'Disabled' },
-      { id: 3, name: 'Bob Brown', role: 'Moderator', department: 'Human Resources', contact: '555-555-5555', email: 'bob@example.com', status: 'Active' },
-      { id: 4, name: 'Jarvan the Fourth D. Santos', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'jarvanIV@example.com', status: 'Disabled' },
-      { id: 5, name: 'Charlie Davis', role: 'Moderator', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
-      { id: 6, name: 'Charlie Davis', role: 'Admin', department: 'IT', contact: '111-222-3333', email: 'charlie@example.com', status: 'Active' },
-    ]);
+  useEffect(() => {
+    fetchAccounts();
+  }, []);
 
-    {/* FOR FILTERS */}
+  const generateRandomPassword = (length = 10) => {
+    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#";
+    let retVal = "";
+    for (let i = 0, n = charset.length; i < length; ++i) {
+      retVal += charset.charAt(Math.floor(Math.random() * n));
+    }
+    return retVal;
+  };
 
-    const [status, setStatus] = useState("defaultStatus");
-    const [role, setRole] = useState("defaultRole");
-    const [department, setDepartment] = useState("defaultDept");
+  const resetForm = () => {
+    setNewUsername(''); setNewFullName(''); setNewContact(''); 
+    setNewEmpID(''); setNewEmail(''); setNewRole('User'); 
+    setNewDept('Marketing'); setNewStatus('Active');
+    setUserImage(null); setUserImageBase64(null); 
+    setEditingId(null);
+  };
 
-    const noMatchFilters =
-      status === "defaultStatus" &&
-      role === "defaultRole" &&
-      department === "defaultDept";
+  // ==========================================
+  //  ACTION HANDLERS (Create, Edit, Image)
+  // ==========================================
 
-    const filteredUsers = users.filter(user => {
-      const matchesSearch =
-        user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchesStatus = status !== "defaultStatus" ? user.status === status : true;
-      const matchesRole = role !== "defaultRole" ? user.role === role : true;
-      const matchesDept = department !== "defaultDept" ? user.department.toLowerCase().includes(department.toLowerCase()) : true;
-
-      return matchesSearch && matchesStatus && matchesRole && matchesDept;
-
-    });
-
-    {/* FUNCTIONALITY FOR CREATE ACCOUNT */}
-
-    const [newName, setNewName] = useState('');
-    const [newRole, setNewRole] = useState('');
-    const [newDept, setNewDept] = useState('');
-    const [newContact, setNewContact] = useState('');
-    const [newEmail, setNewEmail] = useState('');
-    const [newStatus, setNewStatus] = useState('Active');
-
-    const handleSaveAccount = () => {
-      const newUser = {
-        id: users.length + 1,
-        name: newName,
-        role: newRole,
-        department: newDept,
-        contact: newContact,
-        email: newEmail,
-        status: newStatus,
-      };
-
-      setUsers([...users, newUser]);
-      setAddAccountVisible(false);
-      setNewName('');
-      setNewRole('');
-      setNewDept('');
-      setNewContact('');
-      setNewEmail('');
-      setNewStatus('');
-    };
-
-  {/* ALLOWS USER TO UPLOAD IMAGES */}
-
-    const pickImage = async () => {
+  const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
       alert("Permission to access camera roll is required!");
@@ -116,26 +121,156 @@ export default function HomePage() {
     let result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
-      aspect: [4, 4],
-      quality: 1,
+      aspect: [1, 1],
+      quality: 0.5,
+      base64: true, // Required for backend upload
     });
 
     if (!result.canceled) {
       setUserImage(result.assets[0].uri);
+      setUserImageBase64(result.assets[0].base64);
     }
   };
 
-  {/* ROUTING NAME */}
-  const route = useRoute();
-  const isActive = route.name === 'Accounts';
+  const handleSaveAccount = async () => {
+    if (!newUsername || !newFullName) {
+      const msg = "Please fill in Username and Full Name";
+      Platform.OS === 'web' ? window.alert(msg) : Alert.alert("Error", msg);
+      return;
+    }
 
-  const ns = useNavigation();
+    const today = new Date();
+    const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+    const generatedPassword = generateRandomPassword();
+
+    try {
+      const res = await fetch(`${API_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: newUsername,
+          password: generatedPassword,
+          fullName: newFullName,
+          contactNumber: newContact,
+          email: newEmail,
+          role: newRole,
+          department: newDept,
+          employeeID: newEmpID,
+          userImage: userImageBase64,
+          status: newStatus,
+          dateCreated: dateCreated
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        const successMsg = 'Registered Successfully!';
+        Platform.OS === 'web' ? window.alert(successMsg) : Alert.alert('Success', successMsg);
+        setAddAccountVisible(false);
+        fetchAccounts();
+        resetForm();
+      } else {
+        const errorMsg = data.error || 'Failed';
+        Platform.OS === 'web' ? window.alert(errorMsg) : Alert.alert('Error', errorMsg);
+      }
+    } catch (error) {
+      Platform.OS === 'web' ? window.alert('Network Error') : Alert.alert('Error', 'Network Error');
+    }
+  };
+
+  // Pre-fill data for Editing
+  const openEditModal = (user) => {
+    setEditingId(user.pk || user.id); // Adjust based on DB key
+    setNewUsername(user.username || '');
+    setNewFullName(user.fullName || user.fullname || '');
+    setNewContact((user.contactNumber || user.contactnumber || '').toString());
+    setNewEmpID((user.employeeID || user.employeeid || '').toString());
+    setNewEmail(user.email || '');
+    setNewRole(user.role || 'User');
+    setNewDept(user.department || user.departmend || 'Marketing');
+    setNewStatus(user.status || 'Active');
+
+    const img = user.userImage || user.userimage;
+    setUserImage(img);
+    // Note: If image is a URL, base64 is null unless re-picked
+    setUserImageBase64(null); 
+
+    setEditAccountVisible(true);
+  };
+
+  const handleUpdateAccount = async () => {
+    try {
+      const res = await fetch(`${API_URL}/accounts/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: newUsername,
+          fullName: newFullName,
+          contactNumber: newContact,
+          email: newEmail,
+          role: newRole,
+          department: newDept,
+          employeeID: newEmpID,
+          status: newStatus,
+          userImage: userImageBase64 // Will be null if image wasn't changed
+        }),
+      });
+
+      if (res.ok) {
+        Platform.OS === 'web' ? window.alert('Updated Successfully!') : Alert.alert('Success', 'Updated Successfully!');
+        setEditAccountVisible(false);
+        fetchAccounts();
+        resetForm();
+      } else {
+        Platform.OS === 'web' ? window.alert('Update Failed') : Alert.alert('Error', 'Update Failed');
+      }
+    } catch (error) {
+      Platform.OS === 'web' ? window.alert('Network Error') : Alert.alert('Error', 'Network Error');
+    }
+  };
+
+  const handleViewDetails = (user) => {
+    setSelectedAccount(user);
+    setViewAccountVisible(true);
+  };
+
+  // ==========================================
+  //  FILTERING LOGIC
+  // ==========================================
+
+  const noMatchFilters =
+    status === "defaultStatus" &&
+    role === "defaultRole" &&
+    department === "defaultDept";
+
+  const filteredUsers = accounts.filter(user => {
+    // Handle case variances in keys coming from DB
+    const uName = (user.fullName || user.fullname || user.username || '').toLowerCase();
+    const uEmail = (user.email || '').toLowerCase();
+    const uDept = (user.department || user.departmend || '').toLowerCase();
+    const uStatus = user.status || 'Active';
+    const uRole = user.role || '';
+
+    const matchesSearch =
+      uName.includes(searchQuery.toLowerCase()) ||
+      uEmail.includes(searchQuery.toLowerCase());
+
+    const matchesStatus = status !== "defaultStatus" ? uStatus === status : true;
+    const matchesRole = role !== "defaultRole" ? uRole === role : true;
+    const matchesDept = department !== "defaultDept" ? uDept.includes(department.toLowerCase()) : true;
+
+    return matchesSearch && matchesStatus && matchesRole && matchesDept;
+  });
+
+
+  // ==========================================
+  //  RENDER
+  // ==========================================
 
   return (
     <View style={homeStyle.biContainer}>
 
       {/* NAVBAR */}
-        
       <View style={homeStyle.navbarContainer}>
         <LinearGradient
           colors={['#3d67ee', '#0738D9', '#041E76']}
@@ -154,7 +289,6 @@ export default function HomePage() {
           </View>
 
           {/* ACCOUNT LOGGED IN */}
-
           <View style={[homeStyle.glassContainer, {paddingLeft: 8}]}>
             <View style={[homeStyle.navAccount, {gap: 8}]}>
               <Image 
@@ -180,7 +314,6 @@ export default function HomePage() {
             </View> 
 
             <View style={[isActive ? homeStyle.selectedGlass : null]}>
-              {/* Parent Button */}
               <TouchableOpacity 
                 style={homeStyle.navBtn} 
                 onPress={() => setShowAccountDropdown(!showAccountDropdown)}
@@ -195,7 +328,6 @@ export default function HomePage() {
                 />
               </TouchableOpacity>
 
-              {/* Dropdown Subcategories */}
                 {showAccountDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
                     <View style={[isActive ? homeStyle.selectedGlass : null, {width: '100%'}]}>
@@ -215,7 +347,6 @@ export default function HomePage() {
                 )}
             </View>
 
-
             <View >
               <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Audit')}}>
                 <Ionicons name="document-text-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
@@ -229,20 +360,16 @@ export default function HomePage() {
                 <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Settings</Text>
               </TouchableOpacity>
             </View>
-
           </View>
 
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-            
-          <View style={[homeStyle.glassContainer, {paddingTop: 12, paddingBottom: 3}]}>
-            <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Login')}}>
-              <Ionicons name="log-out-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
-              <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Log Out</Text>
-            </TouchableOpacity>
+            <View style={[homeStyle.glassContainer, {paddingTop: 12, paddingBottom: 3}]}>
+              <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Login')}}>
+                <Ionicons name="log-out-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
+                <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Log Out</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-
-
         </LinearGradient>
       </View>
 
@@ -260,7 +387,7 @@ export default function HomePage() {
             <Text style={[homeStyle.blueText, { marginLeft: 10 }]}>Account Overview / Employees</Text>
           </View>
           <View style={[homeStyle.subTopContainer, { justifyContent: 'center', flex: 0.5, marginLeft: 12 }]}>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={fetchAccounts}>
               <Ionicons name="notifications" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
             </TouchableOpacity>
           </View>
@@ -272,8 +399,7 @@ export default function HomePage() {
           <View style={homeStyle.tableLayer1}>
             <View style={[homeStyle.subTable1, { flexDirection: 'row', alignItems: 'center', position: 'relative', zIndex: 1 }]}>
 
-              {/* TOGGLE BTN FOR SEARCH AND HOW TO MAKE THE OVERLAY POP-UP */}
-
+              {/* TOGGLE BTN FOR SEARCH */}
               <View style={{ position: 'relative' }}>
                 <Pressable onHoverIn={() => setSearchHovered(true)}
                   onHoverOut={() => setSearchHovered(false)}
@@ -293,13 +419,12 @@ export default function HomePage() {
                 <TextInput
                   placeholder="Search..."
                   value={searchQuery}
-                  onChangeText={setSearchQuery}
+                  onChangeText={(text) => {setSearchQuery(text); setPage(0);}}
                   style={homeStyle.searchVisible}
                 />
               )}
 
-              {/* TOGGLE BTN FOR FILTER AND HOW TO MAKE THE OVERLAY POP-UP */}
-
+              {/* TOGGLE BTN FOR FILTER */}
               <View style={{ position: 'relative' }}>
                 <Pressable onHoverIn={() => setFilterHovered(true)}
                   onHoverOut={() => setFilterHovered(false)}
@@ -315,31 +440,24 @@ export default function HomePage() {
                 )}
               </View>
               
-
               {filterVisible && (
                 <View style={{ flexDirection: 'row', marginLeft: 5, flexWrap: 'wrap', zIndex: 2 }}>
-                 
-                  <Picker selectedValue={status} style={homeStyle.pickerStyle} onValueChange={setStatus}>
-                    {status === "defaultStatus" && (
-                      <Picker.Item label="Status" value="defaultStatus" color="#a8a8a8" />
-                    )}
+                  
+                  <Picker selectedValue={status} style={homeStyle.pickerStyle} onValueChange={(val) => {setStatus(val); setPage(0);}}>
+                    <Picker.Item label="Status" value="defaultStatus" color="#a8a8a8" />
                     <Picker.Item label="Active" value="Active" />
                     <Picker.Item label="Disabled" value="Disabled" />
                   </Picker>
 
-                  <Picker selectedValue={role} style={[homeStyle.pickerStyle, { marginLeft: 10, width: 120 }]} onValueChange={setRole}>
-                    {role === "defaultRole" && (
-                      <Picker.Item label="Role" value="defaultRole" color="#a8a8a8" />
-                    )}
+                  <Picker selectedValue={role} style={[homeStyle.pickerStyle, { marginLeft: 10, width: 120 }]} onValueChange={(val) => {setRole(val); setPage(0);}}>
+                    <Picker.Item label="Role" value="defaultRole" color="#a8a8a8" />
                     <Picker.Item label="Admin" value="Admin" />
                     <Picker.Item label="User" value="User" />
                     <Picker.Item label="Moderator" value="Moderator" />
                   </Picker>
 
-                  <Picker selectedValue={department} style={[homeStyle.pickerStyle, { marginLeft: 10, width: 150 }]} onValueChange={setDepartment}>
-                    {department === "defaultDept" && (
-                      <Picker.Item label="Department" value="defaultDept" color="#a8a8a8" />
-                    )}
+                  <Picker selectedValue={department} style={[homeStyle.pickerStyle, { marginLeft: 10, width: 150 }]} onValueChange={(val) => {setDepartment(val); setPage(0);}}>
+                    <Picker.Item label="Department" value="defaultDept" color="#a8a8a8" />
                     <Picker.Item label="Human Resources" value="Human Resources" />
                     <Picker.Item label="Marketing" value="Marketing" />
                     <Picker.Item label="Sales" value="Sales" />
@@ -351,6 +469,8 @@ export default function HomePage() {
                       setStatus("defaultStatus");
                       setRole("defaultRole");
                       setDepartment("defaultDept");
+                      setSearchQuery("");
+                      setPage(0);
                     }}
                     style={homeStyle.clearFilterBtn}
                   >
@@ -362,9 +482,8 @@ export default function HomePage() {
             </View>
 
             {/* ADD ACCOUNT BTN */}
-
             <View style={[homeStyle.subTable2, { justifyContent: 'flex-end' }]}>
-              <TouchableOpacity style={homeStyle.blackBtn} onPress={() => setAddAccountVisible(true)}>
+              <TouchableOpacity style={homeStyle.blackBtn} onPress={() => { resetForm(); setAddAccountVisible(true); }}>
                 <Text style={{ color: '#ffffff', fontWeight: '600' }}>
                   <Ionicons name="person-add" color="#ffffff" style={{ marginTop: 3 }} /> Add Account
                 </Text>
@@ -374,96 +493,105 @@ export default function HomePage() {
 
           {/* DATA TABLE */}
 
-          <DataTable>
-            <DataTable.Header style={homeStyle.tableHeader}>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ flex: 3 }}>Name</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 1.1 }}>Role</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 2 }}>Department</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 2 }}>Contact Number</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 2.5 }}>E-Mail</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 1.5 }}>Status</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex:  1}}>View Details</DataTable.Title>
-              <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'flex-end', flex:  1 }}>Edit</DataTable.Title>
-            </DataTable.Header>
+          {loading ? (
+             <ActivityIndicator size="large" color="#3d67ee" style={{marginTop: 50}} />
+          ) : (
+            <DataTable>
+              <DataTable.Header style={homeStyle.tableHeader}>
+                <DataTable.Title textStyle={homeStyle.tableFont} style={{ flex: 3 }}>Name</DataTable.Title>
+                <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 1.1 }}>Role</DataTable.Title>
+                <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 2 }}>Department</DataTable.Title>
+                <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 2 }}>Contact Number</DataTable.Title>
+                <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 2.5 }}>E-Mail</DataTable.Title>
+                <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 1.5 }}>Status</DataTable.Title>
+                <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex:  1}}>View Details</DataTable.Title>
+                <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'flex-end', flex:  1 }}>Edit</DataTable.Title>
+              </DataTable.Header>
 
-            {/* MAPS THE DATA FROM THE ARRAY */}
+              {/* MAPS THE DATA FROM THE ARRAY */}
+              {filteredUsers.length > 0 ? (
+                filteredUsers.slice(page * itemsPerPage, (page + 1) * itemsPerPage).map(user => {
+                  const uStatus = user.status || 'Active';
+                  const uImage = user.userImage || user.userimage;
+                  const uName = user.fullName || user.fullname || user.username;
+                  const uContact = user.contactNumber || user.contactnumber;
+                  const uDept = user.department || user.departmend;
 
-            {filteredUsers.length > 0 ? (
-              filteredUsers.slice(page * itemsPerPage, (page + 1) * itemsPerPage).map(user => (
-                <DataTable.Row key={user.id}>
-                  <DataTable.Cell style={{ flex: 3 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                      <Image source={require('../assets/userImg.jpg')} style={{ width: 30, height: 30, borderRadius: 12, marginRight: 20 }} />
-                      <Text style={homeStyle.tableFont}>{user.name}</Text>
-                    </View>
-                  </DataTable.Cell>
-                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 1.1 }}>{user.role}</DataTable.Cell>
-                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center',flex: 2 }}>{user.department}</DataTable.Cell>
-                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center',flex: 2 }}>{user.contact}</DataTable.Cell>
-                  <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center',flex: 2.5 }}>{user.email}</DataTable.Cell>
-                  <DataTable.Cell style={{ justifyContent: 'center', flex: 1.5 }}>
-                    <View
-                      style={[
-                        homeStyle.statusBadge,
-                        user.status === 'Active' && homeStyle.activeBadge,
-                        user.status === 'Disabled' && homeStyle.inactiveBadge,
-                        { marginTop: 10, alignItems: 'center' }
-                      ]}
-                    >
-                      <Text style={[homeStyle.statusText, user.status === 'Active' && homeStyle.activeText]}>
-                        {user.status}
-                      </Text>
-                    </View>
-                  </DataTable.Cell>
-                  <DataTable.Cell style={{ justifyContent: 'center', flex: 1 }}>
-                    <TouchableOpacity onPress={() => setViewAccountVisible(true)}>
-                      <Ionicons name="eye" size={15} color="#3d67ee" />
-                    </TouchableOpacity>
-                  </DataTable.Cell>
-                  <DataTable.Cell style={{ justifyContent: 'flex-end' }} >
-                    <TouchableOpacity onPress={() => setEditAccountVisible(true)}>
-                      <Ionicons name="pencil-sharp" size={15} color="#3d67ee" />
-                    </TouchableOpacity>
+                  return (
+                    <DataTable.Row key={user.pk || user.id || Math.random()}>
+                      <DataTable.Cell style={{ flex: 3 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Image 
+                             source={uImage ? { uri: uImage } : require('../assets/userImg.jpg')} 
+                             style={{ width: 30, height: 30, borderRadius: 12, marginRight: 20 }} 
+                          />
+                          <Text style={homeStyle.tableFont}>{uName}</Text>
+                        </View>
+                      </DataTable.Cell>
+                      <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center', flex: 1.1 }}>{user.role}</DataTable.Cell>
+                      <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center',flex: 2 }}>{uDept}</DataTable.Cell>
+                      <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center',flex: 2 }}>{uContact}</DataTable.Cell>
+                      <DataTable.Cell textStyle={homeStyle.tableFont} style={{ justifyContent: 'center',flex: 2.5 }}>{user.email}</DataTable.Cell>
+                      <DataTable.Cell style={{ justifyContent: 'center', flex: 1.5 }}>
+                        <View
+                          style={[
+                            homeStyle.statusBadge,
+                            uStatus === 'Active' && homeStyle.activeBadge,
+                            uStatus === 'Disabled' && homeStyle.inactiveBadge,
+                            { marginTop: 10, alignItems: 'center' }
+                          ]}
+                        >
+                          <Text style={[homeStyle.statusText, uStatus === 'Active' && homeStyle.activeText]}>
+                            {uStatus}
+                          </Text>
+                        </View>
+                      </DataTable.Cell>
+                      <DataTable.Cell style={{ justifyContent: 'center', flex: 1 }}>
+                        <TouchableOpacity onPress={() => handleViewDetails(user)}>
+                          <Ionicons name="eye" size={15} color="#3d67ee" />
+                        </TouchableOpacity>
+                      </DataTable.Cell>
+                      <DataTable.Cell style={{ justifyContent: 'flex-end' }} >
+                        <TouchableOpacity onPress={() => openEditModal(user)}>
+                          <Ionicons name="pencil-sharp" size={15} color="#3d67ee" />
+                        </TouchableOpacity>
+                      </DataTable.Cell>
+                    </DataTable.Row>
+                  );
+                })
+              ) : (
+                <DataTable.Row>
+                  <DataTable.Cell style={{ flex: 1 }}>
+                    <Text style={{ color: '#888', textAlign: 'center', width: '100%' }}>
+                      {noMatchFilters ? "Showing all users (no filters applied)" : "No users found"}
+                    </Text>
                   </DataTable.Cell>
                 </DataTable.Row>
-              ))
-            ) : (
-              <DataTable.Row>
-                <DataTable.Cell style={{ flex: 1 }}>
-                  <Text style={{ color: '#888', textAlign: 'center', width: '100%' }}>
-                    {noMatchFilters ? "Showing all users (no filters applied)" : "No users found"}
-                  </Text>
-                </DataTable.Cell>
-              </DataTable.Row>
-            )}
+              )}
 
-            <DataTable.Pagination
-              page={page}
-              numberOfPages={Math.ceil(filteredUsers.length / itemsPerPage)}
-              onPageChange={(newPage) => setPage(newPage)}
-              label={`${page + 1} of ${Math.ceil(filteredUsers.length / itemsPerPage)}`}
-              showFastPaginationControls
-              optionsPerPage={[8]}
-              itemsPerPage={itemsPerPage}
-            />
-
-          </DataTable>
+              <DataTable.Pagination
+                page={page}
+                numberOfPages={Math.ceil(filteredUsers.length / itemsPerPage)}
+                onPageChange={(newPage) => setPage(newPage)}
+                label={`${page + 1} of ${Math.ceil(filteredUsers.length / itemsPerPage)}`}
+                showFastPaginationControls
+                optionsPerPage={[8]}
+                itemsPerPage={itemsPerPage}
+              />
+            </DataTable>
+          )}
         </View>
       </View>
 
       {/* ADD ACCOUNT OVERLAY */}
-
       <Modal visible={addAccountVisible} transparent={true} animationType="fade" onRequestClose={() => setAddAccountVisible(false)}>
-
       <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
-
           <View style={homeStyle.modalContainer}>
             <View style={{marginBottom: 20, alignItems: 'center'}}>
               <Text style={{ fontSize: 24, fontWeight: 'bold', fontFamily: 'Segoe UI' }}>Create Account</Text>
             </View>
 
             {/* UPLOAD IMAGE BUTTON */}
-
             <View style={{ alignItems: 'center', marginBottom: 35 }}> 
               <TouchableOpacity 
                 style={[ homeStyle.uploadBtn, { justifyContent: 'center', alignItems: 'center', position: 'relative' } ]} 
@@ -481,49 +609,36 @@ export default function HomePage() {
                   </View>
                 )}
 
-                <View 
-                  style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    right: 0,
-                    backgroundColor: '#3d67ee',
-                    borderRadius: 25,
-                    borderWidth: 1,
-                    borderColor: '#3d67ee',
-                    padding: 4,
-                  }}
-                >
+                <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#3d67ee', borderRadius: 25, borderWidth: 1, borderColor: '#3d67ee', padding: 4 }}>
                   <Ionicons name="camera" size={16} color="#ffffff" />
                 </View>
               </TouchableOpacity>
             </View>
 
-            {/* LEFT COLUMN */}
-
+            {/* FORM INPUTS */}
             <View style={[homeStyle.modalSections]}>
               <View style={homeStyle.leftModalSection}>
                 <View>
                   <Text style={homeStyle.labelStyle}>Username</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Username' placeholderTextColor={"#a8a8a8"}/>
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Username' placeholderTextColor={"#a8a8a8"} value={newUsername} onChangeText={setNewUsername} />
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Full Name</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Full Name' placeholderTextColor={"#a8a8a8"}/>
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Full Name' placeholderTextColor={"#a8a8a8"} value={newFullName} onChangeText={setNewFullName} />
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Contact Number</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Contact Number' placeholderTextColor={"#a8a8a8"}/>
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Contact Number' placeholderTextColor={"#a8a8a8"} value={newContact} onChangeText={setNewContact} />
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Employee ID</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Employee ID' placeholderTextColor={"#a8a8a8"}/>
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Employee ID' placeholderTextColor={"#a8a8a8"} value={newEmpID} onChangeText={setNewEmpID} />
                 </View>
 
                 {/* CANCEL BTN */}
-
                 <View style={{ alignItems: "flex-end" }}>
                     <TouchableOpacity style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 25, padding: 20, backgroundColor: '#dad8d8'}]} onPress={() => setAddAccountVisible(false)}>
                     <Text style={{ color: '#0c0c0c', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
@@ -532,11 +647,10 @@ export default function HomePage() {
               </View>
 
               {/* RIGHT COLUMN */}
-
               <View style={homeStyle.rightModalSection}>
                 <View>
                   <Text style={homeStyle.labelStyle}>E-Mail</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter E-Mail' placeholderTextColor={"#a8a8a8"}/>
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter E-Mail' placeholderTextColor={"#a8a8a8"} value={newEmail} onChangeText={setNewEmail} />
                 </View>
 
                 <View>
@@ -561,9 +675,8 @@ export default function HomePage() {
                 <View style={{ height: 80 }}></View> 
 
                 {/* CREATE ACCOUNT BTN */}
-
                 <View>
-                  <TouchableOpacity onPress={()=> handleSaveAccount()}>
+                  <TouchableOpacity onPress={handleSaveAccount}>
                     <LinearGradient
                     colors={['#3d67ee', '#0738D9', '#041E76']}
                     start={{ x: 0, y: 0 }}
@@ -574,17 +687,13 @@ export default function HomePage() {
                   </LinearGradient>
                   </TouchableOpacity>
                 </View>
-
               </View>        
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* END OF ADD ACCOUNT OVERLAY */}
-
       {/* EDIT ACCOUNT OVERLAY */}
-
       <Modal
         visible={editAccountVisible}
         transparent={true}
@@ -598,7 +707,6 @@ export default function HomePage() {
             </View>
 
             {/* UPLOAD IMG BTN */}
-
             <View style={{ alignItems: 'center', marginBottom: 35 }}> 
               <TouchableOpacity 
                 style={[ homeStyle.uploadBtn, { justifyContent: 'center', alignItems: 'center', position: 'relative' } ]} 
@@ -615,46 +723,33 @@ export default function HomePage() {
                     <Text style={{ color: '#3d67ee', fontSize: 11 }}>Upload Image</Text>
                   </View>
                 )}
-
-                <View 
-                  style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    right: 0,
-                    backgroundColor: '#3d67ee',
-                    borderRadius: 25,
-                    borderWidth: 1,
-                    borderColor: '#3d67ee',
-                    padding: 4,
-                  }}
-                >
+                <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#3d67ee', borderRadius: 25, borderWidth: 1, borderColor: '#3d67ee', padding: 4 }}>
                   <Ionicons name="camera" size={16} color="#ffffff" />
                 </View>
               </TouchableOpacity>
             </View>
 
             {/* LEFT COLUMN */}
-
             <View style={homeStyle.modalSections}>
               <View style={homeStyle.leftModalSection}>
                 <View>
                   <Text style={homeStyle.labelStyle}>Username</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Username' placeholderTextColor={"#a8a8a8"}/>
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Username' placeholderTextColor={"#a8a8a8"} value={newUsername} onChangeText={setNewUsername} />
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Full Name</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Full Name' placeholderTextColor={"#a8a8a8"}/>
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Full Name' placeholderTextColor={"#a8a8a8"} value={newFullName} onChangeText={setNewFullName}/>
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Contact Number</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Contact Number' placeholderTextColor={"#a8a8a8"}/>
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Contact Number' placeholderTextColor={"#a8a8a8"} value={newContact} onChangeText={setNewContact}/>
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Employee ID</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Employee ID' placeholderTextColor={"#a8a8a8"}/>
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Employee ID' placeholderTextColor={"#a8a8a8"} value={newEmpID} onChangeText={setNewEmpID}/>
                 </View>
 
                 <View style={{ alignItems: "flex-end" }}>
@@ -662,28 +757,27 @@ export default function HomePage() {
                     <Text style={{ color: '#0c0c0c', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
                     </TouchableOpacity>
                   </View>
-
               </View>
 
               {/* RIGHT COLUMN */}
-
               <View style={homeStyle.rightModalSection}>
                 <Text style={homeStyle.labelStyle}>E-Mail</Text>
                 <TextInput 
                   style={homeStyle.textInputStyle} 
                   placeholder="Enter E-Mail" 
                   placeholderTextColor="#a8a8a8" 
+                  value={newEmail} onChangeText={setNewEmail}
                 />
 
                 <Text style={homeStyle.labelStyle}>Role</Text>
-                <Picker style={homeStyle.createPickerStyle}>
+                <Picker style={homeStyle.createPickerStyle} selectedValue={newRole} onValueChange={setNewRole}>
                   <Picker.Item label="Admin" value="Admin" />
                   <Picker.Item label="User" value="User" />
                   <Picker.Item label="Moderator" value="Moderator" />
                 </Picker>
 
                 <Text style={homeStyle.labelStyle}>Department</Text>
-                <Picker style={homeStyle.createPickerStyle}>
+                <Picker style={homeStyle.createPickerStyle} selectedValue={newDept} onValueChange={setNewDept}>
                   <Picker.Item label="Marketing" value="Marketing" />
                   <Picker.Item label="Sales" value="Sales" />
                   <Picker.Item label="IT" value="IT" />
@@ -703,10 +797,9 @@ export default function HomePage() {
                     />
                   <Text style={{ fontWeight: 600, marginLeft: 18, color: newStatus === 'Active' ? '#2e9e0c' : '#888' }}> {newStatus} </Text>
                   </View>
-
                 </View> 
 
-                <TouchableOpacity>
+                <TouchableOpacity onPress={handleUpdateAccount}>
                   <LinearGradient
                     colors={['#3d67ee', '#0738D9', '#041E76']}
                     start={{ x: 0, y: 0 }}
@@ -723,10 +816,7 @@ export default function HomePage() {
         </View>
       </Modal>
 
-      {/* END OF EDIT ACCOUNT OVERLAY */}
-
       {/* VIEW ACCOUNT OVERLAY */}
-
       <Modal
         visible={viewAccountVisible}
         transparent={true}
@@ -741,9 +831,9 @@ export default function HomePage() {
 
             {/* Profile image */}
             <View style={{ alignItems: 'center', marginBottom: 25 }}>
-              {userImage ? (
+              {(selectedAccount.userImage || selectedAccount.userimage) ? (
                 <Image 
-                  source={{ uri: userImage }} 
+                  source={{ uri: selectedAccount.userImage || selectedAccount.userimage }} 
                   style={{ width: 100, height: 100, borderRadius: 60, borderWidth: 1, borderColor: '#3d67ee' }} 
                 />
               ) : (
@@ -756,38 +846,40 @@ export default function HomePage() {
             <View style={homeStyle.modalSections}>
               <View style={homeStyle.leftModalSection}>
                 <Text style={homeStyle.labelStyle}>Full Name</Text>
-                <Text style={homeStyle.textInputStyle}>John Doe</Text>
+                <Text style={homeStyle.textInputStyle}>{selectedAccount.fullName || selectedAccount.fullname}</Text>
 
                 <Text style={homeStyle.labelStyle}>Contact Number</Text>
-                <Text style={homeStyle.textInputStyle}>123-456-7890</Text>
+                <Text style={homeStyle.textInputStyle}>{selectedAccount.contactNumber || selectedAccount.contactnumber}</Text>
 
                 <Text style={homeStyle.labelStyle}>Employee ID</Text>
-                <Text style={homeStyle.textInputStyle}>EMP-001</Text>
+                <Text style={homeStyle.textInputStyle}>{selectedAccount.employeeID || selectedAccount.employeeid}</Text>
 
                 <Text style={homeStyle.labelStyle}>Account Creation Date</Text>
-                <Text style={homeStyle.textInputStyle}>7-7-7</Text>
+                <Text style={homeStyle.textInputStyle}>{selectedAccount.dateCreated || selectedAccount.datecreated || 'N/A'}</Text>
                 
               </View>
 
               <View style={homeStyle.rightModalSection}>
                 <Text style={homeStyle.labelStyle}>E-Mail</Text>
-                <Text style={homeStyle.textInputStyle}>john@example.com</Text>
+                <Text style={homeStyle.textInputStyle}>{selectedAccount.email}</Text>
 
                 <Text style={homeStyle.labelStyle}>Role</Text>
-                <Text style={homeStyle.textInputStyle}>Admin</Text>
+                <Text style={homeStyle.textInputStyle}>{selectedAccount.role}</Text>
 
                 <Text style={homeStyle.labelStyle}>Department</Text>
-                <Text style={homeStyle.textInputStyle}>Marketing</Text>
+                <Text style={homeStyle.textInputStyle}>{selectedAccount.department || selectedAccount.departmend}</Text>
 
                 <Text style={homeStyle.labelStyle}>Status</Text>
                 <View
                   style={[
                     homeStyle.statusBadge,
                     { marginTop: 10, alignItems: 'center' },
-                    true ? homeStyle.activeBadge : homeStyle.inactiveBadge
+                    (selectedAccount.status === 'Active') ? homeStyle.activeBadge : homeStyle.inactiveBadge
                   ]}
                 >
-                  <Text style={[homeStyle.statusText, true && homeStyle.activeText]}>Active</Text>
+                  <Text style={[homeStyle.statusText, (selectedAccount.status === 'Active') && homeStyle.activeText]}>
+                    {selectedAccount.status || 'Active'}
+                  </Text>
                 </View>
               </View>
             </View>

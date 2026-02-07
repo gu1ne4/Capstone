@@ -31,7 +31,7 @@ export default function App() {
   return (
     <PaperProvider theme={theme}  >
       <NavigationContainer>
-      <CScreen.Navigator>
+      <CScreen.Navigator initialRouteName='Login'>
         <CScreen.Screen name="Home" component={DashboardPage} options={{headerShown: false}} />
         <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
         <CScreen.Screen name="Accounts" component={HomePage}  options={{headerShown: false}} />
