@@ -32,8 +32,9 @@ export default function App() {
     <PaperProvider theme={theme}  >
       <NavigationContainer>
       <CScreen.Navigator>
-        <CScreen.Screen name="Home" component={DashboardPage} options={{headerShown: false}} />
         <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
+        <CScreen.Screen name="Home" component={DashboardPage} options={{headerShown: false}} />
+        
         <CScreen.Screen name="Accounts" component={HomePage}  options={{headerShown: false}} />
         <CScreen.Screen name="UserAccounts" component={UserAccPage}  options={{headerShown: false}} />
         <CScreen.Screen name="Settings" component={SettingsPage}  options={{headerShown: false}} />
