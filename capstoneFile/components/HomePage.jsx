@@ -140,7 +140,7 @@ export default function HomePage() {
     }
 
     const today = new Date();
-    const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+    const dateCreated = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
     const generatedPassword = generateRandomPassword();
 
     try {

@@ -19,6 +19,8 @@ export default function App() {
 
   const CScreen = createNativeStackNavigator();
 
+  
+
   const theme = {
     ...DefaultTheme,
     colors: {
