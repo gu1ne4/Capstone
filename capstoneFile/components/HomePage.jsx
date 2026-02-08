@@ -1,6 +1,7 @@
-import { View, Text, TouchableOpacity, Image, TextInput, Modal, Switch, Pressable, Platform, Alert, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, Image, TextInput, Modal, Switch, Pressable, Platform, ActivityIndicator, ScrollView } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import homeStyle from '../styles/HomeStyle';
 
 import { LinearGradient } from 'expo-linear-gradient';
@@ -15,16 +16,24 @@ export default function HomePage() {
   const isActive = route.name === 'Accounts';
 
   // ==========================================
+  //  LOGGED IN USER STATE
+  // ==========================================
+  const [currentUser, setCurrentUser] = useState({
+    fullName: 'Loading...',
+    role: '',
+    userImage: null
+  });
+
+  // ==========================================
   //  BACKEND STATE & API CONFIGURATION
   // ==========================================
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // API URL Selection
   const API_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
 
   // ==========================================
-  //  UI STATE (Popups, Dropdowns, etc)
+  //  UI STATE
   // ==========================================
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
@@ -34,42 +43,68 @@ export default function HomePage() {
   const [editAccountVisible, setEditAccountVisible] = useState(false);
   const [viewAccountVisible, setViewAccountVisible] = useState(false);
 
+  // --- UNIFIED MODAL STATE ---
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState({
+    type: 'info', 
+    title: '',
+    message: '', 
+    onConfirm: null, 
+    showCancel: false 
+  });
+
   const [searchHovered, setSearchHovered] = useState(false);
   const [filterHovered, setFilterHovered] = useState(false);
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
 
-  // Pagination
   const [page, setPage] = useState(0);
   const itemsPerPage = 8;
 
   // ==========================================
-  //  FORM DATA STATE (For Create/Edit/View)
+  //  FORM DATA STATE
   // ==========================================
   const [editingId, setEditingId] = useState(null);
   const [selectedAccount, setSelectedAccount] = useState({});
 
-  // Input Fields
   const [newUsername, setNewUsername] = useState('');
   const [newFullName, setNewFullName] = useState('');
   const [newContact, setNewContact] = useState('');
   const [newEmpID, setNewEmpID] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  const [newRole, setNewRole] = useState('User');
+  const [newRole, setNewRole] = useState('Admin'); 
   const [newDept, setNewDept] = useState('Marketing');
-  const [newStatus, setNewStatus] = useState('Active'); // Stored as string 'Active'/'Disabled' to match your UI logic
+  const [newStatus, setNewStatus] = useState('Active'); 
   
-  // Image Data
-  const [userImage, setUserImage] = useState(null); // URI for display
-  const [userImageBase64, setUserImageBase64] = useState(null); // Base64 for Backend
+  const [userImage, setUserImage] = useState(null); 
+  const [userImageBase64, setUserImageBase64] = useState(null); 
 
-  // Filter State
   const [status, setStatus] = useState("defaultStatus");
   const [role, setRole] = useState("defaultRole");
   const [department, setDepartment] = useState("defaultDept");
 
   // ==========================================
+  //  HELPER: CUSTOM ALERT FUNCTION
+  // ==========================================
+  const showAlert = (type, title, message, onConfirm = null, showCancel = false) => {
+    setModalConfig({ type, title, message, onConfirm, showCancel });
+    setModalVisible(true);
+  };
+
+  // ==========================================
   //  API FUNCTIONS
   // ==========================================
+
+  const loadCurrentUser = async () => {
+    try {
+      const session = await AsyncStorage.getItem('userSession');
+      if (session) {
+        const user = JSON.parse(session);
+        setCurrentUser(user);
+      }
+    } catch (error) {
+      console.log('Error loading user session', error);
+    }
+  };
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -79,8 +114,7 @@ export default function HomePage() {
       setAccounts(data);
     } catch (error) {
       console.error(error);
-      const msg = "Error fetching data";
-      Platform.OS === 'web' ? alert(msg) : Alert.alert("Error", msg);
+      showAlert('error', 'Error', 'Failed to fetch account data.');
     } finally {
       setLoading(false);
     }
@@ -88,6 +122,7 @@ export default function HomePage() {
 
   useEffect(() => {
     fetchAccounts();
+    loadCurrentUser();
   }, []);
 
   const generateRandomPassword = (length = 10) => {
@@ -101,20 +136,88 @@ export default function HomePage() {
 
   const resetForm = () => {
     setNewUsername(''); setNewFullName(''); setNewContact(''); 
-    setNewEmpID(''); setNewEmail(''); setNewRole('User'); 
+    setNewEmpID(''); setNewEmail(''); 
+    setNewRole('Admin'); 
     setNewDept('Marketing'); setNewStatus('Active');
     setUserImage(null); setUserImageBase64(null); 
     setEditingId(null);
   };
 
   // ==========================================
-  //  ACTION HANDLERS (Create, Edit, Image)
+  //  ACTION HANDLERS
   // ==========================================
+
+  // --- NEW: HANDLE CANCEL WITH UNSAVED CHANGES CHECK ---
+  const handleCancel = (mode) => {
+    let hasUnsavedChanges = false;
+
+    if (mode === 'create') {
+      // Check if any field is populated
+      hasUnsavedChanges = newUsername || newFullName || newContact || newEmpID || newEmail || userImage;
+    } else if (mode === 'edit') {
+      // Find the original account to compare against
+      const original = accounts.find(a => (a.pk === editingId || a.id === editingId));
+      if (original) {
+        // Check if current form values differ from original values
+        const orgName = original.fullName || original.fullname || '';
+        const orgContact = (original.contactNumber || original.contactnumber || '').toString();
+        const orgEmpID = (original.employeeID || original.employeeid || '').toString();
+        const orgRole = original.role || '';
+        const orgDept = original.department || original.departmend || '';
+        const orgStatus = original.status || 'Active';
+
+        if (
+          newUsername !== original.username ||
+          newFullName !== orgName ||
+          newContact !== orgContact ||
+          newEmpID !== orgEmpID ||
+          newEmail !== original.email ||
+          newRole !== orgRole ||
+          newDept !== orgDept ||
+          newStatus !== orgStatus ||
+          userImage !== (original.userImage || original.userimage)
+        ) {
+          hasUnsavedChanges = true;
+        }
+      }
+    }
+
+    if (hasUnsavedChanges) {
+      showAlert('confirm', 'Unsaved Changes', 'You have unsaved changes. Are you sure you want to discard them?', () => {
+        setAddAccountVisible(false);
+        setEditAccountVisible(false);
+        resetForm();
+      }, true);
+    } else {
+      setAddAccountVisible(false);
+      setEditAccountVisible(false);
+      resetForm();
+    }
+  };
+
+  const handleStatusToggle = (value) => {
+    const nextStatus = value ? 'Active' : 'Disabled';
+    const messageJSX = (
+      <Text>
+        Are you sure you want to <Text style={{fontWeight: 'bold', color: nextStatus === 'Active' ? 'green' : 'red'}}>{nextStatus === 'Active' ? 'ACTIVATE' : 'DEACTIVATE'}</Text> this account?
+      </Text>
+    );
+
+    showAlert('confirm', 'Confirm Status Change', messageJSX, () => {
+      setNewStatus(nextStatus);
+    }, true);
+  };
+
+  const handleSavePress = () => {
+    showAlert('confirm', 'Save Changes', 'Are you sure you want to save changes to this account?', () => {
+      handleUpdateAccount();
+    }, true);
+  };
 
   const pickImage = async () => {
     const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
-      alert("Permission to access camera roll is required!");
+      showAlert('error', 'Permission Denied', 'Permission to access camera roll is required!');
       return;
     }
 
@@ -123,7 +226,7 @@ export default function HomePage() {
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.5,
-      base64: true, // Required for backend upload
+      base64: true, 
     });
 
     if (!result.canceled) {
@@ -133,14 +236,43 @@ export default function HomePage() {
   };
 
   const handleSaveAccount = async () => {
-    if (!newUsername || !newFullName) {
-      const msg = "Please fill in Username and Full Name";
-      Platform.OS === 'web' ? window.alert(msg) : Alert.alert("Error", msg);
+    // 1. Check for empty fields
+    if (!newUsername || !newFullName || !newContact || !newEmpID || !newEmail || !newRole || !newDept) {
+      showAlert('error', 'Missing Information', 'Please fill in all required fields.');
+      return;
+    }
+
+    // 2. NEW: Check Minimum Lengths
+    if (newUsername.length < 4) {
+      showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.');
+      return;
+    }
+    if (newFullName.length < 5) {
+      showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.');
+      return;
+    }
+    if (newContact.length < 7) {
+      showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.');
+      return;
+    }
+    if (newEmail.length < 6) {
+      showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.');
+      return;
+    }
+
+    // 2. NEW: Check for Duplicate Username or Employee ID
+    const isDuplicate = accounts.some(acc => 
+      acc.username.toLowerCase() === newUsername.toLowerCase() || 
+      (acc.employeeID || acc.employeeid).toString() === newEmpID.toString()
+    );
+
+    if (isDuplicate) {
+      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists. Please verify your information.');
       return;
     }
 
     const today = new Date();
-    const dateCreated = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
     const generatedPassword = generateRandomPassword();
 
     try {
@@ -164,41 +296,74 @@ export default function HomePage() {
 
       const data = await res.json();
       if (res.ok) {
-        const successMsg = 'Registered Successfully!';
-        Platform.OS === 'web' ? window.alert(successMsg) : Alert.alert('Success', successMsg);
         setAddAccountVisible(false);
-        fetchAccounts();
-        resetForm();
+        showAlert('success', 'Success', 'Account Registered Successfully!', () => {
+          fetchAccounts();
+          resetForm();
+        });
       } else {
-        const errorMsg = data.error || 'Failed';
-        Platform.OS === 'web' ? window.alert(errorMsg) : Alert.alert('Error', errorMsg);
+        showAlert('error', 'Registration Failed', data.error || 'Failed to create account.');
       }
     } catch (error) {
-      Platform.OS === 'web' ? window.alert('Network Error') : Alert.alert('Error', 'Network Error');
+      showAlert('error', 'Network Error', 'Could not connect to the server.');
     }
   };
 
-  // Pre-fill data for Editing
   const openEditModal = (user) => {
-    setEditingId(user.pk || user.id); // Adjust based on DB key
+    setEditingId(user.pk || user.id); 
     setNewUsername(user.username || '');
     setNewFullName(user.fullName || user.fullname || '');
     setNewContact((user.contactNumber || user.contactnumber || '').toString());
     setNewEmpID((user.employeeID || user.employeeid || '').toString());
     setNewEmail(user.email || '');
-    setNewRole(user.role || 'User');
+
+    const validRoles = ['Admin', 'User', 'Moderator', 'Veterinarian', 'Receptionist'];
+    const dbRole = user.role || 'Admin';
+    const matchedRole = validRoles.find(r => r.toLowerCase() === dbRole.toLowerCase()) || 'Admin';
+    setNewRole(matchedRole);
+
     setNewDept(user.department || user.departmend || 'Marketing');
     setNewStatus(user.status || 'Active');
 
     const img = user.userImage || user.userimage;
     setUserImage(img);
-    // Note: If image is a URL, base64 is null unless re-picked
     setUserImageBase64(null); 
 
     setEditAccountVisible(true);
   };
 
   const handleUpdateAccount = async () => {
+    // 1. NEW: Check Minimum Lengths (Must be done first)
+    if (newUsername.length < 4) {
+      showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.');
+      return;
+    }
+    if (newFullName.length < 5) {
+      showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.');
+      return;
+    }
+    if (newContact.length < 7) {
+      showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.');
+      return;
+    }
+    if (newEmail.length < 6) {
+      showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.');
+      return;
+    }
+
+    // 2. NEW: Check for Duplicate Username or Employee ID (excluding current user)
+    const isDuplicate = accounts.some(acc => 
+      (acc.pk !== editingId && acc.id !== editingId) && // Skip the user currently being edited
+      (acc.username.toLowerCase() === newUsername.toLowerCase() || 
+       (acc.employeeID || acc.employeeid).toString() === newEmpID.toString())
+    );
+
+    if (isDuplicate) {
+      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists. Please check your data.');
+      return;
+    }
+
+    // 3. Perform the Update
     try {
       const res = await fetch(`${API_URL}/accounts/${editingId}`, {
         method: 'PUT',
@@ -212,20 +377,21 @@ export default function HomePage() {
           department: newDept,
           employeeID: newEmpID,
           status: newStatus,
-          userImage: userImageBase64 // Will be null if image wasn't changed
+          userImage: userImageBase64 
         }),
       });
 
       if (res.ok) {
-        Platform.OS === 'web' ? window.alert('Updated Successfully!') : Alert.alert('Success', 'Updated Successfully!');
         setEditAccountVisible(false);
-        fetchAccounts();
-        resetForm();
+        showAlert('success', 'Success', 'Account Updated Successfully!', () => {
+          fetchAccounts();
+          resetForm();
+        });
       } else {
-        Platform.OS === 'web' ? window.alert('Update Failed') : Alert.alert('Error', 'Update Failed');
+        showAlert('error', 'Update Failed', 'Failed to update account information.');
       }
     } catch (error) {
-      Platform.OS === 'web' ? window.alert('Network Error') : Alert.alert('Error', 'Network Error');
+      showAlert('error', 'Network Error', 'Could not connect to the server.');
     }
   };
 
@@ -244,7 +410,6 @@ export default function HomePage() {
     department === "defaultDept";
 
   const filteredUsers = accounts.filter(user => {
-    // Handle case variances in keys coming from DB
     const uName = (user.fullName || user.fullname || user.username || '').toLowerCase();
     const uEmail = (user.email || '').toLowerCase();
     const uDept = (user.department || user.departmend || '').toLowerCase();
@@ -278,7 +443,6 @@ export default function HomePage() {
           end={{ x: 1, y: 1 }}
           style={homeStyle.navBody}
         >
-          {/* LOGO AND BRAND NAME */}
           <View style={[homeStyle.navTitle, {gap: 10}]}>
             <Image 
               source={require('../assets/AgsikapLogo-Temp.png')} 
@@ -292,12 +456,16 @@ export default function HomePage() {
           <View style={[homeStyle.glassContainer, {paddingLeft: 8}]}>
             <View style={[homeStyle.navAccount, {gap: 8}]}>
               <Image 
-                source={require('../assets/userImg.jpg')} 
+                source={currentUser.userImage ? { uri: currentUser.userImage } : require('../assets/userImg.jpg')} 
                 style={{ width: 35, height: 35, borderRadius: 25, marginTop: 2 }}
               />
               <View>
-                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Queen Elsa</Text>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 10 }}>Project Manager (Admin)</Text>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
+                  {currentUser.fullName || "User"}
+                </Text>
+                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 10 }}>
+                  {currentUser.role || "Role"}
+                </Text>
               </View>
             </View>
           </View>
@@ -379,9 +547,6 @@ export default function HomePage() {
       <View style={homeStyle.bodyContainer}>
 
         <View style={homeStyle.topContainer}>
-
-          {/* UPPER LAYER OF BODY (THE ONE W/ NOTIFICATIONS) */}
-
           <View style={[homeStyle.subTopContainer]}>
             <Ionicons name="people-outline" size={23} color="#3d67ee" style={{ marginTop: 4 }} />
             <Text style={[homeStyle.blueText, { marginLeft: 10 }]}>Account Overview / Employees</Text>
@@ -399,7 +564,6 @@ export default function HomePage() {
           <View style={homeStyle.tableLayer1}>
             <View style={[homeStyle.subTable1, { flexDirection: 'row', alignItems: 'center', position: 'relative', zIndex: 1 }]}>
 
-              {/* TOGGLE BTN FOR SEARCH */}
               <View style={{ position: 'relative' }}>
                 <Pressable onHoverIn={() => setSearchHovered(true)}
                   onHoverOut={() => setSearchHovered(false)}
@@ -421,10 +585,10 @@ export default function HomePage() {
                   value={searchQuery}
                   onChangeText={(text) => {setSearchQuery(text); setPage(0);}}
                   style={homeStyle.searchVisible}
+                  maxLength={60} 
                 />
               )}
 
-              {/* TOGGLE BTN FOR FILTER */}
               <View style={{ position: 'relative' }}>
                 <Pressable onHoverIn={() => setFilterHovered(true)}
                   onHoverOut={() => setFilterHovered(false)}
@@ -442,7 +606,6 @@ export default function HomePage() {
               
               {filterVisible && (
                 <View style={{ flexDirection: 'row', marginLeft: 5, flexWrap: 'wrap', zIndex: 2 }}>
-                  
                   <Picker selectedValue={status} style={homeStyle.pickerStyle} onValueChange={(val) => {setStatus(val); setPage(0);}}>
                     <Picker.Item label="Status" value="defaultStatus" color="#a8a8a8" />
                     <Picker.Item label="Active" value="Active" />
@@ -452,8 +615,8 @@ export default function HomePage() {
                   <Picker selectedValue={role} style={[homeStyle.pickerStyle, { marginLeft: 10, width: 120 }]} onValueChange={(val) => {setRole(val); setPage(0);}}>
                     <Picker.Item label="Role" value="defaultRole" color="#a8a8a8" />
                     <Picker.Item label="Admin" value="Admin" />
-                    <Picker.Item label="User" value="User" />
-                    <Picker.Item label="Moderator" value="Moderator" />
+                    <Picker.Item label="Veterinarian" value="Veterinarian" />
+                    <Picker.Item label="Receptionist" value="Receptionist" />
                   </Picker>
 
                   <Picker selectedValue={department} style={[homeStyle.pickerStyle, { marginLeft: 10, width: 150 }]} onValueChange={(val) => {setDepartment(val); setPage(0);}}>
@@ -481,7 +644,6 @@ export default function HomePage() {
               )}
             </View>
 
-            {/* ADD ACCOUNT BTN */}
             <View style={[homeStyle.subTable2, { justifyContent: 'flex-end' }]}>
               <TouchableOpacity style={homeStyle.blackBtn} onPress={() => { resetForm(); setAddAccountVisible(true); }}>
                 <Text style={{ color: '#ffffff', fontWeight: '600' }}>
@@ -490,8 +652,6 @@ export default function HomePage() {
               </TouchableOpacity>
             </View>
           </View>
-
-          {/* DATA TABLE */}
 
           {loading ? (
              <ActivityIndicator size="large" color="#3d67ee" style={{marginTop: 50}} />
@@ -508,7 +668,6 @@ export default function HomePage() {
                 <DataTable.Title textStyle={homeStyle.tableFont} style={{ justifyContent: 'flex-end', flex:  1 }}>Edit</DataTable.Title>
               </DataTable.Header>
 
-              {/* MAPS THE DATA FROM THE ARRAY */}
               {filteredUsers.length > 0 ? (
                 filteredUsers.slice(page * itemsPerPage, (page + 1) * itemsPerPage).map(user => {
                   const uStatus = user.status || 'Active';
@@ -584,7 +743,7 @@ export default function HomePage() {
       </View>
 
       {/* ADD ACCOUNT OVERLAY */}
-      <Modal visible={addAccountVisible} transparent={true} animationType="fade" onRequestClose={() => setAddAccountVisible(false)}>
+      <Modal visible={addAccountVisible} transparent={true} animationType="fade" onRequestClose={() => handleCancel('create')}>
       <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
           <View style={homeStyle.modalContainer}>
             <View style={{marginBottom: 20, alignItems: 'center'}}>
@@ -620,27 +779,62 @@ export default function HomePage() {
               <View style={homeStyle.leftModalSection}>
                 <View>
                   <Text style={homeStyle.labelStyle}>Username</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Username' placeholderTextColor={"#a8a8a8"} value={newUsername} onChangeText={setNewUsername} />
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Username' maxLength={30}  placeholderTextColor={"#a8a8a8"} value={newUsername} onChangeText={setNewUsername} />
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Full Name</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Full Name' placeholderTextColor={"#a8a8a8"} value={newFullName} onChangeText={setNewFullName} />
+                  {/* RESTRICTED: Letters, Spaces, Commas, Periods, Quotes, Dashes Only */}
+                  <TextInput 
+                    style={homeStyle.textInputStyle} 
+                    placeholder='Enter Full Name'
+                    maxLength={60} 
+                    placeholderTextColor={"#a8a8a8"} 
+                    value={newFullName} 
+                    onChangeText={(text) => {
+                      const cleaned = text.replace(/[^a-zA-Z ,.'-]/g, '');
+                      setNewFullName(cleaned);
+                    }} 
+                  />
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Contact Number</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Contact Number' placeholderTextColor={"#a8a8a8"} value={newContact} onChangeText={setNewContact} />
+                  {/* RESTRICTED: INTEGER AND DASH ONLY */}
+                  <TextInput 
+                    style={homeStyle.textInputStyle} 
+                    placeholder='Enter Contact Number' 
+                    maxLength={13} 
+                    placeholderTextColor={"#a8a8a8"} 
+                    value={newContact} 
+                    onChangeText={(text) => {
+                      const cleaned = text.replace(/[^0-9-]/g, '');
+                      setNewContact(cleaned);
+                    }}
+                    keyboardType="numeric"
+                  />
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Employee ID</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Employee ID' placeholderTextColor={"#a8a8a8"} value={newEmpID} onChangeText={setNewEmpID} />
+                  {/* RESTRICTED: INTEGER ONLY */}
+                  <TextInput 
+                    style={homeStyle.textInputStyle} 
+                    placeholder='Enter Employee ID' 
+                    maxLength={15} 
+                    placeholderTextColor={"#a8a8a8"} 
+                    value={newEmpID} 
+                    onChangeText={(text) => {
+                      const cleaned = text.replace(/[^0-9]/g, '');
+                      setNewEmpID(cleaned);
+                    }}
+                    keyboardType="numeric"
+                  />
                 </View>
 
                 {/* CANCEL BTN */}
                 <View style={{ alignItems: "flex-end" }}>
-                    <TouchableOpacity style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 25, padding: 20, backgroundColor: '#dad8d8'}]} onPress={() => setAddAccountVisible(false)}>
+                    <TouchableOpacity style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 25, padding: 20, backgroundColor: '#dad8d8'}]} onPress={() => handleCancel('create')}>
                     <Text style={{ color: '#0c0c0c', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
                     </TouchableOpacity>
                   </View>
@@ -650,15 +844,19 @@ export default function HomePage() {
               <View style={homeStyle.rightModalSection}>
                 <View>
                   <Text style={homeStyle.labelStyle}>E-Mail</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter E-Mail' placeholderTextColor={"#a8a8a8"} value={newEmail} onChangeText={setNewEmail} />
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter E-Mail' maxLength={60} placeholderTextColor={"#a8a8a8"} value={newEmail} onChangeText={setNewEmail} />
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Role</Text>
-                   <Picker selectedValue={newRole} onValueChange={setNewRole} style={homeStyle.createPickerStyle}>
+                   <Picker 
+                    selectedValue={newRole} 
+                    onValueChange={setNewRole} 
+                    style={homeStyle.createPickerStyle}
+                   >
                     <Picker.Item label="Admin" value="Admin" />
-                    <Picker.Item label="User" value="User" />
-                    <Picker.Item label="Moderator" value="Moderator" />
+                    <Picker.Item label="Veterinarian" value="Veterinarian" />
+                    <Picker.Item label="Receptionist" value="Receptionist" />
                   </Picker>
                 </View>
 
@@ -698,7 +896,7 @@ export default function HomePage() {
         visible={editAccountVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={() => setEditAccountVisible(false)}
+        onRequestClose={() => handleCancel('edit')}
       >
         <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
           <View style={homeStyle.modalContainer}>
@@ -734,26 +932,61 @@ export default function HomePage() {
               <View style={homeStyle.leftModalSection}>
                 <View>
                   <Text style={homeStyle.labelStyle}>Username</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Username' placeholderTextColor={"#a8a8a8"} value={newUsername} onChangeText={setNewUsername} />
+                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Username' maxLength={30} placeholderTextColor={"#a8a8a8"} value={newUsername} onChangeText={setNewUsername} />
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Full Name</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Full Name' placeholderTextColor={"#a8a8a8"} value={newFullName} onChangeText={setNewFullName}/>
+                  {/* RESTRICTED: Letters, Spaces, Commas, Periods, Quotes, Dashes Only */}
+                  <TextInput 
+                    style={homeStyle.textInputStyle} 
+                    placeholder='Enter Full Name' 
+                    maxLength={60} 
+                    placeholderTextColor={"#a8a8a8"} 
+                    value={newFullName} 
+                    onChangeText={(text) => {
+                      const cleaned = text.replace(/[^a-zA-Z ,.'-]/g, '');
+                      setNewFullName(cleaned);
+                    }}
+                  />
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Contact Number</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Contact Number' placeholderTextColor={"#a8a8a8"} value={newContact} onChangeText={setNewContact}/>
+                  {/* RESTRICTED: INTEGER AND DASH ONLY */}
+                  <TextInput 
+                    style={homeStyle.textInputStyle} 
+                    placeholder='Enter Contact Number' 
+                    maxLength={13} 
+                    placeholderTextColor={"#a8a8a8"} 
+                    value={newContact} 
+                    onChangeText={(text) => {
+                      const cleaned = text.replace(/[^0-9-]/g, '');
+                      setNewContact(cleaned);
+                    }}
+                    keyboardType="numeric"
+                  />
                 </View>
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Employee ID</Text>
-                  <TextInput style={homeStyle.textInputStyle} placeholder='Enter Employee ID' placeholderTextColor={"#a8a8a8"} value={newEmpID} onChangeText={setNewEmpID}/>
+                  {/* RESTRICTED: INTEGER ONLY */}
+                  <TextInput 
+                    style={homeStyle.textInputStyle} 
+                    placeholder='Enter Employee ID' 
+                    maxLength={15} 
+                    placeholderTextColor={"#a8a8a8"} 
+                    value={newEmpID} 
+                    onChangeText={(text) => {
+                      const cleaned = text.replace(/[^0-9]/g, '');
+                      setNewEmpID(cleaned);
+                    }}
+                    keyboardType="numeric"
+                  />
                 </View>
 
                 <View style={{ alignItems: "flex-end" }}>
-                    <TouchableOpacity style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 25, padding: 20, backgroundColor: '#dad8d8'}]} onPress={() => setEditAccountVisible(false)}>
+                    <TouchableOpacity style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 25, padding: 20, backgroundColor: '#dad8d8'}]} onPress={() => handleCancel('edit')}>
                     <Text style={{ color: '#0c0c0c', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
                     </TouchableOpacity>
                   </View>
@@ -767,13 +1000,18 @@ export default function HomePage() {
                   placeholder="Enter E-Mail" 
                   placeholderTextColor="#a8a8a8" 
                   value={newEmail} onChangeText={setNewEmail}
+                  maxLength={60}
                 />
 
                 <Text style={homeStyle.labelStyle}>Role</Text>
-                <Picker style={homeStyle.createPickerStyle} selectedValue={newRole} onValueChange={setNewRole}>
+                <Picker 
+                  style={homeStyle.createPickerStyle} 
+                  selectedValue={newRole} 
+                  onValueChange={setNewRole} 
+                >
                   <Picker.Item label="Admin" value="Admin" />
-                  <Picker.Item label="User" value="User" />
-                  <Picker.Item label="Moderator" value="Moderator" />
+                  <Picker.Item label="Veterinarian" value="Veterinarian" />
+                  <Picker.Item label="Receptionist" value="Receptionist" />
                 </Picker>
 
                 <Text style={homeStyle.labelStyle}>Department</Text>
@@ -790,7 +1028,7 @@ export default function HomePage() {
                   <View style={{ flexDirection: 'row', alignItems: 'center'}}>
                     <Switch
                     value={newStatus === 'Active'}   
-                    onValueChange={(val) => setNewStatus(val ? 'Active' : 'Disabled')}
+                    onValueChange={handleStatusToggle} 
                     thumbColor={newStatus === 'Active' ? '#3d67ee' : '#888'}
                     trackColor={{ false: '#ccc', true: '#a9ff8f' }}
                     style={{ marginLeft: 8, transform: [{ scaleX: 1.5 }, { scaleY: 1.5 }]}}
@@ -799,7 +1037,7 @@ export default function HomePage() {
                   </View>
                 </View> 
 
-                <TouchableOpacity onPress={handleUpdateAccount}>
+                <TouchableOpacity onPress={handleSavePress}>
                   <LinearGradient
                     colors={['#3d67ee', '#0738D9', '#041E76']}
                     start={{ x: 0, y: 0 }}
@@ -893,6 +1131,82 @@ export default function HomePage() {
                 <Text style={{ color: '#0c0c0c', fontSize: 14, fontWeight: '600' }}>Close</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* UNIFIED CUSTOM ALERT MODAL */}
+      <Modal
+        transparent={true}
+        visible={modalVisible}
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
+          <View style={{backgroundColor: 'white', padding: 25, borderRadius: 12, width: '80%', maxWidth: 350, alignItems: 'center', elevation: 5}}>
+             
+             {/* Dynamic Icon based on Type */}
+             <Ionicons 
+               name={
+                 modalConfig.type === 'success' ? "checkmark-circle-outline" :
+                 modalConfig.type === 'error' ? "close-circle-outline" :
+                 "alert-circle-outline"
+               } 
+               size={55} 
+               color={
+                 modalConfig.type === 'success' ? "#2e9e0c" :
+                 modalConfig.type === 'error' ? "#d93025" :
+                 "#3d67ee"
+               } 
+             />
+             
+             {/* Title */}
+             <Text style={{fontSize: 20, fontWeight: 'bold', marginVertical: 10, fontFamily: 'Segoe UI', color: 'black'}}>
+               {modalConfig.title}
+             </Text>
+             
+             {/* Message (supports String or JSX) */}
+             {typeof modalConfig.message === 'string' ? (
+                <Text style={{textAlign: 'center', color: '#666', marginBottom: 25, fontSize: 14}}>
+                  {modalConfig.message}
+                </Text>
+             ) : (
+                <View style={{marginBottom: 25}}>
+                  {modalConfig.message}
+                </View>
+             )}
+             
+             <View style={{flexDirection: 'row', gap: 15, width: '100%', justifyContent: 'center'}}>
+                {/* Cancel Button - Only show if required */}
+                {modalConfig.showCancel && (
+                  <TouchableOpacity 
+                    onPress={() => setModalVisible(false)} 
+                    style={{paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#f0f0f0', borderRadius: 8, minWidth: 100, alignItems: 'center'}}
+                  >
+                     <Text style={{color: '#333', fontWeight: '600'}}>Cancel</Text>
+                  </TouchableOpacity>
+                )}
+                
+                {/* Confirm/OK Button */}
+                <TouchableOpacity 
+                  onPress={() => {
+                    setModalVisible(false);
+                    if (modalConfig.onConfirm) modalConfig.onConfirm();
+                  }} 
+                  style={{
+                    paddingVertical: 10, 
+                    paddingHorizontal: 20, 
+                    backgroundColor: modalConfig.type === 'error' ? '#d93025' : '#3d67ee', 
+                    borderRadius: 8, 
+                    minWidth: 100, 
+                    alignItems: 'center'
+                  }}
+                >
+                   <Text style={{color: 'white', fontWeight: '600'}}>
+                     {modalConfig.type === 'confirm' ? 'Confirm' : 'OK'}
+                   </Text>
+                </TouchableOpacity>
+             </View>
           </View>
         </View>
       </Modal>
