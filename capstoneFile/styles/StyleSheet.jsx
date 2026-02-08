@@ -4,6 +4,8 @@ const { width } = Dimensions.get("window");
 const responsiveFontSize = Math.min(Math.max(width * 0.05, 14), 24);
 
 const styles = StyleSheet.create({
+
+  //adadaadada
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -194,6 +196,8 @@ const styles = StyleSheet.create({
   loginButtonDisabled: {
     backgroundColor: '#cccccc',
   }
+
+
 
 });
 

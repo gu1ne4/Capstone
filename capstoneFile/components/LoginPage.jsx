@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import styles from '../styles/StyleSheet';
 
 export default function LoginPage() {
+  const eme = null;
   const navigation = useNavigation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
