@@ -333,7 +333,7 @@ export default function HomePage() {
   };
 
   const handleUpdateAccount = async () => {
-    // 1. NEW: Check Minimum Lengths (Must be done first)
+    // 1. NEW: Check Minimum Lengths (Must be done first)lk
     if (newUsername.length < 4) {
       showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.');
       return;
