@@ -46,7 +46,7 @@ export default function HomePage() {
   // --- UNIFIED MODAL STATE ---
   const [modalVisible, setModalVisible] = useState(false);
   const [modalConfig, setModalConfig] = useState({
-    type: 'info', 
+    type: 'info', // 'success', 'error', 'confirm', 'info'
     title: '',
     message: '', 
     onConfirm: null, 
@@ -147,52 +147,12 @@ export default function HomePage() {
   //  ACTION HANDLERS
   // ==========================================
 
-  // --- NEW: HANDLE CANCEL WITH UNSAVED CHANGES CHECK ---
-  const handleCancel = (mode) => {
-    let hasUnsavedChanges = false;
-
-    if (mode === 'create') {
-      // Check if any field is populated
-      hasUnsavedChanges = newUsername || newFullName || newContact || newEmpID || newEmail || userImage;
-    } else if (mode === 'edit') {
-      // Find the original account to compare against
-      const original = accounts.find(a => (a.pk === editingId || a.id === editingId));
-      if (original) {
-        // Check if current form values differ from original values
-        const orgName = original.fullName || original.fullname || '';
-        const orgContact = (original.contactNumber || original.contactnumber || '').toString();
-        const orgEmpID = (original.employeeID || original.employeeid || '').toString();
-        const orgRole = original.role || '';
-        const orgDept = original.department || original.departmend || '';
-        const orgStatus = original.status || 'Active';
-
-        if (
-          newUsername !== original.username ||
-          newFullName !== orgName ||
-          newContact !== orgContact ||
-          newEmpID !== orgEmpID ||
-          newEmail !== original.email ||
-          newRole !== orgRole ||
-          newDept !== orgDept ||
-          newStatus !== orgStatus ||
-          userImage !== (original.userImage || original.userimage)
-        ) {
-          hasUnsavedChanges = true;
-        }
-      }
-    }
-
-    if (hasUnsavedChanges) {
-      showAlert('confirm', 'Unsaved Changes', 'You have unsaved changes. Are you sure you want to discard them?', () => {
-        setAddAccountVisible(false);
-        setEditAccountVisible(false);
-        resetForm();
-      }, true);
-    } else {
-      setAddAccountVisible(false);
-      setEditAccountVisible(false);
-      resetForm();
-    }
+  // --- LOGOUT HANDLER (NEW) ---
+  const handleLogoutPress = () => {
+    showAlert('confirm', 'Log Out', 'Are you sure you want to log out?', async () => {
+      await AsyncStorage.removeItem('userSession'); // Clear session
+      ns.navigate('Login'); // Navigate back to Login
+    }, true);
   };
 
   const handleStatusToggle = (value) => {
@@ -212,6 +172,31 @@ export default function HomePage() {
     showAlert('confirm', 'Save Changes', 'Are you sure you want to save changes to this account?', () => {
       handleUpdateAccount();
     }, true);
+  };
+
+  const handleCancel = (mode) => {
+    let hasUnsavedChanges = false;
+    if (mode === 'create') {
+      hasUnsavedChanges = newUsername || newFullName || newContact || newEmpID || newEmail || userImage;
+    } else if (mode === 'edit') {
+      const original = accounts.find(a => (a.pk === editingId || a.id === editingId));
+      if (original) {
+         // Simplified check for changes
+         if (newUsername !== original.username || newEmail !== original.email) hasUnsavedChanges = true;
+      }
+    }
+
+    if (hasUnsavedChanges) {
+      showAlert('confirm', 'Unsaved Changes', 'You have unsaved changes. Discard them?', () => {
+        setAddAccountVisible(false);
+        setEditAccountVisible(false);
+        resetForm();
+      }, true);
+    } else {
+      setAddAccountVisible(false);
+      setEditAccountVisible(false);
+      resetForm();
+    }
   };
 
   const pickImage = async () => {
@@ -236,38 +221,27 @@ export default function HomePage() {
   };
 
   const handleSaveAccount = async () => {
-    // 1. Check for empty fields
+    // 1. EMPTY CHECK
     if (!newUsername || !newFullName || !newContact || !newEmpID || !newEmail || !newRole || !newDept) {
       showAlert('error', 'Missing Information', 'Please fill in all required fields.');
       return;
     }
 
-    // 2. NEW: Check Minimum Lengths
-    if (newUsername.length < 4) {
-      showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.');
-      return;
-    }
-    if (newFullName.length < 5) {
-      showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.');
-      return;
-    }
-    if (newContact.length < 7) {
-      showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.');
-      return;
-    }
-    if (newEmail.length < 6) {
-      showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.');
-      return;
-    }
+    // 2. MIN LENGTH CHECK
+    if (newUsername.length < 4) { showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); return; }
+    if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
+    if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
+    if (newEmpID.length < 3) { showAlert('error', 'Invalid Input', 'Employee ID must be at least 3 digits.'); return; }
+    if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
 
-    // 2. NEW: Check for Duplicate Username or Employee ID
+    // 3. DUPLICATE CHECK
     const isDuplicate = accounts.some(acc => 
       acc.username.toLowerCase() === newUsername.toLowerCase() || 
       (acc.employeeID || acc.employeeid).toString() === newEmpID.toString()
     );
 
     if (isDuplicate) {
-      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists. Please verify your information.');
+      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
       return;
     }
 
@@ -333,37 +307,25 @@ export default function HomePage() {
   };
 
   const handleUpdateAccount = async () => {
-    // 1. NEW: Check Minimum Lengths (Must be done first)lk
-    if (newUsername.length < 4) {
-      showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.');
-      return;
-    }
-    if (newFullName.length < 5) {
-      showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.');
-      return;
-    }
-    if (newContact.length < 7) {
-      showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.');
-      return;
-    }
-    if (newEmail.length < 6) {
-      showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.');
-      return;
-    }
+    // 1. MIN LENGTH CHECK
+    if (newUsername.length < 4) { showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); return; }
+    if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
+    if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
+    if (newEmpID.length < 5) { showAlert('error', 'Invalid Input', 'Employee ID must be at least 5 digits.'); return; }
+    if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
 
-    // 2. NEW: Check for Duplicate Username or Employee ID (excluding current user)
+    // 2. DUPLICATE CHECK (Excluding self)
     const isDuplicate = accounts.some(acc => 
-      (acc.pk !== editingId && acc.id !== editingId) && // Skip the user currently being edited
+      (acc.pk !== editingId && acc.id !== editingId) && 
       (acc.username.toLowerCase() === newUsername.toLowerCase() || 
        (acc.employeeID || acc.employeeid).toString() === newEmpID.toString())
     );
 
     if (isDuplicate) {
-      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists. Please check your data.');
+      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
       return;
     }
 
-    // 3. Perform the Update
     try {
       const res = await fetch(`${API_URL}/accounts/${editingId}`, {
         method: 'PUT',
@@ -399,10 +361,6 @@ export default function HomePage() {
     setSelectedAccount(user);
     setViewAccountVisible(true);
   };
-
-  // ==========================================
-  //  FILTERING LOGIC
-  // ==========================================
 
   const noMatchFilters =
     status === "defaultStatus" &&
@@ -532,7 +490,8 @@ export default function HomePage() {
 
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View style={[homeStyle.glassContainer, {paddingTop: 12, paddingBottom: 3}]}>
-              <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Login')}}>
+              {/* --- LOGOUT BUTTON WITH POPUP --- */}
+              <TouchableOpacity style={homeStyle.navBtn} onPress={handleLogoutPress}>
                 <Ionicons name="log-out-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
                 <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Log Out</Text>
               </TouchableOpacity>
@@ -784,7 +743,6 @@ export default function HomePage() {
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Full Name</Text>
-                  {/* RESTRICTED: Letters, Spaces, Commas, Periods, Quotes, Dashes Only */}
                   <TextInput 
                     style={homeStyle.textInputStyle} 
                     placeholder='Enter Full Name'
@@ -800,11 +758,10 @@ export default function HomePage() {
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Contact Number</Text>
-                  {/* RESTRICTED: INTEGER AND DASH ONLY */}
                   <TextInput 
                     style={homeStyle.textInputStyle} 
                     placeholder='Enter Contact Number' 
-                    maxLength={13} 
+                    maxLength={15} 
                     placeholderTextColor={"#a8a8a8"} 
                     value={newContact} 
                     onChangeText={(text) => {
@@ -817,7 +774,6 @@ export default function HomePage() {
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Employee ID</Text>
-                  {/* RESTRICTED: INTEGER ONLY */}
                   <TextInput 
                     style={homeStyle.textInputStyle} 
                     placeholder='Enter Employee ID' 
@@ -825,7 +781,7 @@ export default function HomePage() {
                     placeholderTextColor={"#a8a8a8"} 
                     value={newEmpID} 
                     onChangeText={(text) => {
-                      const cleaned = text.replace(/[^0-9]/g, '');
+                      const cleaned = text.replace(/[^0-9-]/g, '');
                       setNewEmpID(cleaned);
                     }}
                     keyboardType="numeric"
@@ -937,7 +893,6 @@ export default function HomePage() {
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Full Name</Text>
-                  {/* RESTRICTED: Letters, Spaces, Commas, Periods, Quotes, Dashes Only */}
                   <TextInput 
                     style={homeStyle.textInputStyle} 
                     placeholder='Enter Full Name' 
@@ -953,11 +908,10 @@ export default function HomePage() {
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Contact Number</Text>
-                  {/* RESTRICTED: INTEGER AND DASH ONLY */}
                   <TextInput 
                     style={homeStyle.textInputStyle} 
                     placeholder='Enter Contact Number' 
-                    maxLength={13} 
+                    maxLength={15} 
                     placeholderTextColor={"#a8a8a8"} 
                     value={newContact} 
                     onChangeText={(text) => {
@@ -970,7 +924,6 @@ export default function HomePage() {
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Employee ID</Text>
-                  {/* RESTRICTED: INTEGER ONLY */}
                   <TextInput 
                     style={homeStyle.textInputStyle} 
                     placeholder='Enter Employee ID' 

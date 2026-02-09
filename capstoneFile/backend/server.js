@@ -75,7 +75,7 @@ app.post('/register', async (req, res) => {
 
     const query = `
       INSERT INTO accounts 
-      ("username", "password", "fullName", "contactNumber", "email", "role", "department", "employeeID", "userImage", "status", "datecreated") 
+      ("username", "password", "fullName", "contactNumber", "email", "role", "department", "employeeID", "userImage", "status", "dateCreated") 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
       RETURNING *
     `;
@@ -170,7 +170,25 @@ app.post('/login', async (req, res) => {
     }
 
     if (user.password === password) {
-      res.json({ message: 'Login successful', user: { id: user.pk, username: user.username } });
+      // 1. Process Image to Base64 string if it exists
+      const imgBuffer = user.userImage || user.userimage;
+      let imageStr = null;
+      if (imgBuffer) {
+        imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+      }
+
+      // 2. Send ALL details back to the app
+      res.json({ 
+        message: 'Login successful', 
+        user: { 
+          id: user.pk, 
+          username: user.username,
+          fullName: user.fullName || user.fullname, // Get name
+          role: user.role,                          // Get role
+          department: user.department,              // Get department (optional)
+          userImage: imageStr                       // Get image
+        } 
+      });
     } else {
       res.status(401).json({ error: 'Invalid password' });
     }

@@ -1,5 +1,5 @@
-import { View, Text, TouchableOpacity, Image, TextInput, Platform, Alert, ImageBackground, ActivityIndicator, Dimensions } from 'react-native'
-import React, { useState, useEffect } from 'react' // ← Added useEffect
+import { View, Text, TouchableOpacity, Image, TextInput, Platform, ImageBackground, ActivityIndicator, Modal, StyleSheet } from 'react-native'
+import React, { useState, useEffect } from 'react'
 import { useNavigation } from '@react-navigation/native'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons'; 
@@ -8,23 +8,44 @@ import { Ionicons } from '@expo/vector-icons';
 import styles from '../styles/StyleSheet';
 
 export default function LoginPage() {
-  const eme = null;
   const navigation = useNavigation();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // NEW: Validation states
+  // NEW: Custom Modal State
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState({
+    title: '',
+    message: '',
+    type: 'error', // 'success' or 'error'
+    onDismiss: null // Action to run when closing the modal
+  });
+
+  // Validation states
   const [errors, setErrors] = useState({ username: '', password: '' });
   const [touched, setTouched] = useState({ username: false, password: false });
 
-  // NEW: Validation rules
+  // Validation rules
   const validationRules = {
     username: { minLength: 3, maxLength: 20, required: true },
     password: { minLength: 6, maxLength: 30, required: true }
   };
 
-  // NEW: Validate field function
+  // Helper function to trigger the Custom Popup
+  const showPopup = (title, message, type = 'error', onDismiss = null) => {
+    setModalConfig({ title, message, type, onDismiss });
+    setModalVisible(true);
+  };
+
+  // Handle closing the popup
+  const handleClosePopup = () => {
+    setModalVisible(false);
+    if (modalConfig.onDismiss) {
+      modalConfig.onDismiss();
+    }
+  };
+
   const validateField = (fieldName, value) => {
     const rules = validationRules[fieldName];
     
@@ -38,7 +59,6 @@ export default function LoginPage() {
     return '';
   };
 
-  // NEW: Real-time validation effects
   useEffect(() => {
     if (touched.username) {
       const error = validateField('username', username);
@@ -53,7 +73,6 @@ export default function LoginPage() {
     }
   }, [password, touched.password]);
 
-  // NEW: Field status helper
   const getFieldStatus = (fieldName, value) => {
     if (!touched[fieldName]) return 'neutral';
     const error = validateField(fieldName, value);
@@ -64,14 +83,12 @@ export default function LoginPage() {
   const usernameStatus = getFieldStatus('username', username);
   const passwordStatus = getFieldStatus('password', password);
 
-  // NEW: Form validation check
   const isFormValid = () => {
     const usernameError = validateField('username', username);
     const passwordError = validateField('password', password);
     return !usernameError && !passwordError;
   };
 
-  // UPDATED: Handle text changes with validation
   const handleUsernameChange = (text) => {
     setUsername(text);
     if (!touched.username) setTouched(prev => ({...prev, username: true}));
@@ -82,7 +99,6 @@ export default function LoginPage() {
     if (!touched.password) setTouched(prev => ({...prev, password: true}));
   };
 
-  // NEW: Handle blur
   const handleBlur = (fieldName) => {
     setTouched(prev => ({...prev, [fieldName]: true}));
     const value = fieldName === 'username' ? username : password;
@@ -90,34 +106,27 @@ export default function LoginPage() {
     setErrors(prev => ({...prev, [fieldName]: error}));
   };
 
-  // UPDATED: handleLogin function with validation
   const handleLogin = async () => {
-    // NEW: Mark all fields as touched to show errors
     setTouched({ username: true, password: true });
     
-    // NEW: Check validation before proceeding
     const usernameError = validateField('username', username);
     const passwordError = validateField('password', password);
     
     if (usernameError || passwordError) {
       setErrors({ username: usernameError, password: passwordError });
-      
-      // Show first error in alert
       const firstError = usernameError || passwordError;
-      if (Platform.OS === 'web') window.alert(`Validation Error: ${firstError}`);
-      else Alert.alert('Validation Error', firstError);
+      
+      // REPLACED: Alert with Custom Popup
+      showPopup('Validation Error', firstError, 'error');
       return;
     }
 
-    // Original login logic continues...
     setLoading(true);
     try {
-      // 1. Determine Backend URL
       const apiUrl = Platform.OS === 'web' 
         ? 'http://localhost:3000/login' 
         : 'http://10.0.2.2:3000/login';
 
-      // 2. Send POST request
       const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -127,24 +136,32 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        // 3. Save Session & Navigate
         await AsyncStorage.setItem('userSession', JSON.stringify(data.user));
         
-        if (Platform.OS === 'web') window.alert('Welcome back ' + data.user.username);
-        else Alert.alert('Success', 'Welcome back!');
+        // REPLACED: Alert with Custom Popup (Success)
+        showPopup('Success', `Welcome back, ${data.user.username}!`, 'success', () => {
+            // Navigate only after user closes the popup
+            navigation.replace("Accounts"); 
+        });
 
-        // "Accounts" is the name defined in your App.js for HomePage
-        navigation.replace("Accounts"); 
       } else {
-        const errorMsg = data.error || 'Login failed';
-        if(Platform.OS === 'web') window.alert(errorMsg);
-        else Alert.alert('Error', errorMsg);
+        // --- ERROR HANDLING SEQUENCE ---
+        const serverError = data.error ? data.error.toLowerCase() : '';
+
+        // Condition 1: Check if account does not exist
+        // (Assumes backend sends "User not found" or "No user found")
+        if (serverError.includes('found') || serverError.includes('exist')) {
+           showPopup('Login Failed', "Account not found.", 'error');
+        } 
+        // Condition 2: Password mismatch or generic error
+        else {
+           showPopup('Login Failed', 'Invalid Username or Password', 'error');
+        }
       }
     } catch (error) {
       console.error(error);
       const msg = 'Network Error: Make sure server.js is running!';
-      if(Platform.OS === 'web') window.alert(msg);
-      else Alert.alert('Error', msg);
+      showPopup('Connection Error', msg, 'error');
     } finally {
         setLoading(false);
     }
@@ -186,7 +203,7 @@ export default function LoginPage() {
                 Please enter your credentials to access the dashboard.
             </Text>
 
-                        {/* UPDATED: Username Field with Validation */}
+            {/* Username Field */}
             <View style={styles.inputGroup}>
                 <Ionicons name="person-outline" size={20} color="#888" style={styles.inputIcon} />
                 <TextInput
@@ -202,7 +219,6 @@ export default function LoginPage() {
                     onBlur={() => handleBlur('username')}
                     maxLength={validationRules.username.maxLength}
                 />
-                {/* UPDATED: Validation Feedback - FIXED POSITION */}
                 <View style={styles.fieldFeedbackContainer}>
                     <View style={styles.errorContainer}>
                         {usernameStatus === 'invalid' && touched.username && (
@@ -219,7 +235,7 @@ export default function LoginPage() {
                 </View>
             </View>
 
-                        {/* UPDATED: Password Field with Validation */}
+            {/* Password Field */}
             <View style={styles.inputGroup}>
                 <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.inputIcon} />
                 <TextInput
@@ -236,7 +252,6 @@ export default function LoginPage() {
                     onBlur={() => handleBlur('password')}
                     maxLength={validationRules.password.maxLength}
                 />
-                {/* UPDATED: Validation Feedback - FIXED POSITION */}
                 <View style={styles.fieldFeedbackContainer}>
                     <View style={styles.errorContainer}>
                         {passwordStatus === 'invalid' && touched.password && (
@@ -253,9 +268,7 @@ export default function LoginPage() {
                 </View>
             </View>
 
-
-            
-            {/* UPDATED: Login Button with Validation */}
+            {/* Login Button */}
             <TouchableOpacity 
                 style={[
                   styles.loginButton, 
@@ -263,13 +276,109 @@ export default function LoginPage() {
                   !isFormValid() && styles.loginButtonDisabled
                 ]} 
                 onPress={handleLogin}
-                disabled={loading || !isFormValid()} // Disable if loading OR form invalid
+                disabled={loading || !isFormValid()}
             >
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Login</Text>}
             </TouchableOpacity>
 
         </View>
       </View>
+
+      {/* --- CUSTOM POPUP MODAL --- */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={handleClosePopup}
+      >
+        <View style={modalStyles.centeredView}>
+          <View style={modalStyles.modalView}>
+            
+            {/* Icon */}
+            <Ionicons 
+                name={modalConfig.type === 'success' ? "checkmark-circle" : "alert-circle"} 
+                size={50} 
+                color={modalConfig.type === 'success' ? "#4CAF50" : "#F44336"} 
+                style={{marginBottom: 10}}
+            />
+
+            {/* Title */}
+            <Text style={modalStyles.modalTitle}>{modalConfig.title}</Text>
+            
+            {/* Message */}
+            <Text style={modalStyles.modalText}>{modalConfig.message}</Text>
+
+            {/* Button */}
+            <TouchableOpacity
+              style={[
+                  modalStyles.button, 
+                  modalConfig.type === 'success' ? modalStyles.buttonSuccess : modalStyles.buttonError
+              ]}
+              onPress={handleClosePopup}
+            >
+              <Text style={modalStyles.textStyle}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   )
 }
+
+// Internal Styles for the Modal to ensure it looks good immediately
+const modalStyles = StyleSheet.create({
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: 'rgba(0, 0, 0, 0.5)' // Semi-transparent background
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 35,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: 300,
+    maxWidth: '85%'
+  },
+  button: {
+    borderRadius: 10,
+    padding: 10,
+    elevation: 2,
+    paddingHorizontal: 30,
+    marginTop: 15
+  },
+  buttonSuccess: {
+    backgroundColor: "#4CAF50",
+  },
+  buttonError: {
+    backgroundColor: "#F44336",
+  },
+  textStyle: {
+    color: "white",
+    fontWeight: "bold",
+    textAlign: "center"
+  },
+  modalText: {
+    marginBottom: 15,
+    textAlign: "center",
+    fontSize: 16,
+    color: '#333'
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 10,
+    color: '#333'
+  }
+});
