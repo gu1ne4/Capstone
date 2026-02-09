@@ -100,6 +100,10 @@ const styles = StyleSheet.create({
     marginBottom: 10, // Reduced from 25
     marginRight: 20, 
     width: '100%',
+<<<<<<< HEAD
+=======
+    paddingLeft: 15
+>>>>>>> 89c845d98f1c58d2f2c88cf5e4fdab31bf0427da
   }, 
   
   inputIcon: { 
