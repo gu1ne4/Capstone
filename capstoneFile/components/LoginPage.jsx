@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons'; 
 
-// Import your Login Styles
+// meow
 import styles from '../styles/StyleSheet';
 
 export default function LoginPage() {
@@ -251,15 +251,9 @@ export default function LoginPage() {
                 </View>
             </View>
 
-<<<<<<< HEAD
-                        {/* UPDATED: Password Field with Validation */}
-            <View style={[styles.inputGroup, {marginBottom: 40}]}>
-                <Ionicons name="lock-closed-outline" size={20} color="#888" style={[styles.inputIcon]} />
-=======
             {/* Password Field */}
             <View style={styles.inputGroup}>
                 <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.inputIcon} />
->>>>>>> 89c845d98f1c58d2f2c88cf5e4fdab31bf0427da
                 <TextInput
                     style={[
                       styles.inputField,
@@ -362,13 +356,12 @@ export default function LoginPage() {
   )
 }
 
-// Internal Styles for the Modal to ensure it looks good immediately
 const modalStyles = StyleSheet.create({
   centeredView: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: 'rgba(0, 0, 0, 0.5)' // Semi-transparent background
+    backgroundColor: 'rgba(0, 0, 0, 0.5)' 
   },
   modalView: {
     margin: 20,

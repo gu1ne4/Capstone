@@ -1,8 +1,9 @@
 import { View, Text, TextInput, TouchableOpacity, ImageBackground, Image, Alert, ActivityIndicator } from 'react-native'
 import React, { useState } from 'react'
 import { Ionicons } from '@expo/vector-icons'
-import styles from '../styles/StyleSheet'   // reuse your stylesheet
+import styles from '../styles/StyleSheet'   
 
+// meow
 export default function RegistrationPage() {
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
