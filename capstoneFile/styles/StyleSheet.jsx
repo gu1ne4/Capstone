@@ -112,6 +112,7 @@ const styles = StyleSheet.create({
     color: '#000', 
   }, 
 
+  
   loginButton: { 
     backgroundColor: '#000', 
     paddingVertical: 12, 
@@ -125,6 +126,79 @@ const styles = StyleSheet.create({
     fontSize: 16, 
     fontWeight: '600', 
   },
+
+  //-------------------FOR LOGIN VALIDATIONS-------------------//
+  
+  inputField: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingVertical: 15, 
+    paddingHorizontal: 15, 
+    fontSize: 16,
+    width: '100%', 
+    minHeight: 50, 
+  },
+
+  inputError: {
+    borderColor: '#ff4444',
+    borderWidth: 2,
+    backgroundColor: '#fff8f8',
+  },
+
+  inputValid: {
+    borderColor: '#4CAF50',
+    borderWidth: 2,
+  },
+
+  inputGroup: {
+    marginBottom: 10, 
+    width: '100%', 
+  },
+
+  fieldFeedbackContainer: {
+  flexDirection: 'row',
+  justifyContent: 'flex-end', 
+  alignItems: 'center',
+  width: '100%',
+  marginTop: 4,
+  position: 'relative', 
+  },
+
+  errorText: {
+    color: '#ff4444',
+    fontSize: 12,
+    position: 'absolute', 
+    left: 0, 
+    top: 0, 
+    right: 60, 
+    textAlign: 'left',
+  },
+
+  charCount: {
+    color: '#999',
+    fontSize: 12,
+    textAlign: 'right',
+    width: 50, 
+  },
+
+
+  charCountError: {
+    color: '#ff4444',
+    fontWeight: 'bold',
+  },
+
+  charCountValid: {
+    color: '#4CAF50',
+    fontWeight: 'bold',
+  },
+
+  loginButtonDisabled: {
+  backgroundColor: '#cccccc', 
+  opacity: 0.7,
+}
+
+ 
 
 });
 
