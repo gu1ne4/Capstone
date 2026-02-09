@@ -36,14 +36,27 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        // 3. Save Session & Navigate
+        // 3. Save Session
         await AsyncStorage.setItem('userSession', JSON.stringify(data.user));
         
-        if (Platform.OS === 'web') window.alert('Welcome back ' + data.user.username);
-        else Alert.alert('Success', 'Welcome back!');
-
-        // "Accounts" is the name defined in your App.js for HomePage
-        navigation.replace("Accounts"); 
+        // 4. Check if first-time login
+        if (data.user.isInitialLogin) {
+          // Redirect to UpdateAccPage for credential update
+          if (Platform.OS === 'web') {
+            window.alert('First time login detected. Please update your credentials.');
+          } else {
+            Alert.alert('First Login', 'Please update your credentials to continue.');
+          }
+          navigation.replace("UpdateAcc", { userId: data.user.id });
+        } else {
+          // Normal login - go to HomePage
+          if (Platform.OS === 'web') {
+            window.alert('Welcome back ' + data.user.username);
+          } else {
+            Alert.alert('Success', 'Welcome back!');
+          }
+          navigation.replace("Accounts");
+        }
       } else {
         const errorMsg = data.error || 'Login failed';
         if(Platform.OS === 'web') window.alert(errorMsg);
