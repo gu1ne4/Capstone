@@ -20,7 +20,7 @@ const pool = new Pool({
   port: 5432,
 });
 
-// Test database connection
+// Test database connections
 pool.connect((err, client, release) => {
   if (err) return console.error('Error acquiring client', err.stack);
   client.query('SELECT NOW()', (err, result) => {

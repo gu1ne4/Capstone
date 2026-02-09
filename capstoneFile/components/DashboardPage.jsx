@@ -19,6 +19,7 @@ export default function DashboardPage() {
     const isActive = route.name === 'Home';
 
     const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+     const [showAppointmentsDropdown, setShowAppointmentsDropdown] = useState(false);
 
   return (
       <View style={homeStyle.biContainer}>
@@ -98,6 +99,49 @@ export default function DashboardPage() {
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('UserAccounts')}}>
                         <Ionicons name="medkit-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
                         <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Users / Patients</Text>
+                    </TouchableOpacity>
+                    </View>
+                </View>
+                )}
+            </View>
+
+            <View>
+              {/* Parent Button */}
+              <TouchableOpacity 
+                style={homeStyle.navBtn} 
+                onPress={() => setShowAppointmentsDropdown(!showAppointmentsDropdown)}
+              >
+                <Ionicons name={"calendar-clear-outline"} size={15} color={"#fffefe"} style={{marginTop: 2}}/>
+                <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Appointments</Text>
+                <Ionicons 
+                  name={showAppointmentsDropdown ? "chevron-up-outline" : "chevron-down-outline"} 
+                  size={14} 
+                  color={"#fffefe"} 
+                  style={{marginLeft: 5, marginTop: 2}} 
+                />
+              </TouchableOpacity>
+
+              {/* Dropdown Subcategories */}
+                {showAppointmentsDropdown && (
+                <View style={{ marginLeft: 25, marginTop: 5 }}>
+                    <View>
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Schedule')}}>
+                        <Ionicons name="calendar-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Schedule</Text>
+                    </TouchableOpacity>
+                    </View>
+
+                    <View >
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('AvailSettings')}}>
+                        <Ionicons name="today-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Availability Settings</Text>
+                    </TouchableOpacity>
+                    </View>
+
+                    <View >
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('History')}}>
+                        <Ionicons name="time-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>History</Text>
                     </TouchableOpacity>
                     </View>
                 </View>

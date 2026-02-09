@@ -25,16 +25,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#3a40ff',
     width: '55%',
     zIndex: 2,
+    borderRadius: 30,
+    overflow: 'hidden',
+    margin: 20,
+    flex: 3,
+
     shadowColor: '#000',
-    shadowOffset: { width: 20, height: 0 }, 
+    shadowOffset: { width: 0, height: 0 }, 
     shadowOpacity: 0.20,
-    shadowRadius: 18,
+    shadowRadius: 20,
   },
 
   loginSection: {
     backgroundColor: '#fefefe',
     width: '45%',
-    padding: 80,
+    padding: 100,
     paddingLeft: 100,
     justifyContent: 'center',
   },
@@ -94,11 +99,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column', // Changed from row to column
     marginBottom: 10, // Reduced from 25
     marginRight: 20, 
-<<<<<<< HEAD
-    paddingLeft: 15
-=======
     width: '100%',
->>>>>>> 16214aca9eced751f985874269511bf2755ae0a3
   }, 
   
   inputIcon: { 
@@ -189,6 +190,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     marginRight: 20, 
     marginTop: 10,
+    width: '100%'
   }, 
 
   loginButtonText: { 

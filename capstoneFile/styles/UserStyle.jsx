@@ -43,6 +43,8 @@ const userStyle = StyleSheet.create({
     color: '#007BFF',
   },
 
+  
+
 });
 
 export default userStyle;

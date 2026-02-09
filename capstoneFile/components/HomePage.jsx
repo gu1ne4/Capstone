@@ -43,6 +43,8 @@ export default function HomePage() {
   const [editAccountVisible, setEditAccountVisible] = useState(false);
   const [viewAccountVisible, setViewAccountVisible] = useState(false);
 
+  const [showAppointmentsDropdown, setShowAppointmentsDropdown] = useState(false);
+
   // --- UNIFIED MODAL STATE ---
   const [modalVisible, setModalVisible] = useState(false);
   const [modalConfig, setModalConfig] = useState({
@@ -481,8 +483,10 @@ export default function HomePage() {
               </TouchableOpacity>
             </View> 
 
-            <View style={[isActive ? homeStyle.selectedGlass : null]}>
-              <TouchableOpacity 
+            <View>
+              {/* Parent Button */}
+              <View style={[isActive ? homeStyle.selectedGlass : null]}> 
+                <TouchableOpacity 
                 style={homeStyle.navBtn} 
                 onPress={() => setShowAccountDropdown(!showAccountDropdown)}
               >
@@ -495,10 +499,12 @@ export default function HomePage() {
                   style={{marginLeft: 5, marginTop: 2}} 
                 />
               </TouchableOpacity>
+              </View>
 
+              {/* Dropdown Subcategories */}
                 {showAccountDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
-                    <View style={[isActive ? homeStyle.selectedGlass : null, {width: '100%'}]}>
+                    <View style={[isActive ? homeStyle.subSelectedGlass : null, {width: '100%'}]}>
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Accounts')}}>
                         <Ionicons name="person-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
                         <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Employees</Text>
@@ -509,6 +515,50 @@ export default function HomePage() {
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('UserAccounts')}}>
                         <Ionicons name="medkit-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
                         <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Users / Patients</Text>
+                    </TouchableOpacity>
+                    </View>
+                </View>
+                )}
+
+            </View>
+
+            <View>
+              {/* Parent Button */}
+              <TouchableOpacity 
+                style={homeStyle.navBtn} 
+                onPress={() => setShowAppointmentsDropdown(!showAppointmentsDropdown)}
+              >
+                <Ionicons name={"calendar-clear-outline"} size={15} color={"#fffefe"} style={{marginTop: 2}}/>
+                <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Appointments</Text>
+                <Ionicons 
+                  name={showAppointmentsDropdown ? "chevron-up-outline" : "chevron-down-outline"} 
+                  size={14} 
+                  color={"#fffefe"} 
+                  style={{marginLeft: 5, marginTop: 2}} 
+                />
+              </TouchableOpacity>
+
+              {/* Dropdown Subcategories */}
+                {showAppointmentsDropdown && (
+                <View style={{ marginLeft: 25, marginTop: 5 }}>
+                    <View>
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Schedule')}}>
+                        <Ionicons name="calendar-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Schedule</Text>
+                    </TouchableOpacity>
+                    </View>
+
+                    <View >
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('AvailSettings')}}>
+                        <Ionicons name="today-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Availability Settings</Text>
+                    </TouchableOpacity>
+                    </View>
+
+                    <View >
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('History')}}>
+                        <Ionicons name="time-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>History</Text>
                     </TouchableOpacity>
                     </View>
                 </View>

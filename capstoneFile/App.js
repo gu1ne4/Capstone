@@ -15,9 +15,13 @@ import RegistrationPage from './userComponents/RegistrationPage';
 import ChangeCreds from './components/ChangeCreds';
 import ChangePassOTP from './components/ChangePassOTP';
 import ChangePass from './components/ChangePass';
+import AvailSettings from './AppointmentModule/AvailSettings';
+import Schedule from './AppointmentModule/Schedule';
+import History from './AppointmentModule/History';
 
 
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
+
 
 export default function App() {
 
@@ -35,7 +39,7 @@ export default function App() {
   return (
     <PaperProvider theme={theme}  >
       <NavigationContainer>
-      <CScreen.Navigator initialRouteName='UserHome'>
+      <CScreen.Navigator initialRouteName='Home'>
         <CScreen.Screen name="Home" component={DashboardPage} options={{headerShown: false}} />
         <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
         <CScreen.Screen name="Accounts" component={HomePage}  options={{headerShown: false}} />
@@ -47,6 +51,9 @@ export default function App() {
         <CScreen.Screen name="ChangeCreds" component={ChangeCreds}  options={{headerShown: false}} />
         <CScreen.Screen name="ChangePassOTP" component={ChangePassOTP}  options={{headerShown: false}} />
         <CScreen.Screen name="ChangePass" component={ChangePass}  options={{headerShown: false}} />
+        <CScreen.Screen name="AvailSettings" component={AvailSettings}  options={{headerShown: false}} />
+        <CScreen.Screen name="Schedule" component={Schedule}  options={{headerShown: false}} />
+        <CScreen.Screen name="History" component={History}  options={{headerShown: false}} />
       </CScreen.Navigator>
     </NavigationContainer>
     </PaperProvider>
