@@ -19,6 +19,7 @@ import AvailSettings from './AppointmentModule/AvailSettings';
 import Schedule from './AppointmentModule/Schedule';
 import History from './AppointmentModule/History';
 
+import UpdateAccPage from './components/UpdateAccPage';
 
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 
@@ -54,6 +55,8 @@ export default function App() {
         <CScreen.Screen name="AvailSettings" component={AvailSettings}  options={{headerShown: false}} />
         <CScreen.Screen name="Schedule" component={Schedule}  options={{headerShown: false}} />
         <CScreen.Screen name="History" component={History}  options={{headerShown: false}} />
+        <CScreen.Screen name="UpdateAcc" component={UpdateAccPage} options={{headerShown: false}} />
+
       </CScreen.Navigator>
     </NavigationContainer>
     </PaperProvider>

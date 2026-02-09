@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
 const sgMail = require('@sendgrid/mail');
+const bcrypt = require('bcrypt'); // ADD THIS LINE
 
 const app = express();
 
@@ -40,7 +41,7 @@ function generateRandomPassword(length = 12) {
   return password;
 }
 
-function generateRandomUsername(fullName) {  // <-- ADDED PARAMETER HERE
+function generateRandomUsername(fullName) {
   const nameParts = fullName.toLowerCase().split(' ');
   const firstName = nameParts[0];
   const lastName = nameParts[nameParts.length - 1];
@@ -59,7 +60,6 @@ function generateRandomUsername(fullName) {  // <-- ADDED PARAMETER HERE
 app.post('/register', async (req, res) => {
   console.log("📥 Registration request received");
   console.log("Request Body:", req.body);
-  console.log("Body Keys:", Object.keys(req.body));
 
   const { 
     fullName, contactNumber, email, 
@@ -70,18 +70,22 @@ app.post('/register', async (req, res) => {
     const password = generateRandomPassword();
     const username = generateRandomUsername(fullName); 
     
+    // Hash the password before storing
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
     const imageBuffer = userImage ? Buffer.from(userImage, 'base64') : null;
     const userStatus = status || 'Active';
 
     const query = `
       INSERT INTO accounts 
-      ("username", "password", "fullName", "contactNumber", "email", "role", "department", "employeeID", "userImage", "status", "dateCreated") 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+      ("username", "password", "fullName", "contactNumber", "email", "role", 
+       "department", "employeeID", "userImage", "status", "datecreated", "is_initial_login") 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, TRUE) 
       RETURNING *
     `;
 
     const values = [
-      username, password, fullName, contactNumber, email, 
+      username, hashedPassword, fullName, contactNumber, email, 
       role, department, employeeID, imageBuffer, userStatus, dateCreated
     ];
 
@@ -157,44 +161,113 @@ app.post('/register', async (req, res) => {
   }
 });
 
-// ========== LOGIN ROUTE ==========
+// ========== LOGIN ROUTE (UPDATED) ==========
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
+  console.log(`🔐 Login attempt for username: ${username}`);
+  
   try {
-    const result = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
-    if (result.rows.length === 0) return res.status(401).json({ error: 'User not found' });
+    const result = await pool.query(
+      'SELECT * FROM accounts WHERE username = $1', 
+      [username]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'User not found' });
+    }
 
     const user = result.rows[0];
+    
+    // Check account status
     if (user.status === 'Disabled' || user.status === 'Inactive') {
       return res.status(403).json({ error: 'Account is disabled.' });
     }
 
-    if (user.password === password) {
-      // 1. Process Image to Base64 string if it exists
-      const imgBuffer = user.userImage || user.userimage;
-      let imageStr = null;
-      if (imgBuffer) {
-        imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
-      }
+    let passwordValid = false;
+    
+    // Handle both bcrypt hashed and plain text passwords
+    if (user.password && user.password.startsWith('$2')) {
+      // Bcrypt hash (new users)
+      passwordValid = await bcrypt.compare(password, user.password);
+    } else {
+      // Plain text (old users - backward compatibility)
+      passwordValid = (user.password === password);
+    }
 
-      // 2. Send ALL details back to the app
+    if (passwordValid) {
+      console.log(`✅ Login successful for: ${username}`);
+      console.log(`   is_initial_login: ${user.is_initial_login}`);
+      
       res.json({ 
         message: 'Login successful', 
         user: { 
           id: user.pk, 
           username: user.username,
-          fullName: user.fullName || user.fullname, // Get name
-          role: user.role,                          // Get role
-          department: user.department,              // Get department (optional)
-          userImage: imageStr                       // Get image
+          fullName: user.fullname || user.fullName,
+          role: user.role,
+          isInitialLogin: user.is_initial_login || false
         } 
       });
     } else {
+      console.log(`❌ Invalid password for: ${username}`);
       res.status(401).json({ error: 'Invalid password' });
     }
   } catch (err) {
-    console.error(err);
+    console.error("❌ Login error:", err.message);
     res.status(500).json({ error: 'Database error' });
+  }
+});
+
+// ========== UPDATE CREDENTIALS ROUTE ==========
+app.put('/update-credentials', async (req, res) => {
+  console.log("📝 Update credentials request received");
+  console.log("Request Body:", req.body);
+
+  const { userId, newUsername, newPassword } = req.body;
+
+  try {
+    // 1. Check if new username already exists (excluding current user)
+    const usernameCheck = await pool.query(
+      'SELECT pk FROM accounts WHERE username = $1 AND pk != $2',
+      [newUsername, userId]
+    );
+
+    if (usernameCheck.rows.length > 0) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    // 2. Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // 3. Update user credentials and set is_initial_login to false
+    const updateQuery = `
+      UPDATE accounts 
+      SET username = $1, password = $2, is_initial_login = FALSE 
+      WHERE pk = $3 
+      RETURNING pk, username, fullname as "fullName", role, is_initial_login as "isInitialLogin"
+    `;
+
+    const updatedUser = await pool.query(updateQuery, [
+      newUsername, 
+      hashedPassword, 
+      userId
+    ]);
+
+    if (updatedUser.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    console.log(`✅ Credentials updated for user ID: ${userId}`);
+    console.log(`   New username: ${newUsername}`);
+
+    res.json({ 
+      message: 'Credentials updated successfully', 
+      user: updatedUser.rows[0]
+    });
+
+  } catch (err) {
+    console.error("❌ Update credentials error:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -136,14 +136,27 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
+        // 3. Save Session
         await AsyncStorage.setItem('userSession', JSON.stringify(data.user));
         
-        // REPLACED: Alert with Custom Popup (Success)
-        showPopup('Success', `Welcome back, ${data.user.username}!`, 'success', () => {
-            // Navigate only after user closes the popup
-            navigation.replace("Accounts"); 
-        });
-
+        // 4. Check if first-time login
+        if (data.user.isInitialLogin) {
+          // Redirect to UpdateAccPage for credential update
+          if (Platform.OS === 'web') {
+            window.alert('First time login detected. Please update your credentials.');
+          } else {
+            Alert.alert('First Login', 'Please update your credentials to continue.');
+          }
+          navigation.replace("UpdateAcc", { userId: data.user.id });
+        } else {
+          // Normal login - go to HomePage
+          if (Platform.OS === 'web') {
+            window.alert('Welcome back ' + data.user.username);
+          } else {
+            Alert.alert('Success', 'Welcome back!');
+          }
+          navigation.replace("Accounts");
+        }
       } else {
         // --- ERROR HANDLING SEQUENCE ---
         const serverError = data.error ? data.error.toLowerCase() : '';
