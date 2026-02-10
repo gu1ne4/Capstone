@@ -1,14 +1,19 @@
 import { View, Text, TouchableOpacity, Image, TextInput, Platform, ImageBackground, ActivityIndicator, Modal, StyleSheet } from 'react-native'
 import React, { useState, useEffect } from 'react'
-import { useNavigation } from '@react-navigation/native'
+import { useNavigation, useRoute } from '@react-navigation/native'
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons'; 
+import { Ionicons } from '@expo/vector-icons';
 
 // meow
 import styles from '../styles/StyleSheet';
 
 export default function LoginPage() {
   const navigation = useNavigation();
+  const route = useRoute();
+  
+  // Get the fromPasswordReset flag from navigation params
+  const { fromPasswordReset, resetMessage } = route.params || {};
+  
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -73,6 +78,14 @@ export default function LoginPage() {
     }
   }, [password, touched.password]);
 
+  // NEW: Show reset message when coming from password reset
+  useEffect(() => {
+    if (fromPasswordReset && resetMessage) {
+      // Show the reset success message when arriving from password reset
+      showPopup('Success', resetMessage, 'success');
+    }
+  }, [fromPasswordReset, resetMessage]);
+
   const getFieldStatus = (fieldName, value) => {
     if (!touched[fieldName]) return 'neutral';
     const error = validateField(fieldName, value);
@@ -106,6 +119,7 @@ export default function LoginPage() {
     setErrors(prev => ({...prev, [fieldName]: error}));
   };
 
+  // ========== UPDATED HANDLELOGIN FUNCTION ==========
   const handleLogin = async () => {
     setTouched({ username: true, password: true });
     
@@ -115,19 +129,16 @@ export default function LoginPage() {
     if (usernameError || passwordError) {
       setErrors({ username: usernameError, password: passwordError });
       const firstError = usernameError || passwordError;
-      
-      // REPLACED: Alert with Custom Popup
       showPopup('Validation Error', firstError, 'error');
       return;
     }
 
     setLoading(true);
     try {
-      const apiUrl = Platform.OS === 'web' 
-        ? 'http://localhost:3000/login' 
-        : 'http://10.0.2.2:3000/login';
+      const API_URL = 'http://localhost:3000';
 
-      const res = await fetch(apiUrl, {
+      // Use unified login endpoint
+      const res = await fetch(`${API_URL}/unified-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -136,39 +147,46 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
-        // 3. Save Session
+        // Save Session
         await AsyncStorage.setItem('userSession', JSON.stringify(data.user));
         
-        // 4. Check if first-time login
-        if (data.user.isInitialLogin) {
-          // Redirect to UpdateAccPage for credential update
-          if (Platform.OS === 'web') {
-            window.alert('First time login detected. Please update your credentials.');
+        // Check user type and redirect accordingly
+        if (data.user.userType === 'employee') {
+          // Employee login
+          if (data.user.isInitialLogin && !fromPasswordReset) {
+            // FIRST-TIME LOGIN (after admin creation)
+            showPopup('First Login', 'Please update your credentials to continue.', 'info', () => {
+              navigation.replace("UpdateAcc", { userId: data.user.id });
+            });
           } else {
-            Alert.alert('First Login', 'Please update your credentials to continue.');
+            // REGULAR LOGIN OR PASSWORD RESET LOGIN
+            const message = fromPasswordReset 
+              ? `Password updated successfully! Welcome back ${data.user.fullName}!`
+              : `Welcome back ${data.user.fullName}!`;
+            
+            showPopup('Success', message, 'success', () => {
+              navigation.replace("Accounts");
+            });
           }
-          navigation.replace("UpdateAcc", { userId: data.user.id });
         } else {
-          // Normal login - go to HomePage
-          if (Platform.OS === 'web') {
-            window.alert('Welcome back ' + data.user.username);
-          } else {
-            Alert.alert('Success', 'Welcome back!');
-          }
-          navigation.replace("Accounts");
+          // Patient login
+          const message = fromPasswordReset 
+            ? `Password updated successfully! Welcome ${data.user.fullName}!`
+            : `Welcome ${data.user.fullName}!`;
+          
+          showPopup('Success', message, 'success', () => {
+            navigation.replace("UserHome");
+          });
         }
       } else {
-        // --- ERROR HANDLING SEQUENCE ---
         const serverError = data.error ? data.error.toLowerCase() : '';
-
-        // Condition 1: Check if account does not exist
-        // (Assumes backend sends "User not found" or "No user found")
+        
         if (serverError.includes('found') || serverError.includes('exist')) {
-           showPopup('Login Failed', "Account not found.", 'error');
-        } 
-        // Condition 2: Password mismatch or generic error
-        else {
-           showPopup('Login Failed', 'Invalid Username or Password', 'error');
+          showPopup('Login Failed', "Account not found.", 'error');
+        } else if (serverError.includes('disabled') || serverError.includes('inactive')) {
+          showPopup('Account Disabled', "Your account has been disabled. Please contact support.", 'error');
+        } else {
+          showPopup('Login Failed', 'Invalid Username or Password', 'error');
         }
       }
     } catch (error) {
@@ -176,9 +194,10 @@ export default function LoginPage() {
       const msg = 'Network Error: Make sure server.js is running!';
       showPopup('Connection Error', msg, 'error');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
+  // ========== END UPDATED HANDLELOGIN ==========
 
   return (
     <View style={styles.container}>
@@ -310,19 +329,27 @@ export default function LoginPage() {
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Login</Text>}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Registration')}
-              style={{
-                marginTop: 25,
-                paddingVertical: 10,
-                alignItems: 'center',
-              }}
-            >
-              <Text style={{ fontSize: 14, color: '#555' }}>
-                Don’t have an account?
-                <Text style={{ color: '#3d67ee', fontWeight: '600' }}> Sign up</Text>
-              </Text>
-            </TouchableOpacity>
+            
+
+                  <View style={{ marginTop: 25, alignItems: 'center', gap: 10 }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Registration')}
+          >
+            <Text style={{ fontSize: 14, color: '#555' }}>
+              Don't have an account?
+              <Text style={{ color: '#3d67ee', fontWeight: '600' }}> Sign up</Text>
+            </Text>
+          </TouchableOpacity>
+
+          {/* NEW: Forgot Password Link */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ForgetPass')}
+          >
+            <Text style={{ fontSize: 14, color: '#3d67ee', fontWeight: '500' }}>
+              Forgot Password?
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         </View>
       </View>

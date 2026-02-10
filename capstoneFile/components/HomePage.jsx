@@ -31,7 +31,7 @@ export default function HomePage() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  const API_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
+ const API_URL = 'http://localhost:3000';
 
   // ==========================================
   //  UI STATE
@@ -262,11 +262,15 @@ export default function HomePage() {
     if (newEmpID.length < 5) { showAlert('error', 'Invalid Input', 'Employee ID must be at least 5 digits.'); return; }
     if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
 
-    const isDuplicate = accounts.some(acc => 
-      acc.username.toLowerCase() === newUsername.toLowerCase() || 
-      (acc.employeeID || acc.employeeid).toString() === newEmpID.toString()
+    const isDuplicate = accounts.some(acc => {
+    const accUsername = acc.username || '';
+    const accEmployeeID = String(acc.employeeID || acc.employeeid || '');
+    
+    return (
+      accUsername.toLowerCase() === newUsername.toLowerCase() ||
+      accEmployeeID === newEmpID.toString()
     );
-
+  });
     if (isDuplicate) {
       showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
       return;
@@ -277,23 +281,21 @@ export default function HomePage() {
     const generatedPassword = generateRandomPassword();
 
     try {
-      const res = await fetch(`${API_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: newUsername,
-          password: generatedPassword,
-          fullName: newFullName,
-          contactNumber: newContact,
-          email: newEmail,
-          role: newRole,
-          department: newDept,
-          employeeID: newEmpID,
-          userImage: userImageBase64,
-          status: newStatus,
-          dateCreated: dateCreated
-        }),
-      });
+     const res = await fetch(`${API_URL}/register`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    fullname: newFullName,  // lowercase 'fullname' not 'fullName'
+    contactnumber: newContact,  // lowercase 'contactnumber'
+    email: newEmail,
+    role: newRole,
+    department: newDept,
+    employeeid: newEmpID,  // lowercase 'employeeid'
+    userimage: userImageBase64,  // lowercase 'userimage'
+    status: newStatus,
+    datecreated: dateCreated  // lowercase 'datecreated'
+  }),
+});
 
       const data = await res.json();
       if (res.ok) {
