@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, Image, TextInput, Modal, Switch, Pressable, ScrollView, Alert } from 'react-native';
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import homeStyle from '../styles/HomeStyle';
 
@@ -13,6 +13,330 @@ import * as ImagePicker from 'expo-image-picker';
 import { Calendar } from 'react-native-calendars';
 import apStyle from '../styles/AppointmentStyles';
 
+// Separate Create Appointment Modal Component
+const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
+    const [selectedDate, setSelectedDate] = useState('');
+    const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
+    const [appointmentType, setAppointmentType] = useState('');
+    const [patientName, setPatientName] = useState('');
+    const [patientEmail, setPatientEmail] = useState('');
+    const [patientPhone, setPatientPhone] = useState('');
+    const [petName, setPetName] = useState('');
+    const [petType, setPetType] = useState('');
+    const [petGender, setPetGender] = useState('');
+
+    const timeSlots = [
+        '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM',
+        '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
+        '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM',
+        '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
+    ];
+
+    // Initialize with today's date when modal opens
+    useEffect(() => {
+        if (visible) {
+            const today = new Date();
+            const year = today.getFullYear();
+            const month = String(today.getMonth() + 1).padStart(2, '0');
+            const day = String(today.getDate()).padStart(2, '0');
+            setSelectedDate(`${year}-${month}-${day}`);
+        } else {
+            // Reset form when closing
+            setSelectedDate('');
+            setSelectedTimeSlot('');
+            setAppointmentType('');
+            setPatientName('');
+            setPatientEmail('');
+            setPatientPhone('');
+            setPetName('');
+            setPetType('');
+            setPetGender('');
+        }
+    }, [visible]);
+
+    const getTodayDate = () => {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
+    const formatDateForDisplay = (dateString) => {
+        if (!dateString) return 'Select Date';
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    };
+
+    const handleSubmit = () => {
+        // Validation
+        if (!patientName.trim()) {
+            Alert.alert('Error', 'Please enter patient name');
+            return;
+        }
+        if (!appointmentType) {
+            Alert.alert('Error', 'Please select appointment type');
+            return;
+        }
+        if (!selectedDate) {
+            Alert.alert('Error', 'Please select a date');
+            return;
+        }
+        if (!selectedTimeSlot) {
+            Alert.alert('Error', 'Please select a time slot');
+            return;
+        }
+
+        // Format date for display
+        const date = new Date(selectedDate);
+        const formattedDate = date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+
+        // Prepare appointment data
+        const appointmentData = {
+            patientName,
+            patientEmail,
+            patientPhone,
+            petName,
+            petType,
+            petGender,
+            appointmentType,
+            selectedDate,
+            selectedTimeSlot,
+            formattedDate
+        };
+
+        onSubmit(appointmentData);
+    };
+
+    return (
+        <Modal
+            visible={visible}
+            transparent={true}
+            animationType="slide"
+            onRequestClose={onClose}
+        >
+            <View style={apStyle.modalOverlay}>
+                <View style={[apStyle.modalContent, { maxHeight: '90%', width: '95%' }]}>
+                    <View style={apStyle.modalHeader}>
+                        <Text style={apStyle.modalTitle}>Create New Appointment</Text>
+                        <TouchableOpacity onPress={onClose}>
+                            <Ionicons name="close" size={24} color="#333" />
+                        </TouchableOpacity>
+                    </View>
+
+                    <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 500 }}>
+                        {/* Patient Information */}
+                        <View style={apStyle.formSection}>
+                            <Text style={apStyle.sectionTitle}>Patient Information</Text>
+                            
+                            <View style={apStyle.formRow}>
+                                <View style={apStyle.formGroup}>
+                                    <Text style={apStyle.formLabel}>Full Name *</Text>
+                                    <TextInput
+                                        style={apStyle.formInput}
+                                        value={patientName}
+                                        onChangeText={setPatientName}
+                                        placeholder="Enter patient name"
+                                        placeholderTextColor="#999"
+                                    />
+                                </View>
+                                
+                                <View style={apStyle.formGroup}>
+                                    <Text style={apStyle.formLabel}>Email</Text>
+                                    <TextInput
+                                        style={apStyle.formInput}
+                                        value={patientEmail}
+                                        onChangeText={setPatientEmail}
+                                        placeholder="Enter email address"
+                                        placeholderTextColor="#999"
+                                        keyboardType="email-address"
+                                    />
+                                </View>
+                            </View>
+                            
+                            <View style={apStyle.formRow}>
+                                <View style={apStyle.formGroup}>
+                                    <Text style={apStyle.formLabel}>Phone Number</Text>
+                                    <TextInput
+                                        style={apStyle.formInput}
+                                        value={patientPhone}
+                                        onChangeText={setPatientPhone}
+                                        placeholder="Enter phone number"
+                                        placeholderTextColor="#999"
+                                        keyboardType="phone-pad"
+                                    />
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Pet Information */}
+                        <View style={apStyle.formSection}>
+                            <Text style={apStyle.sectionTitle}>Pet Information</Text>
+                            
+                            <View style={apStyle.formRow}>
+                                <View style={apStyle.formGroup}>
+                                    <Text style={apStyle.formLabel}>Pet Name</Text>
+                                    <TextInput
+                                        style={apStyle.formInput}
+                                        value={petName}
+                                        onChangeText={setPetName}
+                                        placeholder="Enter pet name"
+                                        placeholderTextColor="#999"
+                                    />
+                                </View>
+                                
+                                <View style={apStyle.formGroup}>
+                                    <Text style={apStyle.formLabel}>Pet Type</Text>
+                                    <TextInput
+                                        style={apStyle.formInput}
+                                        value={petType}
+                                        onChangeText={setPetType}
+                                        placeholder="e.g., Dog, Cat"
+                                        placeholderTextColor="#999"
+                                    />
+                                </View>
+                            </View>
+                            
+                            <View style={apStyle.formRow}>
+                                <View style={apStyle.formGroup}>
+                                    <Text style={apStyle.formLabel}>Gender</Text>
+                                    <Picker
+                                        selectedValue={petGender}
+                                        onValueChange={(itemValue) => setPetGender(itemValue)}
+                                        style={{ height: 50, width: '100%' }}
+                                    >
+                                        <Picker.Item label="Select gender" value="" color="#a8a8a8" />
+                                        <Picker.Item label="Male" value="Male" />
+                                        <Picker.Item label="Female" value="Female" />
+                                    </Picker>
+                                </View>
+                            </View>
+                        </View>
+
+                        {/* Appointment Details */}
+                        <View style={apStyle.formSection}>
+                            <Text style={apStyle.sectionTitle}>Appointment Details</Text>
+                            
+                            <View style={apStyle.formGroup}>
+                                <Text style={apStyle.formLabel}>Appointment Type *</Text>
+                                <View style={apStyle.pickerContainer}>
+                                    <Picker
+                                        selectedValue={appointmentType}
+                                        onValueChange={(itemValue) => setAppointmentType(itemValue)}
+                                        style={{ height: 50, width: '100%' }}
+                                    >
+                                        <Picker.Item label="Select appointment type" value="" color="#a8a8a8" />
+                                        <Picker.Item label="Vaccination" value="Vaccination" />
+                                        <Picker.Item label="Check-up" value="Check-up" />
+                                        <Picker.Item label="Surgery" value="Surgery" />
+                                        <Picker.Item label="Grooming" value="Grooming" />
+                                        <Picker.Item label="Dental Care" value="Dental Care" />
+                                        <Picker.Item label="Emergency" value="Emergency" />
+                                    </Picker>
+                                </View>
+                            </View>
+                            
+                            <View style={apStyle.formGroup}>
+                                <Text style={apStyle.formLabel}>Select Date *</Text>
+                                <TouchableOpacity 
+                                    style={apStyle.dateSelector}
+                                >
+                                    <Ionicons name="calendar" size={20} color="#3d67ee" />
+                                    <Text style={{ marginLeft: 10, color: selectedDate ? '#333' : '#999' }}>
+                                        {formatDateForDisplay(selectedDate)}
+                                    </Text>
+                                </TouchableOpacity>
+                                
+                                {/* Calendar Component */}
+                                <View style={apStyle.calendarContainer}>
+                                    <Calendar
+                                        current={selectedDate || getTodayDate()}
+                                        onDayPress={(day) => {
+                                            setSelectedDate(day.dateString);
+                                        }}
+                                        markedDates={{
+                                            [selectedDate]: { 
+                                                selected: true, 
+                                                selectedColor: '#3d67ee',
+                                                selectedTextColor: 'white'
+                                            }
+                                        }}
+                                        minDate={getTodayDate()}
+                                        theme={{
+                                            selectedDayBackgroundColor: '#3d67ee',
+                                            todayTextColor: '#3d67ee',
+                                            arrowColor: '#3d67ee',
+                                            monthTextColor: '#000',
+                                            textMonthFontWeight: '600',
+                                            textDayFontSize: 14,
+                                            textSectionTitleColor: '#666',
+                                            textDayHeaderFontSize: 12,
+                                        }}
+                                        style={{
+                                            borderRadius: 8,
+                                            padding: 10,
+                                            width: '100%',
+                                        }}
+                                    />
+                                </View>
+                            </View>
+                            
+                            <View style={[apStyle.formGroup, {marginTop: 250}]}>
+                                <Text style={apStyle.formLabel}>Select Time Slot *</Text>
+                                <ScrollView horizontal showsHorizontalScrollIndicator={true} style={apStyle.timeSlotContainer}>
+                                    {timeSlots.map((slot, index) => (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={[
+                                                apStyle.timeSlot,
+                                                selectedTimeSlot === slot && apStyle.selectedTimeSlot
+                                            ]}
+                                            onPress={() => setSelectedTimeSlot(slot)}
+                                        >
+                                            <Text style={[
+                                                apStyle.timeSlotText,
+                                                selectedTimeSlot === slot && apStyle.selectedTimeSlotText
+                                            ]}>
+                                                {slot}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </ScrollView>
+                            </View>
+                        </View>
+                    </ScrollView>
+
+                    {/* Action Buttons */}
+                    <View style={apStyle.modalActions}>
+                        <TouchableOpacity 
+                            onPress={onClose}
+                            style={[apStyle.modalButton, { backgroundColor: '#f5f5f5' }]}
+                        >
+                            <Text style={{ color: '#666' }}>Cancel</Text>
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                            onPress={handleSubmit}
+                            style={[apStyle.modalButton, { backgroundColor: '#3d67ee' }]}
+                        >
+                            <Text style={{ color: 'white', fontWeight: '600' }}>Create Appointment</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </View>
+        </Modal>
+    );
+};
+
 export default function Schedule() {
     const ns = useNavigation();
     const route = useRoute();
@@ -20,8 +344,6 @@ export default function Schedule() {
 
     const [showAccountDropdown, setShowAccountDropdown] = useState(false);
     const [showAppointmentsDropdown, setShowAppointmentsDropdown] = useState(false);
-    const [searchVisible, setSearchVisible] = useState(false);
-    const [filterVisible, setFilterVisible] = useState(false);
     const [service, setService] = useState('');
     const [doctorFilter, setDoctorFilter] = useState('');
     
@@ -29,6 +351,9 @@ export default function Schedule() {
     const [selectedUser, setSelectedUser] = useState(null);
     const [selectedDoctor, setSelectedDoctor] = useState('');
     const [showDoctorPicker, setShowDoctorPicker] = useState(false);
+    
+    // Create Appointment Modal State
+    const [showCreateModal, setShowCreateModal] = useState(false);
 
     // Sample doctors data
     const doctors = [
@@ -151,11 +476,47 @@ export default function Schedule() {
     };
 
     const handleCreateAppointment = () => {
-        Alert.alert(
-            'Create Appointment',
-            'This feature is coming soon!',
-            [{ text: 'OK' }]
-        );
+        setShowCreateModal(true);
+    };
+
+    const handleSubmitAppointment = (appointmentData) => {
+        // Format date for display
+        const date = new Date(appointmentData.selectedDate);
+        const formattedDate = date.toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+        });
+
+        // Create new appointment
+        const newAppointment = {
+            id: userData.length + 1,
+            name: appointmentData.patientName,
+            service: appointmentData.appointmentType,
+            dateTime: `${formattedDate} - ${appointmentData.selectedTimeSlot}`,
+            doctor: 'Not Assigned',
+            assignedDoctor: '',
+            details: {
+                fullName: appointmentData.patientName,
+                email: appointmentData.patientEmail,
+                phone: appointmentData.patientPhone,
+                address: 'To be provided',
+                petName: appointmentData.petName,
+                petType: appointmentData.petType,
+                petBreed: 'Unknown',
+                gender: appointmentData.petGender || 'Unknown',
+            }
+        };
+
+        // Add to user data
+        setUserData(prev => [...prev, newAppointment]);
+        
+        Alert.alert('Success', 'Appointment created successfully!');
+        setShowCreateModal(false);
+    };
+
+    const handleCloseModal = () => {
+        setShowCreateModal(false);
     };
 
     // User Details Component
@@ -537,7 +898,7 @@ export default function Schedule() {
     return (
         <View style={homeStyle.biContainer}>
 
-            {/* NAVBAR - RESTORED */}
+            {/* NAVBAR */}
             <View style={homeStyle.navbarContainer}>
                 <LinearGradient
                     colors={['#3d67ee', '#0738D9', '#041E76']}
@@ -781,6 +1142,13 @@ export default function Schedule() {
                     </View>
                 </View>
             </View>
+
+            {/* Create Appointment Modal - Now it's a separate component */}
+            <CreateAppointmentModal 
+                visible={showCreateModal}
+                onClose={handleCloseModal}
+                onSubmit={handleSubmitAppointment}
+            />
         </View>
     );
 }

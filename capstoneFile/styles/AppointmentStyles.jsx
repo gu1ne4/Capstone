@@ -72,7 +72,8 @@ const apStyle = StyleSheet.create({
       alignItems: 'center',
     },
 
-       statusBadge: {
+    
+    statusBadge: {
         paddingHorizontal: 12,
         paddingVertical: 6,
         borderRadius: 20,
@@ -213,6 +214,115 @@ const apStyle = StyleSheet.create({
         marginLeft: 8,
         fontSize: 14,
         fontWeight: '600',
+    },
+    
+    // New styles for Create Appointment Modal
+    formSection: {
+        marginBottom: 25,
+        paddingBottom: 15,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    
+    formRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginBottom: 15,
+    },
+    
+    formGroup: {
+        flex: 1,
+        marginBottom: 15,
+    },
+    
+    formLabel: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#333',
+        marginBottom: 8,
+    },
+    
+    formInput: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        fontSize: 14,
+        backgroundColor: '#f9f9f9',
+    },
+    
+    pickerContainer: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 6,
+        backgroundColor: '#f9f9f9',
+        overflow: 'hidden',
+    },
+    
+    dateSelector: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 12,
+        backgroundColor: '#f9f9f9',
+        marginBottom: 10,
+    },
+    
+    calendarContainer: {
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        padding: 5,
+        borderWidth: 1,
+        borderColor: '#eee',
+        marginBottom: 15,
+    },
+    
+    timeSlotContainer: {
+    flexDirection: 'row',
+    marginTop: 5,
+    height: 50, // Fixed height
+    marginBottom: 10,
+},
+
+timeSlot: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    marginRight: 8,
+    backgroundColor: '#f9f9f9',
+    minWidth: 70, // Minimum width for each slot
+    alignItems: 'center',
+    justifyContent: 'center',
+},
+
+selectedTimeSlot: {
+    backgroundColor: '#3d67ee',
+    borderColor: '#3d67ee',
+},
+
+timeSlotText: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+},
+
+selectedTimeSlotText: {
+    color: '#fff',
+    fontWeight: '600',
+},
+    modalActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginTop: 20,
+        paddingTop: 15,
+        borderTopWidth: 1,
+        borderTopColor: '#eee',
     },
 
 })
