@@ -10,6 +10,7 @@ import { DataTable } from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';    
 import * as ImagePicker from 'expo-image-picker';
 
+// meow
 export default function HomePage() {
   const ns = useNavigation();
   const route = useRoute();
@@ -42,6 +43,8 @@ export default function HomePage() {
   const [addAccountVisible, setAddAccountVisible] = useState(false);
   const [editAccountVisible, setEditAccountVisible] = useState(false);
   const [viewAccountVisible, setViewAccountVisible] = useState(false);
+
+  const [showAppointmentsDropdown, setShowAppointmentsDropdown] = useState(false);
 
   // --- UNIFIED MODAL STATE ---
   const [modalVisible, setModalVisible] = useState(false);
@@ -469,8 +472,10 @@ export default function HomePage() {
               </TouchableOpacity>
             </View> 
 
-            <View style={[isActive ? homeStyle.selectedGlass : null]}>
-              <TouchableOpacity 
+            <View>
+              {/* Parent Button */}
+              <View style={[isActive ? homeStyle.selectedGlass : null]}> 
+                <TouchableOpacity 
                 style={homeStyle.navBtn} 
                 onPress={() => setShowAccountDropdown(!showAccountDropdown)}
               >
@@ -483,10 +488,18 @@ export default function HomePage() {
                   style={{marginLeft: 5, marginTop: 2}} 
                 />
               </TouchableOpacity>
+              </View>
 
+<<<<<<< HEAD
               {showAccountDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
                   <View style={[isActive ? homeStyle.selectedGlass : null, {width: '100%'}]}>
+=======
+              {/* Dropdown Subcategories */}
+                {showAccountDropdown && (
+                <View style={{ marginLeft: 25, marginTop: 5 }}>
+                    <View style={[isActive ? homeStyle.subSelectedGlass : null, {width: '100%'}]}>
+>>>>>>> d67de8be71632a7f362d0e92f264820e85054677
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Accounts')}}>
                         <Ionicons name="person-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
                         <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Employees</Text>
@@ -500,7 +513,55 @@ export default function HomePage() {
                     </TouchableOpacity>
                   </View>
                 </View>
+<<<<<<< HEAD
               )}
+=======
+                )}
+
+            </View>
+
+            <View>
+              {/* Parent Button */}
+              <TouchableOpacity 
+                style={homeStyle.navBtn} 
+                onPress={() => setShowAppointmentsDropdown(!showAppointmentsDropdown)}
+              >
+                <Ionicons name={"calendar-clear-outline"} size={15} color={"#fffefe"} style={{marginTop: 2}}/>
+                <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Appointments</Text>
+                <Ionicons 
+                  name={showAppointmentsDropdown ? "chevron-up-outline" : "chevron-down-outline"} 
+                  size={14} 
+                  color={"#fffefe"} 
+                  style={{marginLeft: 5, marginTop: 2}} 
+                />
+              </TouchableOpacity>
+
+              {/* Dropdown Subcategories */}
+                {showAppointmentsDropdown && (
+                <View style={{ marginLeft: 25, marginTop: 5 }}>
+                    <View>
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Schedule')}}>
+                        <Ionicons name="calendar-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Schedule</Text>
+                    </TouchableOpacity>
+                    </View>
+
+                    <View >
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('AvailSettings')}}>
+                        <Ionicons name="today-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Availability Settings</Text>
+                    </TouchableOpacity>
+                    </View>
+
+                    <View >
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('History')}}>
+                        <Ionicons name="time-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>History</Text>
+                    </TouchableOpacity>
+                    </View>
+                </View>
+                )}
+>>>>>>> d67de8be71632a7f362d0e92f264820e85054677
             </View>
 
             <View >

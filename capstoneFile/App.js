@@ -16,13 +16,16 @@ import RegistrationPage from './userComponents/RegistrationPage';
 import ChangeCreds from './components/ChangeCreds';
 import ChangePassOTP from './components/ChangePassOTP';
 import ChangePass from './components/ChangePass';
+import AvailSettings from './AppointmentModule/AvailSettings';
+import Schedule from './AppointmentModule/Schedule';
+import History from './AppointmentModule/History';
 
-// --- NEW IMPORTS (Your paths are CORRECT) ---
+// --- ROLE-BASED INTERFACES ---
 import EmpAccessHomepage from './components/EmployeeInterface/EmpAccessHomepage';
 import UserHomePage from './components/UserInterface/UserHomePage';
+import UpdateAccPage from './components/UpdateAccPage';
 
 export default function App() {
-
   const CScreen = createNativeStackNavigator();
 
   const theme = {
@@ -37,6 +40,7 @@ export default function App() {
   return (
     <PaperProvider theme={theme}>
       <NavigationContainer>
+        {/* Set initialRouteName to 'Login' so the first-time logic we just fixed can run */}
         <CScreen.Navigator initialRouteName='Login'>
           <CScreen.Screen name="Home" component={DashboardPage} options={{headerShown: false}} />
           <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
@@ -49,9 +53,16 @@ export default function App() {
           <CScreen.Screen name="ChangeCreds" component={ChangeCreds} options={{headerShown: false}} />
           <CScreen.Screen name="ChangePassOTP" component={ChangePassOTP} options={{headerShown: false}} />
           <CScreen.Screen name="ChangePass" component={ChangePass} options={{headerShown: false}} />
+          
+          {/* Appointment Module Screens */}
+          <CScreen.Screen name="AvailSettings" component={AvailSettings} options={{headerShown: false}} />
+          <CScreen.Screen name="Schedule" component={Schedule} options={{headerShown: false}} />
+          <CScreen.Screen name="History" component={History} options={{headerShown: false}} />
+          
+          {/* New Interfaces */}
+          <CScreen.Screen name="UpdateAcc" component={UpdateAccPage} options={{headerShown: false}} />
           <CScreen.Screen name="EmpAccessHomepage" component={EmpAccessHomepage} options={{headerShown: false}} />
           <CScreen.Screen name="UserHomePage" component={UserHomePage} options={{headerShown: false}} />
-
 
         </CScreen.Navigator>
       </NavigationContainer>

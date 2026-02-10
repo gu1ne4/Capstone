@@ -1,5 +1,6 @@
 import { StyleSheet, Dimensions } from "react-native"; 
 
+// meow
 const { width } = Dimensions.get("window"); 
 const responsiveFontSize = Math.min(Math.max(width * 0.05, 14), 24);
 
@@ -25,16 +26,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#3a40ff',
     width: '55%',
     zIndex: 2,
+    borderRadius: 30,
+    overflow: 'hidden',
+    margin: 20,
+    flex: 3,
+
     shadowColor: '#000',
-    shadowOffset: { width: 20, height: 0 }, 
+    shadowOffset: { width: 0, height: 0 }, 
     shadowOpacity: 0.20,
-    shadowRadius: 18,
+    shadowRadius: 20,
   },
 
   loginSection: {
     backgroundColor: '#fefefe',
     width: '45%',
-    padding: 80,
+    padding: 100,
     paddingLeft: 100,
     justifyContent: 'center',
   },
@@ -186,6 +192,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     marginRight: 20, 
     marginTop: 10,
+    width: '100%'
   }, 
 
   loginButtonText: { 

@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native'
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons'; 
 
-// Import your Login Styles
+// meow
 import styles from '../styles/StyleSheet';
 
 export default function LoginPage() {
@@ -94,7 +94,7 @@ export default function LoginPage() {
     setErrors(prev => ({...prev, [fieldName]: validateField(fieldName, fieldName === 'username' ? username : password)}));
   };
 
-  const handleLogin = async () => {
+const handleLogin = async () => {
     setTouched({ username: true, password: true });
     
     const usernameError = validateField('username', username);
@@ -122,31 +122,34 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok) {
+        // 1. Save Session
         await AsyncStorage.setItem('userSession', JSON.stringify(data.user));
         
-        showPopup('Success', `Welcome back, ${data.user.username}!`, 'success', () => {
-            
+        // 2. Check if first-time login
+        if (data.user.isInitialLogin) {
+          showPopup('First Login', 'Please update your credentials to continue.', 'success', () => {
+            navigation.replace("UpdateAcc", { userId: data.user.id });
+          });
+        } 
+        // 3. Normal login - Role-Based Redirection
+        else {
+          showPopup('Success', `Welcome back, ${data.user.username}!`, 'success', () => {
             const userRole = data.user.role; 
 
-            // 1. Admin -> HomePage
             if (userRole === 'Admin') {
                 navigation.replace("Accounts"); 
             } 
-            // 2. Employees -> EmpAccessHomepage
             else if (userRole === 'Veterinarian' || userRole === 'Receptionist') {
                 navigation.replace("EmpAccessHomepage"); 
             } 
-            // 3. User (Patient) -> UserHomePageInterface
-            // ✅ THIS WAS THE FIX: Updated to match the route name in App.js
             else if (userRole === 'User') {
                 navigation.replace("UserHomePage"); 
             }
-            // 4. Fallback
             else {
                 navigation.replace("Login"); 
             }
-        });
-
+          });
+        }
       } else {
         const serverError = data.error ? data.error.toLowerCase() : '';
         if (serverError.includes('found') || serverError.includes('exist')) {
@@ -174,7 +177,7 @@ export default function LoginPage() {
         <View style={styles.gifContainer}>
             <ImageBackground 
                 source={require('../assets/AgsikapBG-Gif.gif')} 
-                style={{width: '100%', height: '100%'}}
+                style={{width: '100%', height: '100%', borderRadius: 30}}
                 resizeMode="cover"
             >
                 <View style={styles.gifOverlay}>
@@ -196,10 +199,26 @@ export default function LoginPage() {
 
         {/* RIGHT SIDE */}
         <View style={styles.loginSection}>
-            <Text style={styles.agsikapTitle}>Agsikap</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Home')}
+            style={{ 
+              alignSelf: 'flex-start',
+              marginBottom: 50,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <Ionicons name="arrow-back-outline" size={18} color="#3d67ee" />
+            <Text style={{ color: '#3d67ee', fontSize: 14, fontWeight: '500' }}>
+              Return to Home
+            </Text>
+          </TouchableOpacity>
+
+            <Text style={styles.agsikapTitle}>Furtopia</Text>
             <Text style={styles.loginHeader}>Log in to your Account</Text>
             <Text style={styles.loginSubtext}>
-                Please enter your credentials to access the dashboard.
+                Sign in to check appointments, receive updates, and take care of your pets with ease!
             </Text>
 
             {/* Username Field */}
@@ -278,6 +297,20 @@ export default function LoginPage() {
                 disabled={loading || !isFormValid()}
             >
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Login</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Registration')}
+              style={{
+                marginTop: 25,
+                paddingVertical: 10,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ fontSize: 14, color: '#555' }}>
+                Don’t have an account?
+                <Text style={{ color: '#3d67ee', fontWeight: '600' }}> Sign up</Text>
+              </Text>
             </TouchableOpacity>
 
         </View>

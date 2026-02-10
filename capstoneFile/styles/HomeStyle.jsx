@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native"; 
 
+//meow
 const homeStyle = StyleSheet.create({
     biContainer: {
         backgroundColor: '#ffffff',

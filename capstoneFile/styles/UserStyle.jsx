@@ -1,5 +1,6 @@
 import { StyleSheet } from "react-native";
 
+// meow
 const userStyle = StyleSheet.create({
   navbar: {
     flexDirection: 'row',
@@ -42,6 +43,8 @@ const userStyle = StyleSheet.create({
     fontWeight: 'bold',
     color: '#007BFF',
   },
+
+  
 
 });
 
