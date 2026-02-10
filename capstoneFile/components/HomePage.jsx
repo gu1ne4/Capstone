@@ -150,40 +150,29 @@ export default function HomePage() {
   // --- LOGOUT HANDLER ---
   const handleLogoutPress = () => {
     showAlert('confirm', 'Log Out', 'Are you sure you want to log out?', async () => {
-      await AsyncStorage.removeItem('userSession'); // Clear session
-      ns.navigate('Login'); // Navigate back to Login
+      await AsyncStorage.removeItem('userSession'); 
+      ns.navigate('Login'); 
     }, true);
   };
 
-  // --- CANCEL HANDLER (NEW: Checks for Unsaved Changes) ---
+  // --- CANCEL HANDLER ---
   const handleCancel = (mode) => {
     let hasUnsavedChanges = false;
-
     if (mode === 'create') {
-      // Check if user has typed anything in the Create form
       hasUnsavedChanges = newUsername || newFullName || newContact || newEmpID || newEmail || userImage;
     } else if (mode === 'edit') {
-      // Find the original account data
       const original = accounts.find(a => (a.pk === editingId || a.id === editingId));
       if (original) {
-        // Compare current form values with original values
         const orgName = original.fullName || original.fullname || '';
         const orgContact = (original.contactNumber || original.contactnumber || '').toString();
         const orgEmpID = (original.employeeID || original.employeeid || '').toString();
-        const orgRole = original.role || '';
-        const orgDept = original.department || original.departmend || '';
-        const orgStatus = original.status || 'Active';
         
-        // If anything is different, flag as unsaved changes
         if (
           newUsername !== original.username ||
           newFullName !== orgName ||
           newContact !== orgContact ||
           newEmpID !== orgEmpID ||
           newEmail !== original.email ||
-          newRole !== orgRole ||
-          newDept !== orgDept ||
-          newStatus !== orgStatus ||
           userImage !== (original.userImage || original.userimage)
         ) {
           hasUnsavedChanges = true;
@@ -192,15 +181,12 @@ export default function HomePage() {
     }
 
     if (hasUnsavedChanges) {
-      // Show confirmation popup
       showAlert('confirm', 'Unsaved Changes', 'You have unsaved changes. Are you sure you want to discard them?', () => {
-        // Only close if user clicks "Confirm" (OK)
         setAddAccountVisible(false);
         setEditAccountVisible(false);
         resetForm();
       }, true);
     } else {
-      // No changes, close immediately
       setAddAccountVisible(false);
       setEditAccountVisible(false);
       resetForm();
@@ -217,12 +203,6 @@ export default function HomePage() {
 
     showAlert('confirm', 'Confirm Status Change', messageJSX, () => {
       setNewStatus(nextStatus);
-    }, true);
-  };
-
-  const handleSavePress = () => {
-    showAlert('confirm', 'Save Changes', 'Are you sure you want to save changes to this account?', () => {
-      handleUpdateAccount();
     }, true);
   };
 
@@ -247,98 +227,28 @@ export default function HomePage() {
     }
   };
 
-  const handleSaveAccount = async () => {
-    if (!newUsername || !newFullName || !newContact || !newEmpID || !newEmail || !newRole || !newDept) {
+  // ==========================================
+  //  VALIDATION & CRUD LOGIC
+  // ==========================================
+
+  // ✅ 1. EDIT: TRIGGER (Validate -> Length Check -> Duplicate Check -> Confirm)
+  const handleSavePress = () => {
+    // 1. Empty Fields Check
+    if (!newUsername || !newFullName || !newContact || !newEmpID || !newEmail) {
       showAlert('error', 'Missing Information', 'Please fill in all required fields.');
       return;
     }
 
+    // 2. Length Validation Check (RESTORED)
     if (newUsername.length < 4) { showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); return; }
     if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
     if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
     if (newEmpID.length < 5) { showAlert('error', 'Invalid Input', 'Employee ID must be at least 5 digits.'); return; }
     if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
 
+    // 3. Duplicate Check
     const isDuplicate = accounts.some(acc => 
-      acc.username.toLowerCase() === newUsername.toLowerCase() || 
-      (acc.employeeID || acc.employeeid).toString() === newEmpID.toString()
-    );
-
-    if (isDuplicate) {
-      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
-      return;
-    }
-
-    const today = new Date();
-    const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
-    const generatedPassword = generateRandomPassword();
-
-    try {
-      const res = await fetch(`${API_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: newUsername,
-          password: generatedPassword,
-          fullName: newFullName,
-          contactNumber: newContact,
-          email: newEmail,
-          role: newRole,
-          department: newDept,
-          employeeID: newEmpID,
-          userImage: userImageBase64,
-          status: newStatus,
-          dateCreated: dateCreated
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setAddAccountVisible(false);
-        showAlert('success', 'Success', 'Account Registered Successfully!', () => {
-          fetchAccounts();
-          resetForm();
-        });
-      } else {
-        showAlert('error', 'Registration Failed', data.error || 'Failed to create account.');
-      }
-    } catch (error) {
-      showAlert('error', 'Network Error', 'Could not connect to the server.');
-    }
-  };
-
-  const openEditModal = (user) => {
-    setEditingId(user.pk || user.id); 
-    setNewUsername(user.username || '');
-    setNewFullName(user.fullName || user.fullname || '');
-    setNewContact((user.contactNumber || user.contactnumber || '').toString());
-    setNewEmpID((user.employeeID || user.employeeid || '').toString());
-    setNewEmail(user.email || '');
-
-    const validRoles = ['Admin', 'User', 'Moderator', 'Veterinarian', 'Receptionist'];
-    const dbRole = user.role || 'Admin';
-    const matchedRole = validRoles.find(r => r.toLowerCase() === dbRole.toLowerCase()) || 'Admin';
-    setNewRole(matchedRole);
-
-    setNewDept(user.department || user.departmend || 'Marketing');
-    setNewStatus(user.status || 'Active');
-
-    const img = user.userImage || user.userimage;
-    setUserImage(img);
-    setUserImageBase64(null); 
-
-    setEditAccountVisible(true);
-  };
-
-  const handleUpdateAccount = async () => {
-    if (newUsername.length < 4) { showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); return; }
-    if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
-    if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
-    if (newEmpID.length < 5) { showAlert('error', 'Invalid Input', 'Employee ID must be at least 5 digits.'); return; }
-    if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
-
-    const isDuplicate = accounts.some(acc => 
-      (acc.pk !== editingId && acc.id !== editingId) && 
+      (String(acc.pk) !== String(editingId) && String(acc.id) !== String(editingId)) && 
       (acc.username.toLowerCase() === newUsername.toLowerCase() || 
        (acc.employeeID || acc.employeeid).toString() === newEmpID.toString())
     );
@@ -348,6 +258,14 @@ export default function HomePage() {
       return;
     }
 
+    // 4. Confirmation
+    showAlert('confirm', 'Save Changes', 'Are you sure you want to save changes to this account?', () => {
+      handleUpdateAccount(); 
+    }, true);
+  };
+
+  // ✅ 2. EDIT: ACTION
+  const handleUpdateAccount = async () => {
     try {
       const res = await fetch(`${API_URL}/accounts/${editingId}`, {
         method: 'PUT',
@@ -377,6 +295,96 @@ export default function HomePage() {
     } catch (error) {
       showAlert('error', 'Network Error', 'Could not connect to the server.');
     }
+  };
+
+  // ✅ 3. CREATE: TRIGGER + ACTION
+  const handleSaveAccount = async () => {
+    // 1. Empty Fields Check
+    if (!newUsername || !newFullName || !newContact || !newEmpID || !newEmail || !newRole || !newDept) {
+      showAlert('error', 'Missing Information', 'Please fill in all required fields.');
+      return;
+    }
+
+    // 2. Length Validation Check (RESTORED)
+    if (newUsername.length < 4) { showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); return; }
+    if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
+    if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
+    if (newEmpID.length < 3) { showAlert('error', 'Invalid Input', 'Employee ID must be at least 3 digits.'); return; }
+    if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
+
+    // 3. Duplicate Check
+    const isDuplicate = accounts.some(acc => 
+      acc.username.toLowerCase() === newUsername.toLowerCase() || 
+      (acc.employeeID || acc.employeeid).toString() === newEmpID.toString()
+    );
+
+    if (isDuplicate) {
+      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
+      return;
+    }
+
+    // 4. Confirmation
+    showAlert('confirm', 'Create Account', 'Are you sure you want to register this new account?', async () => {
+      const today = new Date();
+      const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+      const generatedPassword = generateRandomPassword();
+
+      try {
+        const res = await fetch(`${API_URL}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: newUsername,
+            password: generatedPassword,
+            fullName: newFullName,
+            contactNumber: newContact,
+            email: newEmail,
+            role: newRole,
+            department: newDept,
+            employeeID: newEmpID,
+            userImage: userImageBase64,
+            status: newStatus,
+            dateCreated: dateCreated
+          }),
+        });
+
+        if (res.ok) {
+          setAddAccountVisible(false);
+          showAlert('success', 'Success', 'Account Registered Successfully!', () => {
+            fetchAccounts();
+            resetForm();
+          });
+        } else {
+          const data = await res.json();
+          showAlert('error', 'Registration Failed', data.error || 'Failed to create account.');
+        }
+      } catch (error) {
+        showAlert('error', 'Network Error', 'Could not connect to the server.');
+      }
+    }, true);
+  };
+
+  const openEditModal = (user) => {
+    setEditingId(user.pk || user.id); 
+    setNewUsername(user.username || '');
+    setNewFullName(user.fullName || user.fullname || '');
+    setNewContact((user.contactNumber || user.contactnumber || '').toString());
+    setNewEmpID((user.employeeID || user.employeeid || '').toString());
+    setNewEmail(user.email || '');
+
+    const validRoles = ['Admin', 'User', 'Moderator', 'Veterinarian', 'Receptionist'];
+    const dbRole = user.role || 'Admin';
+    const matchedRole = validRoles.find(r => r.toLowerCase() === dbRole.toLowerCase()) || 'Admin';
+    setNewRole(matchedRole);
+
+    setNewDept(user.department || user.departmend || 'Marketing');
+    setNewStatus(user.status || 'Active');
+
+    const img = user.userImage || user.userimage;
+    setUserImage(img);
+    setUserImageBase64(null); 
+
+    setEditAccountVisible(true);
   };
 
   const handleViewDetails = (user) => {
@@ -476,23 +484,23 @@ export default function HomePage() {
                 />
               </TouchableOpacity>
 
-                {showAccountDropdown && (
+              {showAccountDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
-                    <View style={[isActive ? homeStyle.selectedGlass : null, {width: '100%'}]}>
+                  <View style={[isActive ? homeStyle.selectedGlass : null, {width: '100%'}]}>
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Accounts')}}>
                         <Ionicons name="person-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
                         <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Employees</Text>
                     </TouchableOpacity>
-                    </View>
+                  </View>
 
-                    <View >
+                  <View >
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('UserAccounts')}}>
                         <Ionicons name="medkit-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
                         <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Users / Patients</Text>
                     </TouchableOpacity>
-                    </View>
+                  </View>
                 </View>
-                )}
+              )}
             </View>
 
             <View >
@@ -827,11 +835,11 @@ export default function HomePage() {
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Role</Text>
-                   <Picker 
+                    <Picker 
                     selectedValue={newRole} 
                     onValueChange={setNewRole} 
                     style={homeStyle.createPickerStyle}
-                   >
+                    >
                     <Picker.Item label="Admin" value="Admin" />
                     <Picker.Item label="Veterinarian" value="Veterinarian" />
                     <Picker.Item label="Receptionist" value="Receptionist" />
@@ -840,7 +848,7 @@ export default function HomePage() {
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Department</Text>
-                   <Picker selectedValue={newDept} onValueChange={setNewDept} style={homeStyle.createPickerStyle}>
+                    <Picker selectedValue={newDept} onValueChange={setNewDept} style={homeStyle.createPickerStyle}>
                     <Picker.Item label="Marketing" value="Marketing" />
                     <Picker.Item label="Sales" value="Sales" />
                     <Picker.Item label="IT" value="IT" />
@@ -1119,7 +1127,7 @@ export default function HomePage() {
       >
         <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
           <View style={{backgroundColor: 'white', padding: 25, borderRadius: 12, width: '80%', maxWidth: 350, alignItems: 'center', elevation: 5}}>
-             
+              
              {/* Dynamic Icon based on Type */}
              <Ionicons 
                name={
@@ -1158,7 +1166,7 @@ export default function HomePage() {
                     onPress={() => setModalVisible(false)} 
                     style={{paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#f0f0f0', borderRadius: 8, minWidth: 100, alignItems: 'center'}}
                   >
-                     <Text style={{color: '#333', fontWeight: '600'}}>Cancel</Text>
+                      <Text style={{color: '#333', fontWeight: '600'}}>Cancel</Text>
                   </TouchableOpacity>
                 )}
                 

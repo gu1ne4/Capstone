@@ -161,32 +161,44 @@ app.post('/register', async (req, res) => {
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   try {
-    const result = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
-    if (result.rows.length === 0) return res.status(401).json({ error: 'User not found' });
+    // 1. First, check the Employee/Admin 'accounts' table
+    let result = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
+    let user = result.rows.length > 0 ? result.rows[0] : null;
 
-    const user = result.rows[0];
+    // 2. If not found in accounts, check the 'patient_account' table
+    if (!user) {
+        result = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
+        user = result.rows.length > 0 ? result.rows[0] : null;
+    }
+
+    // 3. If still not found, return error
+    if (!user) return res.status(401).json({ error: 'User not found' });
+
+    // 4. Check Status
     if (user.status === 'Disabled' || user.status === 'Inactive') {
       return res.status(403).json({ error: 'Account is disabled.' });
     }
 
+    // 5. Verify Password
+    // (Note: In production, ensure you are hashing passwords!)
     if (user.password === password) {
-      // 1. Process Image to Base64 string if it exists
+      // Process Image to Base64
       const imgBuffer = user.userImage || user.userimage;
       let imageStr = null;
       if (imgBuffer) {
         imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
       }
 
-      // 2. Send ALL details back to the app
+      // Send success response
       res.json({ 
         message: 'Login successful', 
         user: { 
           id: user.pk, 
           username: user.username,
-          fullName: user.fullName || user.fullname, // Get name
-          role: user.role,                          // Get role
-          department: user.department,              // Get department (optional)
-          userImage: imageStr                       // Get image
+          fullName: user.fullName || user.fullname, 
+          role: user.role,       // This will grab 'User' from patient_account
+          department: user.department, 
+          userImage: imageStr 
         } 
       });
     } else {
@@ -273,6 +285,8 @@ app.put('/accounts/:id', async (req, res) => {
 
 // ========== START SERVER ==========
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+
+// 👇 IMPORTANT: Keep '0.0.0.0' here so Android can connect!
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
 });

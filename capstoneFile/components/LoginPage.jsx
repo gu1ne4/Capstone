@@ -13,13 +13,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // NEW: Custom Modal State
+  // Custom Modal State
   const [modalVisible, setModalVisible] = useState(false);
   const [modalConfig, setModalConfig] = useState({
     title: '',
     message: '',
-    type: 'error', // 'success' or 'error'
-    onDismiss: null // Action to run when closing the modal
+    type: 'error', 
+    onDismiss: null 
   });
 
   // Validation states
@@ -38,7 +38,6 @@ export default function LoginPage() {
     setModalVisible(true);
   };
 
-  // Handle closing the popup
   const handleClosePopup = () => {
     setModalVisible(false);
     if (modalConfig.onDismiss) {
@@ -48,28 +47,21 @@ export default function LoginPage() {
 
   const validateField = (fieldName, value) => {
     const rules = validationRules[fieldName];
-    
-    if (rules.required && !value.trim()) {
-      return `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} is required`;
-    } else if (value.length > 0 && value.length < rules.minLength) {
-      return `At least ${rules.minLength} characters`;
-    } else if (value.length > rules.maxLength) {
-      return `Max ${rules.maxLength} characters`;
-    }
+    if (rules.required && !value.trim()) return `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} is required`;
+    else if (value.length > 0 && value.length < rules.minLength) return `At least ${rules.minLength} characters`;
+    else if (value.length > rules.maxLength) return `Max ${rules.maxLength} characters`;
     return '';
   };
 
   useEffect(() => {
     if (touched.username) {
-      const error = validateField('username', username);
-      setErrors(prev => ({...prev, username: error}));
+      setErrors(prev => ({...prev, username: validateField('username', username)}));
     }
   }, [username, touched.username]);
 
   useEffect(() => {
     if (touched.password) {
-      const error = validateField('password', password);
-      setErrors(prev => ({...prev, password: error}));
+      setErrors(prev => ({...prev, password: validateField('password', password)}));
     }
   }, [password, touched.password]);
 
@@ -84,9 +76,7 @@ export default function LoginPage() {
   const passwordStatus = getFieldStatus('password', password);
 
   const isFormValid = () => {
-    const usernameError = validateField('username', username);
-    const passwordError = validateField('password', password);
-    return !usernameError && !passwordError;
+    return !validateField('username', username) && !validateField('password', password);
   };
 
   const handleUsernameChange = (text) => {
@@ -101,9 +91,7 @@ export default function LoginPage() {
 
   const handleBlur = (fieldName) => {
     setTouched(prev => ({...prev, [fieldName]: true}));
-    const value = fieldName === 'username' ? username : password;
-    const error = validateField(fieldName, value);
-    setErrors(prev => ({...prev, [fieldName]: error}));
+    setErrors(prev => ({...prev, [fieldName]: validateField(fieldName, fieldName === 'username' ? username : password)}));
   };
 
   const handleLogin = async () => {
@@ -114,19 +102,17 @@ export default function LoginPage() {
     
     if (usernameError || passwordError) {
       setErrors({ username: usernameError, password: passwordError });
-      const firstError = usernameError || passwordError;
-      
-      // REPLACED: Alert with Custom Popup
-      showPopup('Validation Error', firstError, 'error');
+      showPopup('Validation Error', usernameError || passwordError, 'error');
       return;
     }
 
     setLoading(true);
-    try {
-      const apiUrl = Platform.OS === 'web' 
-        ? 'http://localhost:3000/login' 
-        : 'http://10.0.2.2:3000/login';
+    
+    const apiUrl = Platform.OS === 'web' 
+      ? 'http://localhost:3000/login' 
+      : 'http://10.0.2.2:3000/login';
 
+    try {
       const res = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -138,23 +124,36 @@ export default function LoginPage() {
       if (res.ok) {
         await AsyncStorage.setItem('userSession', JSON.stringify(data.user));
         
-        // REPLACED: Alert with Custom Popup (Success)
         showPopup('Success', `Welcome back, ${data.user.username}!`, 'success', () => {
-            // Navigate only after user closes the popup
-            navigation.replace("Accounts"); 
+            
+            const userRole = data.user.role; 
+
+            // 1. Admin -> HomePage
+            if (userRole === 'Admin') {
+                navigation.replace("Accounts"); 
+            } 
+            // 2. Employees -> EmpAccessHomepage
+            else if (userRole === 'Veterinarian' || userRole === 'Receptionist') {
+                navigation.replace("EmpAccessHomepage"); 
+            } 
+            // 3. User (Patient) -> UserHomePageInterface
+            // ✅ THIS WAS THE FIX: Updated to match the route name in App.js
+            else if (userRole === 'User') {
+                navigation.replace("UserHomePage"); 
+            }
+            // 4. Fallback
+            else {
+                navigation.replace("Login"); 
+            }
         });
 
       } else {
-        // --- ERROR HANDLING SEQUENCE ---
         const serverError = data.error ? data.error.toLowerCase() : '';
-
-        // Condition 1: Check if account does not exist
-        // (Assumes backend sends "User not found" or "No user found")
         if (serverError.includes('found') || serverError.includes('exist')) {
            showPopup('Login Failed', "Account not found.", 'error');
-        } 
-        // Condition 2: Password mismatch or generic error
-        else {
+        } else if (serverError.includes('disabled')) {
+           showPopup('Access Denied', "Account is disabled.", 'error');
+        } else {
            showPopup('Login Failed', 'Invalid Username or Password', 'error');
         }
       }
@@ -293,22 +292,14 @@ export default function LoginPage() {
       >
         <View style={modalStyles.centeredView}>
           <View style={modalStyles.modalView}>
-            
-            {/* Icon */}
             <Ionicons 
                 name={modalConfig.type === 'success' ? "checkmark-circle" : "alert-circle"} 
                 size={50} 
                 color={modalConfig.type === 'success' ? "#4CAF50" : "#F44336"} 
                 style={{marginBottom: 10}}
             />
-
-            {/* Title */}
             <Text style={modalStyles.modalTitle}>{modalConfig.title}</Text>
-            
-            {/* Message */}
             <Text style={modalStyles.modalText}>{modalConfig.message}</Text>
-
-            {/* Button */}
             <TouchableOpacity
               style={[
                   modalStyles.button, 
@@ -326,13 +317,12 @@ export default function LoginPage() {
   )
 }
 
-// Internal Styles for the Modal to ensure it looks good immediately
 const modalStyles = StyleSheet.create({
   centeredView: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: 'rgba(0, 0, 0, 0.5)' // Semi-transparent background
+    backgroundColor: 'rgba(0, 0, 0, 0.5)' 
   },
   modalView: {
     margin: 20,
@@ -341,10 +331,7 @@ const modalStyles = StyleSheet.create({
     padding: 35,
     alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: {
-      width: 0,
-      height: 2
-    },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
@@ -358,12 +345,8 @@ const modalStyles = StyleSheet.create({
     paddingHorizontal: 30,
     marginTop: 15
   },
-  buttonSuccess: {
-    backgroundColor: "#4CAF50",
-  },
-  buttonError: {
-    backgroundColor: "#F44336",
-  },
+  buttonSuccess: { backgroundColor: "#4CAF50" },
+  buttonError: { backgroundColor: "#F44336" },
   textStyle: {
     color: "white",
     fontWeight: "bold",
