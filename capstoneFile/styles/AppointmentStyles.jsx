@@ -72,6 +72,149 @@ const apStyle = StyleSheet.create({
       alignItems: 'center',
     },
 
+       statusBadge: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 20,
+        alignSelf: 'flex-start',
+    },
+    
+    sectionContainer: {
+        marginBottom: 30,
+    },
+    
+    sectionTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        marginBottom: 15,
+        color: '#333',
+        borderBottomWidth: 2,
+        borderBottomColor: '#3d67ee',
+        paddingBottom: 8,
+    },
+    
+    detailsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+    },
+    
+    detailItem: {
+        width: '48%',
+        marginBottom: 15,
+    },
+    
+    detailLabel: {
+        fontSize: 12,
+        color: '#666',
+        marginBottom: 4,
+    },
+    
+    detailValue: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: '#333',
+    },
+    
+    appointmentCard: {
+        backgroundColor: '#f8f9fa',
+        borderRadius: 8,
+        padding: 15,
+        borderLeftWidth: 4,
+        borderLeftColor: '#3d67ee',
+    },
+    
+    visitsList: {
+        marginTop: 10,
+    },
+    
+    visitItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 10,
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+    },
+    
+    actionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+        borderRadius: 8,
+        minWidth: 120,
+        justifyContent: 'center',
+    },
+    
+    actionButtonText: {
+        marginLeft: 8,
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    
+    modalContent: {
+        backgroundColor: 'white',
+        borderRadius: 12,
+        padding: 20,
+        width: '90%',
+        maxWidth: 400,
+        elevation: 5,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.25,
+        shadowRadius: 4,
+    },
+    
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 15,
+    },
+    
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#333',
+    },
+    
+    modalButton: {
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 6,
+        minWidth: 100,
+        alignItems: 'center',
+    },
+    
+    createAppointmentButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#3d67ee',
+        paddingHorizontal: 15,
+        paddingVertical: 10,
+        borderRadius: 8,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+    },
+    
+    createAppointmentButtonText: {
+        color: '#fff',
+        marginLeft: 8,
+        fontSize: 14,
+        fontWeight: '600',
+    },
+
 })
 
 export default apStyle;
