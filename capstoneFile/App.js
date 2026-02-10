@@ -2,8 +2,9 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
+import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 
-import styles from './styles/StyleSheet';
+// --- EXISTING IMPORTS ---
 import HomePage from './components/HomePage';
 import LoginPage from './components/LoginPage';
 import DashboardPage from './components/DashboardPage';
@@ -16,8 +17,9 @@ import ChangeCreds from './components/ChangeCreds';
 import ChangePassOTP from './components/ChangePassOTP';
 import ChangePass from './components/ChangePass';
 
-
-import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
+// --- NEW IMPORTS (Your paths are CORRECT) ---
+import EmpAccessHomepage from './components/EmployeeInterface/EmpAccessHomepage';
+import UserHomePage from './components/UserInterface/UserHomePage';
 
 export default function App() {
 
@@ -33,23 +35,26 @@ export default function App() {
   };
 
   return (
-    <PaperProvider theme={theme}  >
+    <PaperProvider theme={theme}>
       <NavigationContainer>
-      <CScreen.Navigator initialRouteName='Login'>
-        <CScreen.Screen name="Home" component={DashboardPage} options={{headerShown: false}} />
-        <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
-        <CScreen.Screen name="Accounts" component={HomePage}  options={{headerShown: false}} />
-        <CScreen.Screen name="UserAccounts" component={UserAccPage}  options={{headerShown: false}} />
-        <CScreen.Screen name="Settings" component={SettingsPage}  options={{headerShown: false}} />
-        <CScreen.Screen name="Audit" component={AuditPage}  options={{headerShown: false}} />
-        <CScreen.Screen name="UserHome" component={UserHome}  options={{headerShown: false}} />
-        <CScreen.Screen name="Registration" component={RegistrationPage}  options={{headerShown: false}} />
-        <CScreen.Screen name="ChangeCreds" component={ChangeCreds}  options={{headerShown: false}} />
-        <CScreen.Screen name="ChangePassOTP" component={ChangePassOTP}  options={{headerShown: false}} />
-        <CScreen.Screen name="ChangePass" component={ChangePass}  options={{headerShown: false}} />
-      </CScreen.Navigator>
-    </NavigationContainer>
+        <CScreen.Navigator initialRouteName='Login'>
+          <CScreen.Screen name="Home" component={DashboardPage} options={{headerShown: false}} />
+          <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
+          <CScreen.Screen name="Accounts" component={HomePage} options={{headerShown: false}} />
+          <CScreen.Screen name="UserAccounts" component={UserAccPage} options={{headerShown: false}} />
+          <CScreen.Screen name="Settings" component={SettingsPage} options={{headerShown: false}} />
+          <CScreen.Screen name="Audit" component={AuditPage} options={{headerShown: false}} />
+          <CScreen.Screen name="UserHome" component={UserHome} options={{headerShown: false}} />
+          <CScreen.Screen name="Registration" component={RegistrationPage} options={{headerShown: false}} />
+          <CScreen.Screen name="ChangeCreds" component={ChangeCreds} options={{headerShown: false}} />
+          <CScreen.Screen name="ChangePassOTP" component={ChangePassOTP} options={{headerShown: false}} />
+          <CScreen.Screen name="ChangePass" component={ChangePass} options={{headerShown: false}} />
+          <CScreen.Screen name="EmpAccessHomepage" component={EmpAccessHomepage} options={{headerShown: false}} />
+          <CScreen.Screen name="UserHomePage" component={UserHomePage} options={{headerShown: false}} />
+
+
+        </CScreen.Navigator>
+      </NavigationContainer>
     </PaperProvider>
   );
 }
-
