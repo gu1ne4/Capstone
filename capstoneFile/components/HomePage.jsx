@@ -490,16 +490,10 @@ export default function HomePage() {
               </TouchableOpacity>
               </View>
 
-<<<<<<< HEAD
-              {showAccountDropdown && (
-                <View style={{ marginLeft: 25, marginTop: 5 }}>
-                  <View style={[isActive ? homeStyle.selectedGlass : null, {width: '100%'}]}>
-=======
               {/* Dropdown Subcategories */}
                 {showAccountDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
                     <View style={[isActive ? homeStyle.subSelectedGlass : null, {width: '100%'}]}>
->>>>>>> d67de8be71632a7f362d0e92f264820e85054677
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Accounts')}}>
                         <Ionicons name="person-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
                         <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Employees</Text>
@@ -513,9 +507,6 @@ export default function HomePage() {
                     </TouchableOpacity>
                   </View>
                 </View>
-<<<<<<< HEAD
-              )}
-=======
                 )}
 
             </View>
@@ -561,7 +552,6 @@ export default function HomePage() {
                     </View>
                 </View>
                 )}
->>>>>>> d67de8be71632a7f362d0e92f264820e85054677
             </View>
 
             <View >

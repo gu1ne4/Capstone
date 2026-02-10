@@ -140,10 +140,10 @@ const handleLogin = async () => {
                 navigation.replace("Accounts"); 
             } 
             else if (userRole === 'Veterinarian' || userRole === 'Receptionist') {
-                navigation.replace("EmpAccessHomepage"); 
+                navigation.replace("DashboardPage"); 
             } 
             else if (userRole === 'User') {
-                navigation.replace("UserHomePage"); 
+                navigation.replace("UserHome"); 
             }
             else {
                 navigation.replace("Login"); 
@@ -200,7 +200,7 @@ const handleLogin = async () => {
         {/* RIGHT SIDE */}
         <View style={styles.loginSection}>
           <TouchableOpacity
-            onPress={() => navigation.navigate('Home')}
+            onPress={() => navigation.navigate('UserHome')}
             style={{ 
               alignSelf: 'flex-start',
               marginBottom: 50,

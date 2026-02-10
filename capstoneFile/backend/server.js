@@ -737,7 +737,7 @@ app.post('/api/appointments', async (req, res) => {
   }
 });
 
-// GET appointments for a specific date
+// GET appointments for a specific date sad
 app.get('/api/appointments/date/:date', async (req, res) => {
   const { date } = req.params;
   

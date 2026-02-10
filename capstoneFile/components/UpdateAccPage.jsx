@@ -84,7 +84,7 @@ const UpdateAccPage = () => {
       const data = await res.json();
 
       if (res.ok) {
-        // Clear session and redirect to login
+        // Clear session and redirect to logins
         await AsyncStorage.removeItem('userSession');
         
         const successMsg = 'Credentials updated! Please login with your new credentials.';
