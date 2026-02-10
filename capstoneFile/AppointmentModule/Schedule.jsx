@@ -12,8 +12,11 @@ import { BlurView } from 'expo-blur';
 import * as ImagePicker from 'expo-image-picker';
 import { Calendar } from 'react-native-calendars';
 import apStyle from '../styles/AppointmentStyles';
+// [file name]: Schedule.jsx (UPDATED CREATE APPOINTMENT MODAL SECTION)
+// Add this import at the top with other imports
+import { availabilityService } from './availabilityService';
 
-// Separate Create Appointment Modal Component
+// Update the CreateAppointmentModal component inside Schedule.jsx
 const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
     const [selectedDate, setSelectedDate] = useState('');
     const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
@@ -24,22 +27,30 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
     const [petName, setPetName] = useState('');
     const [petType, setPetType] = useState('');
     const [petGender, setPetGender] = useState('');
+    
+    // NEW STATE FOR AVAILABILITY
+    const [availabilityData, setAvailabilityData] = useState(null);
+    const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
+    const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
+    const [bookedSlots, setBookedSlots] = useState({}); 
 
-    const timeSlots = [
-        '08:00 AM', '08:30 AM', '09:00 AM', '09:30 AM',
-        '10:00 AM', '10:30 AM', '11:00 AM', '11:30 AM',
-        '01:00 PM', '01:30 PM', '02:00 PM', '02:30 PM',
-        '03:00 PM', '03:30 PM', '04:00 PM', '04:30 PM',
-    ];
-
-    // Initialize with today's date when modal opens
+    
+    // Initialize when modal opens
     useEffect(() => {
         if (visible) {
             const today = new Date();
             const year = today.getFullYear();
             const month = String(today.getMonth() + 1).padStart(2, '0');
             const day = String(today.getDate()).padStart(2, '0');
-            setSelectedDate(`${year}-${month}-${day}`);
+            const todayString = `${year}-${month}-${day}`;
+            setSelectedDate(todayString);
+            
+            // Load availability data
+            loadAvailabilityData();
+            
+            // Load initial time slots for today
+            const dayName = availabilityService.getDayNameFromDate(todayString);
+            loadTimeSlotsForDay(dayName);
         } else {
             // Reset form when closing
             setSelectedDate('');
@@ -51,8 +62,107 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
             setPetName('');
             setPetType('');
             setPetGender('');
+            setAvailableTimeSlots([]);
+            setBookedSlots({});
         }
     }, [visible]);
+
+    const loadAvailabilityData = async () => {
+        try {
+            const data = await availabilityService.getAvailabilityData();
+            setAvailabilityData(data);
+        } catch (error) {
+            console.error('Failed to load availability data:', error);
+        }
+    };
+
+    const loadTimeSlotsForDay = async (dayName) => {
+  if (!dayName || !selectedDate) return;
+  
+  setLoadingTimeSlots(true);
+  try {
+    // Load the time slots for this day
+    const slots = await availabilityService.getTimeSlotsForDay(dayName);
+    
+    // For each slot, check availability for the specific selectedDate
+    const formattedSlotsWithAvailability = await Promise.all(
+      slots.map(async (slot) => {
+        // Get availability for THIS SPECIFIC DATE
+        const slotAvailability = await availabilityService.getBookedSlotsCount(slot.id, selectedDate);
+        
+        // Format time for display
+        const formatTime = (time24) => {
+          if (!time24) return '';
+          const [hours, minutes] = time24.split(':');
+          const hour = parseInt(hours);
+          const ampm = hour >= 12 ? 'PM' : 'AM';
+          const displayHour = hour % 12 || 12;
+          return `${displayHour}:${minutes} ${ampm}`;
+        };
+        
+        return {
+          id: slot.id,
+          displayText: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`,
+          startTime: slot.start_time,
+          endTime: slot.end_time,
+          capacity: slot.capacity || slot.slot_capacity || 1,
+          bookedCount: slotAvailability.bookedCount || 0,
+          availableSlots: slotAvailability.availableSlots || slot.capacity || 1
+        };
+      })
+    );
+    
+    // Filter out slots that have 0 or negative available slots (fully booked)
+    const availableSlots = formattedSlotsWithAvailability.filter(slot => slot.availableSlots > 0);
+    
+    setAvailableTimeSlots(availableSlots);
+    setSelectedTimeSlot(''); // Reset selected time slot when day changes
+  } catch (error) {
+    console.error('Failed to load time slots:', error);
+    setAvailableTimeSlots([]);
+  } finally {
+    setLoadingTimeSlots(false);
+  }
+};
+
+// Add this function to refresh time slots when date changes
+const refreshTimeSlotAvailability = async () => {
+  if (!selectedDate) return;
+  
+  const dayName = availabilityService.getDayNameFromDate(selectedDate);
+  if (!dayName) return;
+  
+  setLoadingTimeSlots(true);
+  try {
+    const slots = await availabilityService.getTimeSlotsForDay(dayName);
+    const formattedSlots = await availabilityService.formatTimeSlotsForDisplay(slots, selectedDate);
+    
+    // Filter to only show slots with availability
+    const availableSlots = formattedSlots.filter(slot => slot.availableSlots > 0);
+    
+    setAvailableTimeSlots(availableSlots);
+    
+    // If current selected slot is no longer available, clear it
+    if (selectedTimeSlot) {
+      const currentSlot = formattedSlots.find(slot => slot.displayText === selectedTimeSlot);
+      if (!currentSlot || currentSlot.availableSlots <= 0) {
+        setSelectedTimeSlot('');
+        Alert.alert('Slot Unavailable', 'The previously selected time slot is no longer available.');
+      }
+    }
+  } catch (error) {
+    console.error('Failed to refresh time slots:', error);
+  } finally {
+    setLoadingTimeSlots(false);
+  }
+};
+
+// Call this whenever selectedDate changes
+useEffect(() => {
+  if (selectedDate) {
+    refreshTimeSlotAvailability();
+  }
+}, [selectedDate]);
 
     const getTodayDate = () => {
         const today = new Date();
@@ -73,34 +183,150 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
         });
     };
 
-    const handleSubmit = () => {
-        // Validation
-        if (!patientName.trim()) {
-            Alert.alert('Error', 'Please enter patient name');
-            return;
+    // Check if a date is disabled based on availability settings from database
+    const isDateDisabled = (dateString) => {
+        if (!availabilityData || !dateString) return true;
+        
+        // Check if it's a special date (holiday)
+        if (availabilityData.specialDates) {
+            const isSpecial = availabilityService.isSpecialDate(dateString, availabilityData.specialDates);
+            if (isSpecial) return true;
         }
-        if (!appointmentType) {
-            Alert.alert('Error', 'Please select appointment type');
-            return;
-        }
-        if (!selectedDate) {
-            Alert.alert('Error', 'Please select a date');
-            return;
-        }
-        if (!selectedTimeSlot) {
-            Alert.alert('Error', 'Please select a time slot');
-            return;
-        }
+        
+        // Check day availability from database
+        const dayName = availabilityService.getDayNameFromDate(dateString);
+        const isAvailable = availabilityData.dayAvailability[dayName];
+        
+        // Return true if day is NOT available
+        return !isAvailable;
+    };
 
-        // Format date for display
-        const date = new Date(selectedDate);
-        const formattedDate = date.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
+    // Get marked dates for calendar
+    const getMarkedDates = () => {
+        const markedDates = {};
+        const today = new Date();
+        
+        if (selectedDate) {
+            markedDates[selectedDate] = {
+                selected: true,
+                selectedColor: '#3d67ee',
+                selectedTextColor: 'white',
+                disabled: isDateDisabled(selectedDate)
+            };
+        }
+        
+        // Mark disabled dates for the next 90 days based on database availability
+        if (availabilityData && availabilityData.dayAvailability) {
+            for (let i = 0; i < 90; i++) {
+                const date = new Date(today);
+                date.setDate(today.getDate() + i);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const dateString = `${year}-${month}-${day}`;
+                const dayName = availabilityService.getDayNameFromDate(dateString);
+                
+                // Check if this day is available in the database
+                const isDayAvailable = availabilityData.dayAvailability[dayName];
+                
+                if (isDateDisabled(dateString) || !isDayAvailable) {
+                    markedDates[dateString] = {
+                        disabled: true,
+                        disableTouchEvent: true,
+                        dotColor: 'transparent',
+                        customStyles: {
+                            container: {
+                                backgroundColor: '#f5f5f5',
+                                borderRadius: 0
+                            },
+                            text: {
+                                color: '#ccc',
+                                textDecorationLine: 'line-through'
+                            }
+                        }
+                    };
+                }
+            }
+        }
+        
+        return markedDates;
+    };
 
-        // Prepare appointment data
+    // Handle date selection
+    const handleDateSelect = (day) => {
+        const dateString = day.dateString;
+        
+        // Check if date is disabled
+        if (isDateDisabled(dateString)) {
+            Alert.alert('Date Not Available', 'This date is not available for appointments.');
+            return;
+        }
+        
+        setSelectedDate(dateString);
+        
+        // Load time slots for the selected day
+        const dayName = availabilityService.getDayNameFromDate(dateString);
+        loadTimeSlotsForDay(dayName);
+    };
+
+        const isTimeSlotFullyBooked = (slotId) => {
+
+        const slot = availableTimeSlots.find(s => s.id === slotId);
+        if (!slot) return true;
+
+        return slot.availableSlots <= 0;
+        };
+
+    // Handle time slot selection
+    const handleTimeSlotSelect = (slotId) => {
+        if (isTimeSlotFullyBooked(slotId)) {
+            Alert.alert('Slot Full', 'This time slot is fully booked. Please select another time.');
+            return;
+        }
+        
+        const slot = availableTimeSlots.find(s => s.id === slotId);
+        if (slot) {
+            setSelectedTimeSlot(slot.displayText);
+        }
+    };
+
+
+    const handleSubmit = async () => {
+    // Validation
+    if (!patientName.trim()) {
+        Alert.alert('Error', 'Please enter patient name');
+        return;
+    }
+    if (!appointmentType) {
+        Alert.alert('Error', 'Please select appointment type');
+        return;
+    }
+    if (!selectedDate) {
+        Alert.alert('Error', 'Please select a date');
+        return;
+    }
+    if (!selectedTimeSlot) {
+        Alert.alert('Error', 'Please select a time slot');
+        return;
+    }
+
+    // Check if the selected time slot is still available
+    const selectedSlot = availableTimeSlots.find(slot => 
+        slot.displayText === selectedTimeSlot
+    );
+    
+    if (!selectedSlot) {
+        Alert.alert('Error', 'Selected time slot is no longer available');
+        return;
+    }
+    
+    if (selectedSlot.availableSlots <= 0) {
+        Alert.alert('Slot Full', 'This time slot is now fully booked. Please select another time.');
+        return;
+    }
+
+    try {
+        // Create appointment data
         const appointmentData = {
             patientName,
             patientEmail,
@@ -110,18 +336,82 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
             petGender,
             appointmentType,
             selectedDate,
-            selectedTimeSlot,
-            formattedDate
+            timeSlotId: selectedSlot.id,
+            timeSlotDisplay: selectedSlot.displayText
         };
 
-        onSubmit(appointmentData);
-    };
+        // Call the API to create the appointment
+        await availabilityService.createAppointment(appointmentData);
+        
+        // Reset form
+        setPatientName('');
+        setPatientEmail('');
+        setPatientPhone('');
+        setPetName('');
+        setPetType('');
+        setPetGender('');
+        setAppointmentType('');
+        setSelectedDate('');
+        setSelectedTimeSlot('');
+        
+        // Close the modal immediately (no alert!)
+        onClose();
+
+    } catch (error) {
+        console.error('Error creating appointment:', error);
+        Alert.alert('Error', error.message || 'Failed to create appointment. Please try again.');
+    }
+};
+
+    // Render time slot with availability indicator
+const renderTimeSlot = (slot) => {
+  const isFullyBooked = slot.availableSlots <= 0;
+  const isSelected = selectedTimeSlot === slot.displayText;
+  
+  return (
+    <TouchableOpacity
+      key={slot.id}
+      style={[
+        apStyle.timeSlot,
+        isSelected && apStyle.selectedTimeSlot,
+        isFullyBooked && apStyle.disabledTimeSlot
+      ]}
+      onPress={() => !isFullyBooked && handleTimeSlotSelect(slot.id)}
+      disabled={isFullyBooked}
+    >
+      <Text style={[
+        apStyle.timeSlotText,
+        isSelected && apStyle.selectedTimeSlotText,
+        isFullyBooked && apStyle.disabledTimeSlotText
+      ]}>
+        {slot.displayText}
+      </Text>
+      <View style={{
+        position: 'absolute',
+        top: 5,
+        right: 5,
+        backgroundColor: isFullyBooked ? '#ff6b6b' : (slot.availableSlots > 2 ? '#4CAF50' : '#ff9800'),
+        borderRadius: 10,
+        paddingHorizontal: 6,
+        paddingVertical: 2
+      }}>
+        <Text style={{
+          fontSize: 10,
+          color: 'white',
+          fontWeight: 'bold'
+        }}>
+          {slot.availableSlots} left
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+};
 
     return (
         <Modal
             visible={visible}
             transparent={true}
-            animationType="slide"
+            animationType="fade"
             onRequestClose={onClose}
         >
             <View style={apStyle.modalOverlay}>
@@ -260,17 +550,10 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
                                 <View style={apStyle.calendarContainer}>
                                     <Calendar
                                         current={selectedDate || getTodayDate()}
-                                        onDayPress={(day) => {
-                                            setSelectedDate(day.dateString);
-                                        }}
-                                        markedDates={{
-                                            [selectedDate]: { 
-                                                selected: true, 
-                                                selectedColor: '#3d67ee',
-                                                selectedTextColor: 'white'
-                                            }
-                                        }}
+                                        onDayPress={handleDateSelect}
+                                        markedDates={getMarkedDates()}
                                         minDate={getTodayDate()}
+                                        monthFormat={'MMMM yyyy'}
                                         theme={{
                                             selectedDayBackgroundColor: '#3d67ee',
                                             todayTextColor: '#3d67ee',
@@ -280,6 +563,7 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
                                             textDayFontSize: 14,
                                             textSectionTitleColor: '#666',
                                             textDayHeaderFontSize: 12,
+                                            textDisabledColor: '#ccc',
                                         }}
                                         style={{
                                             borderRadius: 8,
@@ -291,26 +575,62 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
                             </View>
                             
                             <View style={[apStyle.formGroup, {marginTop: 250}]}>
-                                <Text style={apStyle.formLabel}>Select Time Slot *</Text>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={true} style={apStyle.timeSlotContainer}>
-                                    {timeSlots.map((slot, index) => (
-                                        <TouchableOpacity
-                                            key={index}
-                                            style={[
-                                                apStyle.timeSlot,
-                                                selectedTimeSlot === slot && apStyle.selectedTimeSlot
-                                            ]}
-                                            onPress={() => setSelectedTimeSlot(slot)}
-                                        >
-                                            <Text style={[
-                                                apStyle.timeSlotText,
-                                                selectedTimeSlot === slot && apStyle.selectedTimeSlotText
-                                            ]}>
-                                                {slot}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
-                                </ScrollView>
+                                <Text style={apStyle.formLabel}>
+                                    Select Time Slot * 
+                                    {loadingTimeSlots && (
+                                        <Text style={{ fontSize: 12, color: '#666', fontStyle: 'italic' }}>
+                                            {' '}Loading available slots...
+                                        </Text>
+                                    )}
+                                </Text>
+                                
+                                {!selectedDate ? (
+                                    <Text style={{ 
+                                        textAlign: 'center', 
+                                        color: '#666', 
+                                        fontStyle: 'italic',
+                                        marginVertical: 20
+                                    }}>
+                                        Please select a date first
+                                    </Text>
+                                ) : availableTimeSlots.length === 0 ? (
+                                    <Text style={{ 
+                                        textAlign: 'center', 
+                                        color: '#666', 
+                                        fontStyle: 'italic',
+                                        marginVertical: 20
+                                    }}>
+                                        No time slots available for this day
+                                    </Text>
+                                ) : (
+                                    <ScrollView 
+                                        horizontal 
+                                        showsHorizontalScrollIndicator={true} 
+                                        style={apStyle.timeSlotContainer}
+                                    >
+                                        {availableTimeSlots.map(renderTimeSlot)}
+                                    </ScrollView>
+                                )}
+                                
+                                {selectedTimeSlot && (
+                                    <View style={{
+                                        backgroundColor: '#e8f5e9',
+                                        padding: 10,
+                                        borderRadius: 5,
+                                        marginTop: 10,
+                                        flexDirection: 'row',
+                                        alignItems: 'center'
+                                    }}>
+                                        <Ionicons name="checkmark-circle" size={20} color="#2e7d32" />
+                                        <Text style={{ 
+                                            marginLeft: 10,
+                                            color: '#2e7d32',
+                                            fontWeight: '600'
+                                        }}>
+                                            Selected: {selectedTimeSlot}
+                                        </Text>
+                                    </View>
+                                )}
                             </View>
                         </View>
                     </ScrollView>
@@ -326,7 +646,14 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
                         
                         <TouchableOpacity 
                             onPress={handleSubmit}
-                            style={[apStyle.modalButton, { backgroundColor: '#3d67ee' }]}
+                            disabled={!selectedDate || !selectedTimeSlot || !patientName || !appointmentType}
+                            style={[
+                                apStyle.modalButton, 
+                                { 
+                                    backgroundColor: !selectedDate || !selectedTimeSlot || !patientName || !appointmentType ? '#ccc' : '#3d67ee',
+                                    opacity: !selectedDate || !selectedTimeSlot || !patientName || !appointmentType ? 0.6 : 1
+                                }
+                            ]}
                         >
                             <Text style={{ color: 'white', fontWeight: '600' }}>Create Appointment</Text>
                         </TouchableOpacity>
@@ -350,41 +677,15 @@ export default function Schedule() {
     const [currentView, setCurrentView] = useState('table'); 
     const [selectedUser, setSelectedUser] = useState(null);
     const [selectedDoctor, setSelectedDoctor] = useState('');
-    const [showDoctorPicker, setShowDoctorPicker] = useState(false);
+    const [showDoctorModal, setShowDoctorModal] = useState(false);
+    const [selectedAppointment, setSelectedAppointment] = useState(null);
     
     // Create Appointment Modal State
     const [showCreateModal, setShowCreateModal] = useState(false);
 
-    // Sample doctors data
-    const doctors = [
-        { id: '1', name: 'Dr. Maria Santos', specialty: 'General Practice', available: true },
-        { id: '2', name: 'Dr. Juan Dela Cruz', specialty: 'Surgery', available: true },
-        { id: '3', name: 'Dr. Angela Reyes', specialty: 'Dermatology', available: false },
-        { id: '4', name: 'Dr. Robert Lim', specialty: 'Internal Medicine', available: true },
-        { id: '5', name: 'Dr. Sarah Chen', specialty: 'Pediatrics', available: true },
-    ];
-
-    // Sample user data - no doctors assigned by default
-    const [userData, setUserData] = useState([
-        {
-            id: 1,
-            name: 'John Doe',
-            service: 'Vaccination',
-            dateTime: 'Feb 14, 2026 - 10:00 AM',
-            doctor: 'Not Assigned',
-            assignedDoctor: '',
-            details: {
-                fullName: 'John Doe',
-                email: 'john.doe@example.com',
-                phone: '+1 (555) 123-4567',
-                address: '123 Main St, City, State 12345',
-                petName: 'Max',
-                petType: 'Dog',
-                petBreed: 'Golden Retriever',
-                gender: 'Female',
-            }
-        }
-    ]);
+    const [userData, setUserData] = useState([]);
+    const [doctors, setDoctors] = useState([]);
+    const [loading, setLoading] = useState(false);
 
     // Filter appointments based on service and doctor
     const filteredAppointments = userData.filter(appointment => {
@@ -395,48 +696,60 @@ export default function Schedule() {
 
     const handleViewUser = (user) => {
         setSelectedUser(user);
+        setSelectedAppointment(user); // Add this line
         setSelectedDoctor(user.assignedDoctor || '');
         setCurrentView('userDetails');
     };
 
+    // Add this function to open the doctor modal:
+    const openDoctorModal = (appointment) => {
+        setSelectedAppointment(appointment);
+        setShowDoctorModal(true);
+    };
     const handleBackToList = () => {
         setCurrentView('table');
         setSelectedUser(null);
         setSelectedDoctor('');
     };
 
-    const handleAssignDoctor = () => {
-        if (!selectedDoctor) {
-            Alert.alert('Error', 'Please select a doctor first');
-            return;
-        }
-
-        // Update the user data with the new assigned doctor
-        const updatedUserData = userData.map(user => {
-            if (user.id === selectedUser.id) {
-                const doctor = doctors.find(d => d.id === selectedDoctor);
-                return {
-                    ...user,
-                    assignedDoctor: selectedDoctor,
-                    doctor: doctor ? doctor.name : user.doctor
-                };
-            }
-            return user;
-        });
-
-        setUserData(updatedUserData);
-        setSelectedUser(prev => {
-            const doctor = doctors.find(d => d.id === selectedDoctor);
+    const handleAssignDoctor = async (appointmentId, doctorId) => {
+    try {
+        const result = await availabilityService.assignDoctor(appointmentId, doctorId);
+        
+        // Update local state
+        const updatedUserData = userData.map(appointment => {
+        if (appointment.id === appointmentId) {
+            const doctor = doctors.find(d => d.pk === doctorId);
             return {
-                ...prev,
-                assignedDoctor: selectedDoctor,
-                doctor: doctor ? doctor.name : prev.doctor
+            ...appointment,
+            doctor: doctor ? doctor.fullName : 'Unknown Doctor',
+            assignedDoctor: doctorId
             };
+        }
+        return appointment;
         });
         
-        Alert.alert('Success', 'Doctor assigned successfully!');
-        setShowDoctorPicker(false);
+        setUserData(updatedUserData);
+        
+        // If we're viewing the details, update that too
+        if (selectedUser && selectedUser.id === appointmentId) {
+        const doctor = doctors.find(d => d.pk === doctorId);
+        setSelectedUser(prev => ({
+            ...prev,
+            doctor: doctor ? doctor.fullName : 'Unknown Doctor',
+            assignedDoctor: doctorId
+        }));
+        }
+        
+        Alert.alert('Success', result.message || 'Doctor assigned successfully!');
+        return result;
+    } catch (error) {
+        console.error('Error assigning doctor:', error);
+        Alert.alert('Error', error.message || 'Failed to assign doctor');
+        throw error;
+    }
     };
+
 
     const handleCancelAppointment = () => {
         Alert.alert(
@@ -479,421 +792,581 @@ export default function Schedule() {
         setShowCreateModal(true);
     };
 
-    const handleSubmitAppointment = (appointmentData) => {
-        // Format date for display
-        const date = new Date(appointmentData.selectedDate);
-        const formattedDate = date.toLocaleDateString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric'
-        });
+    const loadAppointments = async () => {
+    setLoading(true);
+    try {
+        console.log('🔄 Loading appointments...');
+        const appointments = await availabilityService.getAppointmentsForTable();
+        console.log('📋 Appointments loaded:', appointments);
+        console.log('First appointment:', appointments[0]);
+        setUserData(appointments);
+    } catch (error) {
+        console.error('Failed to load appointments:', error);
+        Alert.alert('Error', 'Failed to load appointments');
+    } finally {
+        setLoading(false);
+    }
+};
 
-        // Create new appointment
-        const newAppointment = {
-            id: userData.length + 1,
-            name: appointmentData.patientName,
-            service: appointmentData.appointmentType,
-            dateTime: `${formattedDate} - ${appointmentData.selectedTimeSlot}`,
-            doctor: 'Not Assigned',
-            assignedDoctor: '',
-            details: {
-                fullName: appointmentData.patientName,
-                email: appointmentData.patientEmail,
-                phone: appointmentData.patientPhone,
-                address: 'To be provided',
-                petName: appointmentData.petName,
-                petType: appointmentData.petType,
-                petBreed: 'Unknown',
-                gender: appointmentData.petGender || 'Unknown',
-            }
-        };
-
-        // Add to user data
-        setUserData(prev => [...prev, newAppointment]);
-        
-        Alert.alert('Success', 'Appointment created successfully!');
-        setShowCreateModal(false);
+    const loadDoctors = async () => {
+    try {
+        const doctorsList = await availabilityService.getDoctors();
+        setDoctors(doctorsList);
+    } catch (error) {
+        console.error('Failed to load doctors:', error);
+    }
     };
+
+
+   const handleSubmitAppointment = async (appointmentData) => {
+        try {
+            // Just close the modal and reload appointments
+            setShowCreateModal(false);
+            
+            // Reload appointments after a short delay
+            setTimeout(() => {
+                loadAppointments();
+            }, 1000);
+            
+        } catch (error) {
+            console.error('Failed to handle appointment submission:', error);
+            setShowCreateModal(false);
+            loadAppointments(); // Try to reload anyway
+        }
+    };
+
+    useEffect(() => {
+        loadAppointments();
+        loadDoctors();
+    }, []);
+
 
     const handleCloseModal = () => {
-        setShowCreateModal(false);
+    setShowCreateModal(false);
+    
+        setTimeout(() => {
+            loadAppointments();
+        }, 300);
     };
 
-    // User Details Component
     const UserDetailsView = ({ user, onBack }) => {
-        if (!user) return null;
-        
-        const assignedDoctor = doctors.find(d => d.id === user.assignedDoctor);
-        
-        return (
-            <View style={[apStyle.whiteContainer, { padding: 30, flex: 1 }]}>
-                {/* Back Button */}
-                <TouchableOpacity 
-                    onPress={onBack}
-                    style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}
-                >
-                    <Ionicons name="arrow-back" size={20} color="#3d67ee" />
-                    <Text style={{ color: '#3d67ee', marginLeft: 8, fontSize: 16 }}>
-                        Back to Appointments
-                    </Text>
-                </TouchableOpacity>
+    if (!user) return null;
+    
+    // Map the API properties to what your component expects
+    const userDetails = {
+        fullName: user.name,
+        email: user.patient_email,
+        phone: user.patient_phone,
+        address: 'To be provided', // You might want to add this to your database
+        petName: user.pet_name,
+        petType: user.pet_type,
+        petBreed: 'Unknown', // You might want to add this to your database
+        gender: user.petGender || 'Unknown'
+    };
+    
+    return (
+        <View style={[apStyle.whiteContainer, { padding: 30, flex: 1 }]}>
+            {/* Back Button */}
+            <TouchableOpacity 
+                onPress={onBack}
+                style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}
+            >
+                <Ionicons name="arrow-back" size={20} color="#3d67ee" />
+                <Text style={{ color: '#3d67ee', marginLeft: 8, fontSize: 16 }}>
+                    Back to Appointments
+                </Text>
+            </TouchableOpacity>
 
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 }}>
-                    <Text style={{ fontSize: 25, fontWeight: '700' }}>Patient Details</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 }}>
+                <Text style={{ fontSize: 25, fontWeight: '700' }}>Patient Details</Text>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+                {/* User Info Section */}
+                <View style={apStyle.sectionContainer}>
+                    <Text style={apStyle.sectionTitle}>Patient Information</Text>
+                    
+                    <View style={apStyle.detailsGrid}>
+                        <View style={apStyle.detailItem}>
+                            <Text style={apStyle.detailLabel}>Full Name</Text>
+                            <Text style={apStyle.detailValue}>{userDetails.fullName}</Text>
+                        </View>
+                        
+                        <View style={apStyle.detailItem}>
+                            <Text style={apStyle.detailLabel}>Email</Text>
+                            <Text style={apStyle.detailValue}>{userDetails.email}</Text>
+                        </View>
+                        
+                        <View style={apStyle.detailItem}>
+                            <Text style={apStyle.detailLabel}>Phone</Text>
+                            <Text style={apStyle.detailValue}>{userDetails.phone}</Text>
+                        </View>
+                        
+                        <View style={apStyle.detailItem}>
+                            <Text style={apStyle.detailLabel}>Address</Text>
+                            <Text style={apStyle.detailValue}>{userDetails.address}</Text>
+                        </View>
+                    </View>
                 </View>
 
-                <ScrollView showsVerticalScrollIndicator={false}>
-                    {/* User Info Section */}
-                    <View style={apStyle.sectionContainer}>
-                        <Text style={apStyle.sectionTitle}>Patient Information</Text>
-                        
-                        <View style={apStyle.detailsGrid}>
-                            <View style={apStyle.detailItem}>
-                                <Text style={apStyle.detailLabel}>Full Name</Text>
-                                <Text style={apStyle.detailValue}>{user.details.fullName}</Text>
-                            </View>
-                            
-                            <View style={apStyle.detailItem}>
-                                <Text style={apStyle.detailLabel}>Email</Text>
-                                <Text style={apStyle.detailValue}>{user.details.email}</Text>
-                            </View>
-                            
-                            <View style={apStyle.detailItem}>
-                                <Text style={apStyle.detailLabel}>Phone</Text>
-                                <Text style={apStyle.detailValue}>{user.details.phone}</Text>
-                            </View>
-                            
-                            <View style={apStyle.detailItem}>
-                                <Text style={apStyle.detailLabel}>Address</Text>
-                                <Text style={apStyle.detailValue}>{user.details.address}</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Pet Information Section */}
-                    <View style={apStyle.sectionContainer}>
-                        <Text style={apStyle.sectionTitle}>Pet Information</Text>
-                        
-                        <View style={apStyle.detailsGrid}>
-                            <View style={apStyle.detailItem}>
-                                <Text style={apStyle.detailLabel}>Pet Name</Text>
-                                <Text style={apStyle.detailValue}>{user.details.petName}</Text>
-                            </View>
-                            
-                            <View style={apStyle.detailItem}>
-                                <Text style={apStyle.detailLabel}>Type</Text>
-                                <Text style={apStyle.detailValue}>{user.details.petType}</Text>
-                            </View>
-                            
-                            <View style={apStyle.detailItem}>
-                                <Text style={apStyle.detailLabel}>Breed</Text>
-                                <Text style={apStyle.detailValue}>{user.details.petBreed}</Text>
-                            </View>
-                            
-                            <View style={apStyle.detailItem}>
-                                <Text style={apStyle.detailLabel}>Gender</Text>
-                                <Text style={apStyle.detailValue}>{user.details.gender}</Text>
-                            </View>
-                        </View>
-                    </View>
-
-                    {/* Appointment Details */}
-                    <View style={apStyle.sectionContainer}>
-                        <Text style={apStyle.sectionTitle}>Appointment Details</Text>
-                        
-                        <View style={apStyle.appointmentCard}>
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Text style={{ fontSize: 16, fontWeight: '600' }}>{user.service}</Text>
-                                <Text style={{ color: '#3d67ee', fontWeight: '600' }}>{user.dateTime}</Text>
-                            </View>
-                            
-                            <View style={{ marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <View>
-                                    <Text style={{ fontSize: 14, color: '#666' }}>
-                                        Assigned Doctor: <Text style={{ 
-                                            fontWeight: '600',
-                                            color: user.doctor === 'Not Assigned' ? '#f57c00' : '#333'
-                                        }}>{user.doctor}</Text>
-                                    </Text>
-                                    {assignedDoctor && (
-                                        <Text style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
-                                            Specialty: {assignedDoctor.specialty}
-                                        </Text>
-                                    )}
-                                </View>
-                                
-                                <TouchableOpacity 
-                                    onPress={() => setShowDoctorPicker(true)}
-                                    style={{ 
-                                        flexDirection: 'row', 
-                                        alignItems: 'center', 
-                                        backgroundColor: user.doctor === 'Not Assigned' ? '#fff3e0' : '#e8f5e9', 
-                                        paddingHorizontal: 12, 
-                                        paddingVertical: 6, 
-                                        borderRadius: 6,
-                                        borderWidth: 1,
-                                        borderColor: user.doctor === 'Not Assigned' ? '#ffcc80' : '#c8e6c9'
-                                    }}
-                                >
-                                    <Ionicons 
-                                        name="medical" 
-                                        size={16} 
-                                        color={user.doctor === 'Not Assigned' ? '#f57c00' : '#2e7d32'} 
-                                    />
-                                    <Text style={{ 
-                                        color: user.doctor === 'Not Assigned' ? '#f57c00' : '#2e7d32', 
-                                        marginLeft: 6, 
-                                        fontSize: 12, 
-                                        fontWeight: '600' 
-                                    }}>
-                                        {user.doctor === 'Not Assigned' ? 'Assign Doctor' : 'Change Doctor'}
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
-                            
-                        </View>
-                    </View>
-
-                    {/* Action Buttons */}
-                    <View style={[apStyle.sectionContainer, { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 30 }]}>
-                        <TouchableOpacity style={[apStyle.actionButton, { backgroundColor: '#3d67ee' }]}>
-                            <Ionicons name="calendar" size={18} color="#fff" />
-                            <Text style={[apStyle.actionButtonText, { color: '#fff' }]}>Reschedule</Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity 
-                            onPress={handleCancelAppointment}
-                            disabled={user.status === 'Cancelled'}
-                            style={[
-                                apStyle.actionButton, 
-                                { 
-                                    backgroundColor: user.status === 'Cancelled' ? '#e0e0e0' : '#ffebee', 
-                                    borderWidth: 1, 
-                                    borderColor: user.status === 'Cancelled' ? '#bdbdbd' : '#ffcdd2',
-                                    opacity: user.status === 'Cancelled' ? 0.6 : 1
-                                }
-                            ]}
-                        >
-                            <Ionicons 
-                                name={user.status === 'Cancelled' ? "close-circle" : "close-circle-outline"} 
-                                size={18}
-                                color={user.status === 'Cancelled' ? '#757575' : '#d32f2f'}
-                            />
-                            <Text style={[
-                                apStyle.actionButtonText, 
-                                { color: user.status === 'Cancelled' ? '#757575' : '#d32f2f' }
-                            ]}>
-                                {user.status === 'Cancelled' ? 'Cancelled' : 'Cancel'}
-                            </Text>
-                        </TouchableOpacity>
-                        
-                        <TouchableOpacity style={[apStyle.actionButton, { backgroundColor: '#e8f5e9', borderWidth: 1, borderColor: '#c8e6c9' }]}>
-                            <Ionicons name="checkmark-circle" size={18} color="#2e7d32" />
-                            <Text style={[apStyle.actionButtonText, { color: '#2e7d32' }]}>Complete</Text>
-                        </TouchableOpacity>
-                    </View>
-                </ScrollView>
-
-                {/* Doctor Picker Modal */}
-                <Modal
-                    visible={showDoctorPicker}
-                    transparent={true}
-                    animationType="slide"
-                    onRequestClose={() => setShowDoctorPicker(false)}
-                >
-                    <View style={apStyle.modalOverlay}>
-                        <View style={apStyle.modalContent}>
-                            <View style={apStyle.modalHeader}>
-                                <Text style={apStyle.modalTitle}>Assign Doctor</Text>
-                                <TouchableOpacity onPress={() => setShowDoctorPicker(false)}>
-                                    <Ionicons name="close" size={24} color="#333" />
-                                </TouchableOpacity>
-                            </View>
-                            
-                            <Text style={{ marginBottom: 15, color: '#666' }}>
-                                Select a doctor for {user?.name}'s appointment
-                            </Text>
-                            
-                            <Picker
-                                selectedValue={selectedDoctor}
-                                onValueChange={(itemValue) => setSelectedDoctor(itemValue)}
-                                style={[homeStyle.pickerStyle, { width: '100%', height: 200 }]}
-                            >
-                                <Picker.Item label="Select a doctor" value="" color="#a8a8a8" />
-                                {doctors
-                                    .filter(doctor => doctor.available)
-                                    .map(doctor => (
-                                        <Picker.Item 
-                                            key={doctor.id} 
-                                            label={`${doctor.name} - ${doctor.specialty}`} 
-                                            value={doctor.id} 
-                                        />
-                                    ))
-                                }
-                            </Picker>
-                            
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
-                                <TouchableOpacity 
-                                    onPress={() => setShowDoctorPicker(false)}
-                                    style={[apStyle.modalButton, { backgroundColor: '#f5f5f5' }]}
-                                >
-                                    <Text style={{ color: '#666' }}>Cancel</Text>
-                                </TouchableOpacity>
-                                
-                                <TouchableOpacity 
-                                    onPress={handleAssignDoctor}
-                                    style={[apStyle.modalButton, { backgroundColor: '#3d67ee' }]}
-                                >
-                                    <Text style={{ color: 'white', fontWeight: '600' }}>Assign Doctor</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    </View>
-                </Modal>
-            </View>
-        );
-    };
-
-    // Table View Component
-    const TableView = ({ onViewUser }) => {
-        return (
-            <View style={[apStyle.whiteContainer, {padding: 30, flex: 1}]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
-                    <View>
-                        <Text style={{fontSize: 25, fontWeight: 700}}>Booked Appointments</Text>
-                        <Text style={{fontSize: 14, marginTop: 5, opacity: 0.5}}>Manage available days, working hours, and appointment slots for vet bookings.</Text>
-                    </View>
+                {/* Pet Information Section */}
+                <View style={apStyle.sectionContainer}>
+                    <Text style={apStyle.sectionTitle}>Pet Information</Text>
                     
-                    {/* Create Appointment Button */}
+                    <View style={apStyle.detailsGrid}>
+                        <View style={apStyle.detailItem}>
+                            <Text style={apStyle.detailLabel}>Pet Name</Text>
+                            <Text style={apStyle.detailValue}>{userDetails.petName}</Text>
+                        </View>
+                        
+                        <View style={apStyle.detailItem}>
+                            <Text style={apStyle.detailLabel}>Type</Text>
+                            <Text style={apStyle.detailValue}>{userDetails.petType}</Text>
+                        </View>
+                        
+                        <View style={apStyle.detailItem}>
+                            <Text style={apStyle.detailLabel}>Breed</Text>
+                            <Text style={apStyle.detailValue}>{userDetails.petBreed}</Text>
+                        </View>
+                        
+                        <View style={apStyle.detailItem}>
+                            <Text style={apStyle.detailLabel}>Gender</Text>
+                            <Text style={apStyle.detailValue}>{userDetails.gender}</Text>
+                        </View>
+                    </View>
+                </View>
+
+                {/* Appointment Details */}
+                <View style={apStyle.sectionContainer}>
+                    <Text style={apStyle.sectionTitle}>Appointment Details</Text>
+                    
+                    <View style={apStyle.appointmentCard}>
+                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Text style={{ fontSize: 16, fontWeight: '600' }}>{user.service}</Text>
+                            <Text style={{ color: '#3d67ee', fontWeight: '600' }}>{user.date_time}</Text>
+                        </View>
+                        
+                        <View style={{ marginTop: 12, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <View>
+                                <Text style={{ fontSize: 14, color: '#666' }}>
+                                Assigned Doctor: <Text style={{ 
+                                    fontWeight: '600',
+                                    color: user.doctor === 'Not Assigned' ? '#f57c00' : '#333'
+                                }}>{user.doctor}</Text>
+                                </Text>
+                            </View>
+                            
+                            <TouchableOpacity 
+                                onPress={() => openDoctorModal(user)}
+                                style={{ 
+                                flexDirection: 'row', 
+                                alignItems: 'center', 
+                                backgroundColor: user.doctor === 'Not Assigned' ? '#fff3e0' : '#e8f5e9', 
+                                paddingHorizontal: 12, 
+                                paddingVertical: 6, 
+                                borderRadius: 6,
+                                borderWidth: 1,
+                                borderColor: user.doctor === 'Not Assigned' ? '#ffcc80' : '#c8e6c9'
+                                }}
+                            >
+                                <Ionicons 
+                                name="medical" 
+                                size={16} 
+                                color={user.doctor === 'Not Assigned' ? '#f57c00' : '#2e7d32'} 
+                                />
+                                <Text style={{ 
+                                color: user.doctor === 'Not Assigned' ? '#f57c00' : '#2e7d32', 
+                                marginLeft: 6, 
+                                fontSize: 12, 
+                                fontWeight: '600' 
+                                }}>
+                                {user.doctor === 'Not Assigned' ? 'Assign Doctor' : 'Change Doctor'}
+                                </Text>
+                            </TouchableOpacity>
+                            </View>
+                    </View>
+                </View>
+
+                {/* Action Buttons */}
+                <View style={[apStyle.sectionContainer, { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 30 }]}>
+                    <TouchableOpacity style={[apStyle.actionButton, { backgroundColor: '#3d67ee' }]}>
+                        <Ionicons name="calendar" size={18} color="#fff" />
+                        <Text style={[apStyle.actionButtonText, { color: '#fff' }]}>Reschedule</Text>
+                    </TouchableOpacity>
+                    
                     <TouchableOpacity 
-                        onPress={handleCreateAppointment}
-                        style={apStyle.createAppointmentButton}
+                        onPress={handleCancelAppointment}
+                        disabled={user.status === 'Cancelled'}
+                        style={[
+                            apStyle.actionButton, 
+                            { 
+                                backgroundColor: user.status === 'Cancelled' ? '#e0e0e0' : '#ffebee', 
+                                borderWidth: 1, 
+                                borderColor: user.status === 'Cancelled' ? '#bdbdbd' : '#ffcdd2',
+                                opacity: user.status === 'Cancelled' ? 0.6 : 1
+                            }
+                        ]}
                     >
-                        <Ionicons name="add-circle" size={20} color="#fff" />
-                        <Text style={apStyle.createAppointmentButtonText}>Create Appointment</Text>
+                        <Ionicons 
+                            name={user.status === 'Cancelled' ? "close-circle" : "close-circle-outline"} 
+                            size={18}
+                            color={user.status === 'Cancelled' ? '#757575' : '#d32f2f'}
+                        />
+                        <Text style={[
+                            apStyle.actionButtonText, 
+                            { color: user.status === 'Cancelled' ? '#757575' : '#d32f2f' }
+                        ]}>
+                            {user.status === 'Cancelled' ? 'Cancelled' : 'Cancel'}
+                        </Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity style={[apStyle.actionButton, { backgroundColor: '#e8f5e9', borderWidth: 1, borderColor: '#c8e6c9' }]}>
+                        <Ionicons name="checkmark-circle" size={18} color="#2e7d32" />
+                        <Text style={[apStyle.actionButtonText, { color: '#2e7d32' }]}>Complete</Text>
                     </TouchableOpacity>
                 </View>
-                
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 5, marginTop: 20 }}>
-                    {/* Service Filter */}
-                    <Ionicons name="filter-sharp" size={25} color="#3d67ee" style={{ marginRight: 10 }} />
-                    
-                    <View style={{ marginRight: 15 }}>
-                        <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Service</Text>
-                        <Picker
-                            selectedValue={service}
-                            onValueChange={(itemValue) => setService(itemValue)}
-                            style={[homeStyle.pickerStyle, { width: 150 }]}
-                        >
-                            <Picker.Item label="All Services" value="" color="#a8a8a8" />
-                            <Picker.Item label="Vaccination" value="Vaccination" />
-                            <Picker.Item label="Check-up" value="Check-up" />
-                            <Picker.Item label="Surgery" value="Surgery" />
-                            <Picker.Item label="Grooming" value="Grooming" />
-                        </Picker>
-                    </View>
-                    
-                    {/* Doctor Filter */}
-                    <View>
-                        <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Doctor</Text>
-                        <Picker
-                            selectedValue={doctorFilter}
-                            onValueChange={(itemValue) => setDoctorFilter(itemValue)}
-                            style={[homeStyle.pickerStyle, { width: 180 }]}
-                        >
-                            <Picker.Item label="All Doctors" value="" color="#a8a8a8" />
-                            <Picker.Item label="Not Assigned" value="Not Assigned" />
-                            {doctors.map(doctor => (
-                                <Picker.Item 
-                                    key={doctor.id} 
-                                    label={doctor.name} 
-                                    value={doctor.name} 
-                                />
-                            ))}
-                        </Picker>
-                    </View>
-                    
-                    {/* Clear Filters Button */}
-                    {(service || doctorFilter) && (
-                        <TouchableOpacity 
-                            onPress={() => { setService(''); setDoctorFilter(''); }}
-                            style={{ marginLeft: 15, flexDirection: 'row', alignItems: 'center' }}
-                        >
-                            <Ionicons name="close-circle" size={18} color="#666" />
-                            <Text style={{ marginLeft: 5, fontSize: 12, color: '#666' }}>Clear</Text>
-                        </TouchableOpacity>
-                    )}
-                </View>
+            </ScrollView>
+        </View>
+    );
+};
 
-                <DataTable style={{marginTop: 20}}>
-                    <DataTable.Header>
-                        <DataTable.Title style={{ flex: 2, alignItems: 'center' }}>
-                            <Text style={{ fontSize: 12, fontWeight: '700' }}>Name</Text>
-                        </DataTable.Title>
-                        <DataTable.Title style={{ flex: 2, justifyContent: 'center'  }}>
-                            <Text style={{ fontSize: 12, fontWeight: '700' }}>Service</Text>
-                        </DataTable.Title>
-                        <DataTable.Title style={{ flex: 2, justifyContent: 'center' }}>
-                            <Text style={{ fontSize: 12, fontWeight: '700' }}>Time & Date</Text>
-                        </DataTable.Title>
-                        <DataTable.Title style={{ flex: 2, justifyContent: 'center' }}>
-                            <Text style={{ fontSize: 12, fontWeight: '700' }}>Doctor</Text>
-                        </DataTable.Title>
-                        <DataTable.Title style={{ flex: 1, justifyContent: 'flex-end' }}>
-                            <Text style={{ fontSize: 12, fontWeight: '700' }}>View</Text>
-                        </DataTable.Title>
-                    </DataTable.Header>
-
-                    {/* Filtered Rows */}
-                    {filteredAppointments.length > 0 ? (
-                        filteredAppointments.map((user) => (
-                            <DataTable.Row key={user.id}>
-                                <DataTable.Cell style={{ flex: 2 }}>
-                                    <Text style={{ fontSize: 12 }}>{user.name}</Text>
-                                </DataTable.Cell>
-                                <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
-                                    <Text style={{ fontSize: 12 }}>{user.service}</Text>
-                                </DataTable.Cell>
-                                <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
-                                    <Text style={{ fontSize: 12 }}>{user.dateTime}</Text>
-                                </DataTable.Cell>
-                                <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                        <Text style={{ 
-                                            fontSize: 12, 
-                                            color: user.doctor === 'Not Assigned' ? '#f57c00' : '#333'
-                                        }}>
-                                            {user.doctor}
-                                        </Text>
-                                        {user.doctor === 'Not Assigned' && (
-                                            <Ionicons name="alert-circle" size={12} color="#f57c00" style={{ marginLeft: 5 }} />
-                                        )}
-                                    </View>
-                                </DataTable.Cell>
-                                <DataTable.Cell style={{ flex: 1, justifyContent: 'flex-end' }}>
-                                    <TouchableOpacity onPress={() => onViewUser(user)}>
-                                        <Ionicons name="eye-outline" size={15} color="#3d67ee" />
-                                    </TouchableOpacity>
-                                </DataTable.Cell>
-                            </DataTable.Row>
-                        ))
-                    ) : (
-                        <DataTable.Row>
-                            <DataTable.Cell style={{ flex: 6, justifyContent: 'center' }}>
-                                <Text style={{ textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
-                                    No appointments found matching your filters
-                                </Text>
-                            </DataTable.Cell>
-                        </DataTable.Row>
-                    )}
-
-                    <DataTable.Pagination
-                        optionsPerPage={[8]}
-                    />
-                </DataTable>
+const TableView = ({ onViewUser }) => {
+  return (
+    <View style={[apStyle.whiteContainer, {padding: 30, flex: 1}]}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+        <View>
+          <Text style={{fontSize: 25, fontWeight: 700}}>Booked Appointments</Text>
+          <Text style={{fontSize: 14, marginTop: 5, opacity: 0.5}}>
+            {loading ? 'Loading appointments...' : `Total appointments: ${filteredAppointments.length}`}
+          </Text>
+        </View>
+        
+        {/* Create Appointment Button */}
+        <TouchableOpacity 
+          onPress={handleCreateAppointment}
+          style={apStyle.createAppointmentButton}
+        >
+          <Ionicons name="add-circle" size={20} color="#fff" />
+          <Text style={apStyle.createAppointmentButtonText}>Create Appointment</Text>
+        </TouchableOpacity>
+      </View>
+      
+      {loading ? (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text>Loading appointments...</Text>
+        </View>
+      ) : (
+        <>
+          {/* Filters */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 5, marginTop: 20 }}>
+            <Ionicons name="filter-sharp" size={25} color="#3d67ee" style={{ marginRight: 10 }} />
+            
+            <View style={{ marginRight: 15 }}>
+              <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Service</Text>
+              <Picker
+                selectedValue={service}
+                onValueChange={(itemValue) => setService(itemValue)}
+                style={[homeStyle.pickerStyle, { width: 150 }]}
+              >
+                <Picker.Item label="All Services" value="" color="#a8a8a8" />
+                <Picker.Item label="Vaccination" value="Vaccination" />
+                <Picker.Item label="Check-up" value="Check-up" />
+                <Picker.Item label="Surgery" value="Surgery" />
+                <Picker.Item label="Grooming" value="Grooming" />
+              </Picker>
             </View>
-        );
-    };
+            
+            {/* Doctors Picker */}
+            <View>
+              <Text style={{ fontSize: 12, color: '#666', marginBottom: 4 }}>Doctor</Text>
+              <Picker
+                selectedValue={doctorFilter}
+                onValueChange={(itemValue) => setDoctorFilter(itemValue)}
+                style={[homeStyle.pickerStyle, { width: 180 }]}
+              >
+                <Picker.Item label="All Doctors" value="" color="#a8a8a8" />
+                <Picker.Item label="Not Assigned" value="Not Assigned" />
+                {doctors.map(doctor => (
+                  <Picker.Item 
+                    key={doctor.pk || doctor.id} 
+                    label={`${doctor.fullName || doctor.name} (${doctor.role || 'Doctor'})`} 
+                    value={doctor.fullName || doctor.name} 
+                  />
+                ))}
+              </Picker>
+            </View>
+            
+            {/* Clear Filters Button */}
+            {(service || doctorFilter) && (
+              <TouchableOpacity 
+                onPress={() => { setService(''); setDoctorFilter(''); }}
+                style={{ marginLeft: 15, flexDirection: 'row', alignItems: 'center' }}
+              >
+                <Ionicons name="close-circle" size={18} color="#666" />
+                <Text style={{ marginLeft: 5, fontSize: 12, color: '#666' }}>Clear</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Wrap the table in a ScrollView */}
+          <ScrollView 
+            style={{ marginTop: 20, flex: 1 }}
+            showsVerticalScrollIndicator={true}
+          >
+            <DataTable>
+              <DataTable.Header>
+                <DataTable.Title style={{ flex: 2, alignItems: 'center' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700' }}>Name</Text>
+                </DataTable.Title>
+                <DataTable.Title style={{ flex: 2, justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700' }}>Service</Text>
+                </DataTable.Title>
+                <DataTable.Title style={{ flex: 2, justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700' }}>Time & Date</Text>
+                </DataTable.Title>
+                <DataTable.Title style={{ flex: 2, justifyContent: 'center' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700' }}>Doctor</Text>
+                </DataTable.Title>
+                <DataTable.Title style={{ flex: 1, justifyContent: 'flex-end' }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700' }}>View</Text>
+                </DataTable.Title>
+              </DataTable.Header>
+
+              {/* Filtered Rows - ALL ITEMS (no pagination) */}
+              {filteredAppointments.length > 0 ? (
+                filteredAppointments.map((user) => (
+                  <DataTable.Row key={user.id}>
+                    <DataTable.Cell style={{ flex: 2 }}>
+                      <Text style={{ fontSize: 12 }}>{user.name}</Text>
+                    </DataTable.Cell>
+                    <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 12 }}>{user.service}</Text>
+                    </DataTable.Cell>
+                    <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
+                      <Text style={{ fontSize: 12 }}>{user.date_time}</Text>
+                    </DataTable.Cell>
+                    <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ 
+                          fontSize: 12, 
+                          color: user.doctor === 'Not Assigned' ? '#f57c00' : '#333'
+                        }}>
+                          {user.doctor}
+                        </Text>
+                        {user.doctor === 'Not Assigned' && (
+                          <Ionicons name="alert-circle" size={12} color="#f57c00" style={{ marginLeft: 5 }} />
+                        )}
+                      </View>
+                    </DataTable.Cell>
+                    <DataTable.Cell style={{ flex: 1, justifyContent: 'flex-end' }}>
+                      <TouchableOpacity onPress={() => onViewUser(user)}>
+                        <Ionicons name="eye-outline" size={15} color="#3d67ee" />
+                      </TouchableOpacity>
+                    </DataTable.Cell>
+                  </DataTable.Row>
+                ))
+              ) : (
+                <DataTable.Row>
+                  <DataTable.Cell style={{ flex: 6, justifyContent: 'center' }}>
+                    <Text style={{ textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+                      {userData.length === 0 ? 'No appointments found' : 'No appointments matching your filters'}
+                    </Text>
+                  </DataTable.Cell>
+                </DataTable.Row>
+              )}
+            </DataTable>
+          </ScrollView>
+        </>
+      )}
+    </View>
+  );
+};
+
+// Doctor Assignment Modal Component
+const AssignDoctorModal = ({ 
+  visible, 
+  onClose, 
+  appointment, 
+  doctors, 
+  onAssign 
+}) => {
+  const [selectedDoctorId, setSelectedDoctorId] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Reset selection when modal opens
+  useEffect(() => {
+    if (visible && appointment) {
+      setSelectedDoctorId(appointment.assignedDoctor || '');
+    } else {
+      setSelectedDoctorId('');
+    }
+  }, [visible, appointment]);
+
+  const handleAssign = async () => {
+    if (!selectedDoctorId) {
+      Alert.alert('Error', 'Please select a doctor');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await onAssign(appointment.id, selectedDoctorId);
+      onClose();
+    } catch (error) {
+      console.error('Error assigning doctor:', error);
+      Alert.alert('Error', 'Failed to assign doctor');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={apStyle.modalOverlay}>
+        <View style={[apStyle.modalContent, { width: '60%', maxHeight: '60%' }]}>
+          <View style={apStyle.modalHeader}>
+            <Text style={apStyle.modalTitle}>Assign Doctor</Text>
+            <TouchableOpacity onPress={onClose}>
+              <Ionicons name="close" size={24} color="#333" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={{ padding: 20 }}>
+            <Text style={{ 
+              fontSize: 16, 
+              marginBottom: 20,
+              color: '#555'
+            }}>
+              Assign a doctor to <Text style={{ fontWeight: '600' }}>{appointment?.name}'s</Text> appointment
+            </Text>
+
+            {/* Appointment Details */}
+            <View style={apStyle.appointmentCard}>
+              <Text style={{ fontSize: 14, fontWeight: '600', marginBottom: 10 }}>
+                Appointment Details
+              </Text>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                <Text style={{ fontSize: 12, color: '#666' }}>Service:</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600' }}>{appointment?.service}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                <Text style={{ fontSize: 12, color: '#666' }}>Date & Time:</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600' }}>{appointment?.date_time}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 12, color: '#666' }}>Pet:</Text>
+                <Text style={{ fontSize: 12, fontWeight: '600' }}>{appointment?.pet_name} ({appointment?.pet_type})</Text>
+              </View>
+            </View>
+
+            {/* Doctor Selection */}
+            <View style={{ marginTop: 20 }}>
+              <Text style={[apStyle.formLabel, { marginBottom: 10 }]}>Select Doctor *</Text>
+              {doctors.length === 0 ? (
+                <Text style={{ 
+                  textAlign: 'center', 
+                  color: '#666', 
+                  fontStyle: 'italic',
+                  marginVertical: 20
+                }}>
+                  No doctors available
+                </Text>
+              ) : (
+                <View style={{ maxHeight: 300 }}>
+                  {doctors.map(doctor => (
+                    <TouchableOpacity
+                      key={doctor.pk || doctor.id}
+                      style={[
+                        apStyle.doctorOption,
+                        selectedDoctorId === (doctor.pk || doctor.id) && apStyle.selectedDoctorOption
+                      ]}
+                      onPress={() => setSelectedDoctorId(doctor.pk || doctor.id)}
+                    >
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Image 
+                          source={doctor.userImage ? { uri: doctor.userImage } : require('../assets/userAvatar.jpg')}
+                          style={{ width: 40, height: 40, borderRadius: 20, marginRight: 15 }}
+                        />
+                        <View style={{ flex: 1 }}>
+                          <Text style={{
+                            fontSize: 14,
+                            fontWeight: selectedDoctorId === (doctor.pk || doctor.id) ? '600' : '500',
+                            color: selectedDoctorId === (doctor.pk || doctor.id) ? '#3d67ee' : '#333'
+                          }}>
+                            {doctor.fullName || doctor.name}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
+                            {doctor.role || 'Veterinarian'} • {doctor.department || 'General'}
+                          </Text>
+                        </View>
+                        {selectedDoctorId === (doctor.pk || doctor.id) && (
+                          <Ionicons name="checkmark-circle" size={20} color="#3d67ee" />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+
+            {/* Selected Doctor Info */}
+            {selectedDoctorId && (
+              <View style={{
+                backgroundColor: '#e8f5e9',
+                padding: 15,
+                borderRadius: 8,
+                marginTop: 20,
+                borderWidth: 1,
+                borderColor: '#c8e6c9'
+              }}>
+                <Text style={{ fontSize: 14, fontWeight: '600', color: '#2e7d32', marginBottom: 5 }}>
+                  Selected Doctor
+                </Text>
+                <Text style={{ fontSize: 13, color: '#333' }}>
+                  {doctors.find(d => (d.pk || d.id) === selectedDoctorId)?.fullName || ''}
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+
+          {/* Action Buttons */}
+          <View style={[apStyle.modalActions, { padding: 20 }]}>
+            <TouchableOpacity 
+              onPress={onClose}
+              style={[apStyle.modalButton, { backgroundColor: '#f5f5f5' }]}
+              disabled={loading}
+            >
+              <Text style={{ color: '#666' }}>Cancel</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              onPress={handleAssign}
+              disabled={!selectedDoctorId || loading}
+              style={[
+                apStyle.modalButton, 
+                { 
+                  backgroundColor: !selectedDoctorId ? '#ccc' : '#3d67ee',
+                  opacity: !selectedDoctorId || loading ? 0.6 : 1
+                }
+              ]}
+            >
+              {loading ? (
+                <Text style={{ color: 'white', fontWeight: '600' }}>Assigning...</Text>
+              ) : (
+                <Text style={{ color: 'white', fontWeight: '600' }}>Assign Doctor</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
     return (
         <View style={homeStyle.biContainer}>
@@ -1069,6 +1542,7 @@ export default function Schedule() {
                     <View style={apStyle.sideContainer}>
                         <View style={[apStyle.whiteContainer, {padding: 10, overflow: 'hidden', flex: 2}]}>
                             <Calendar 
+                                monthFormat={'MMMM yyyy'}
                                 current={'2026-02-01'} 
                                 onDayPress={(day) => {
                                     console.log('selected day', day);
@@ -1084,7 +1558,7 @@ export default function Schedule() {
 
                                     textMonthFontWeight: 700,
                                     textMonthFontFamily: 'Segoe UI',
-                                    textMonthFontSize: 18,
+                                    textMonthFontSize: 20,
 
                                     textDayFontFamily: 'Segoe UI',
                                     textDayFontSize: 14,
@@ -1143,12 +1617,22 @@ export default function Schedule() {
                 </View>
             </View>
 
+            <AssignDoctorModal 
+                visible={showDoctorModal}
+                onClose={() => setShowDoctorModal(false)}
+                appointment={selectedAppointment}
+                doctors={doctors}
+                onAssign={handleAssignDoctor}
+                />
+
             {/* Create Appointment Modal - Now it's a separate component */}
             <CreateAppointmentModal 
                 visible={showCreateModal}
                 onClose={handleCloseModal}
                 onSubmit={handleSubmitAppointment}
             />
+
+            
         </View>
     );
 }

@@ -325,6 +325,58 @@ selectedTimeSlotText: {
         borderTopColor: '#eee',
     },
 
+disabledTimeSlot: {
+    backgroundColor: '#f5f5f5',
+    borderColor: '#e0e0e0',
+    opacity: 0.6
+},
+
+disabledTimeSlotText: {
+    color: '#999'
+},
+
+timeSlot: {
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    marginHorizontal: 5,
+    marginBottom: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#ddd',
+    backgroundColor: '#fff',
+    minWidth: 150,
+    position: 'relative'
+},
+
+timeSlotText: {
+    fontSize: 14,
+    color: '#333'
+},
+
+selectedTimeSlot: {
+    backgroundColor: '#3d67ee',
+    borderColor: '#3d67ee'
+},
+
+selectedTimeSlotText: {
+    color: 'white',
+    fontWeight: '600'
+},
+
+doctorOption: {
+  padding: 15,
+  marginBottom: 10,
+  borderWidth: 1,
+  borderColor: '#e0e0e0',
+  borderRadius: 8,
+  backgroundColor: '#fff',
+},
+selectedDoctorOption: {
+  borderColor: '#3d67ee',
+  backgroundColor: '#f0f4ff',
+  borderWidth: 2,
+},
+
 })
 
 export default apStyle;
