@@ -1,14 +1,19 @@
 import { View, Text, TouchableOpacity, Image, TextInput, Platform, ImageBackground, ActivityIndicator, Modal, StyleSheet } from 'react-native'
 import React, { useState, useEffect } from 'react'
-import { useNavigation } from '@react-navigation/native'
+import { useNavigation, useRoute } from '@react-navigation/native'
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons'; 
+import { Ionicons } from '@expo/vector-icons';
 
 // meow
 import styles from '../styles/StyleSheet';
 
 export default function LoginPage() {
   const navigation = useNavigation();
+  const route = useRoute();
+  
+  // Get the fromPasswordReset flag from navigation params
+  const { fromPasswordReset, resetMessage } = route.params || {};
+  
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -65,6 +70,14 @@ export default function LoginPage() {
     }
   }, [password, touched.password]);
 
+  // NEW: Show reset message when coming from password reset
+  useEffect(() => {
+    if (fromPasswordReset && resetMessage) {
+      // Show the reset success message when arriving from password reset
+      showPopup('Success', resetMessage, 'success');
+    }
+  }, [fromPasswordReset, resetMessage]);
+
   const getFieldStatus = (fieldName, value) => {
     if (!touched[fieldName]) return 'neutral';
     const error = validateField(fieldName, value);
@@ -94,7 +107,8 @@ export default function LoginPage() {
     setErrors(prev => ({...prev, [fieldName]: validateField(fieldName, fieldName === 'username' ? username : password)}));
   };
 
-const handleLogin = async () => {
+  // ========== UPDATED HANDLELOGIN FUNCTION ==========
+  const handleLogin = async () => {
     setTouched({ username: true, password: true });
     
     const usernameError = validateField('username', username);
@@ -102,18 +116,17 @@ const handleLogin = async () => {
     
     if (usernameError || passwordError) {
       setErrors({ username: usernameError, password: passwordError });
-      showPopup('Validation Error', usernameError || passwordError, 'error');
+      const firstError = usernameError || passwordError;
+      showPopup('Validation Error', firstError, 'error');
       return;
     }
 
     setLoading(true);
-    
-    const apiUrl = Platform.OS === 'web' 
-      ? 'http://localhost:3000/login' 
-      : 'http://10.0.2.2:3000/login';
-
     try {
-      const res = await fetch(apiUrl, {
+      const API_URL = 'http://localhost:3000';
+
+      // Use unified login endpoint
+      const res = await fetch(`${API_URL}/unified-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -122,42 +135,46 @@ const handleLogin = async () => {
       const data = await res.json();
 
       if (res.ok) {
-        // 1. Save Session
+        // Save Session
         await AsyncStorage.setItem('userSession', JSON.stringify(data.user));
         
-        // 2. Check if first-time login
-        if (data.user.isInitialLogin) {
-          showPopup('First Login', 'Please update your credentials to continue.', 'success', () => {
-            navigation.replace("UpdateAcc", { userId: data.user.id });
-          });
-        } 
-        // 3. Normal login - Role-Based Redirection
-        else {
-          showPopup('Success', `Welcome back, ${data.user.username}!`, 'success', () => {
-            const userRole = data.user.role; 
-
-            if (userRole === 'Admin') {
-                navigation.replace("Accounts"); 
-            } 
-            else if (userRole === 'Veterinarian' || userRole === 'Receptionist') {
-                navigation.replace("DashboardPage"); 
-            } 
-            else if (userRole === 'User') {
-                navigation.replace("UserHome"); 
-            }
-            else {
-                navigation.replace("Login"); 
-            }
+        // Check user type and redirect accordingly
+        if (data.user.userType === 'employee') {
+          // Employee login
+          if (data.user.isInitialLogin && !fromPasswordReset) {
+            // FIRST-TIME LOGIN (after admin creation)
+            showPopup('First Login', 'Please update your credentials to continue.', 'info', () => {
+              navigation.replace("UpdateAcc", { userId: data.user.id });
+            });
+          } else {
+            // REGULAR LOGIN OR PASSWORD RESET LOGIN
+            const message = fromPasswordReset 
+              ? `Password updated successfully! Welcome back ${data.user.fullName}!`
+              : `Welcome back ${data.user.fullName}!`;
+            
+            showPopup('Success', message, 'success', () => {
+              navigation.replace("Accounts");
+            });
+          }
+        } else {
+          // Patient login
+          const message = fromPasswordReset 
+            ? `Password updated successfully! Welcome ${data.user.fullName}!`
+            : `Welcome ${data.user.fullName}!`;
+          
+          showPopup('Success', message, 'success', () => {
+            navigation.replace("UserHome");
           });
         }
       } else {
         const serverError = data.error ? data.error.toLowerCase() : '';
+        
         if (serverError.includes('found') || serverError.includes('exist')) {
-           showPopup('Login Failed', "Account not found.", 'error');
-        } else if (serverError.includes('disabled')) {
-           showPopup('Access Denied', "Account is disabled.", 'error');
+          showPopup('Login Failed', "Account not found.", 'error');
+        } else if (serverError.includes('disabled') || serverError.includes('inactive')) {
+          showPopup('Account Disabled', "Your account has been disabled. Please contact support.", 'error');
         } else {
-           showPopup('Login Failed', 'Invalid Username or Password', 'error');
+          showPopup('Login Failed', 'Invalid Username or Password', 'error');
         }
       }
     } catch (error) {
@@ -165,9 +182,10 @@ const handleLogin = async () => {
       const msg = 'Network Error: Make sure server.js is running!';
       showPopup('Connection Error', msg, 'error');
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
+  // ========== END UPDATED HANDLELOGIN ==========
 
   return (
     <View style={styles.container}>
@@ -299,19 +317,27 @@ const handleLogin = async () => {
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Login</Text>}
             </TouchableOpacity>
 
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Registration')}
-              style={{
-                marginTop: 25,
-                paddingVertical: 10,
-                alignItems: 'center',
-              }}
-            >
-              <Text style={{ fontSize: 14, color: '#555' }}>
-                Don’t have an account?
-                <Text style={{ color: '#3d67ee', fontWeight: '600' }}> Sign up</Text>
-              </Text>
-            </TouchableOpacity>
+            
+
+                  <View style={{ marginTop: 25, alignItems: 'center', gap: 10 }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Registration')}
+          >
+            <Text style={{ fontSize: 14, color: '#555' }}>
+              Don't have an account?
+              <Text style={{ color: '#3d67ee', fontWeight: '600' }}> Sign up</Text>
+            </Text>
+          </TouchableOpacity>
+
+          {/* NEW: Forgot Password Link */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('ForgetPass')}
+          >
+            <Text style={{ fontSize: 14, color: '#3d67ee', fontWeight: '500' }}>
+              Forgot Password?
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         </View>
       </View>

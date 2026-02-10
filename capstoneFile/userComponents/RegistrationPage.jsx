@@ -1,43 +1,274 @@
 import { View, Text, TextInput, TouchableOpacity, ImageBackground, Image, Alert, ActivityIndicator } from 'react-native'
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import styles from '../styles/StyleSheet'   
+import { useNavigation } from '@react-navigation/native'
 
 // meow
 export default function RegistrationPage() {
+  const navigation = useNavigation();
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [email, setEmail] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [contactNumber, setContactNumber] = useState('')
+  const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
+  
+  // Validation states
+  const [errors, setErrors] = useState({
+    fullName: '',
+    username: '',
+    password: '',
+    confirmPassword: '',
+    contactNumber: '',
+    email: ''
+  });
+  
+  const [touched, setTouched] = useState({
+    fullName: false,
+    username: false,
+    password: false,
+    confirmPassword: false,
+    contactNumber: false,
+    email: false
+  });
 
-  const handleRegister = async () => {
-    if (!fullName || !username || !password || !email || !contactNumber) {
-      Alert.alert("Error", "Please fill in all fields")
-      return
+  // Validation rules
+  const validationRules = {
+    fullName: { 
+      regex: /^[a-zA-Z\s.'-]+$/, 
+      message: 'Only letters, spaces, hyphens, apostrophes, and periods allowed',
+      required: true 
+    },
+    username: { 
+      minLength: 4, 
+      maxLength: 20, 
+      regex: /^[a-zA-Z0-9._]+$/,
+      message: '4-20 characters, letters, numbers, dots, and underscores only',
+      required: true 
+    },
+    password: { 
+      minLength: 8, 
+      maxLength: 30, 
+      required: true 
+    },
+    contactNumber: { 
+      regex: /^\d+$/, 
+      minLength: 7,
+      maxLength: 15,
+      message: '7-15 digits only',
+      required: true 
+    },
+    email: { 
+      regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, 
+      message: 'Invalid email format',
+      required: true 
     }
-    setLoading(true)
+  };
+
+  // Helper function for validation
+  const validateField = (fieldName, value) => {
+    const rules = validationRules[fieldName];
+    
+    if (rules.required && !value.trim()) {
+      return `${fieldName === 'confirmPassword' ? 'Confirm Password' : fieldName} is required`;
+    }
+    
+    switch(fieldName) {
+      case 'fullName':
+        if (!rules.regex.test(value)) {
+          return rules.message;
+        }
+        break;
+        
+      case 'username':
+        if (value.length < rules.minLength) {
+          return `At least ${rules.minLength} characters`;
+        }
+        if (value.length > rules.maxLength) {
+          return `Max ${rules.maxLength} characters`;
+        }
+        if (!rules.regex.test(value)) {
+          return rules.message;
+        }
+        break;
+        
+      case 'password':
+        if (value.length < rules.minLength) {
+          return `At least ${rules.minLength} characters`;
+        }
+        if (value.length > rules.maxLength) {
+          return `Max ${rules.maxLength} characters`;
+        }
+        break;
+        
+      case 'confirmPassword':
+        if (value !== password) {
+          return 'Passwords do not match';
+        }
+        break;
+        
+      case 'contactNumber':
+        const cleanContact = value.replace(/\D/g, '');
+        if (cleanContact.length < rules.minLength) {
+          return `At least ${rules.minLength} digits`;
+        }
+        if (cleanContact.length > rules.maxLength) {
+          return `Max ${rules.maxLength} digits`;
+        }
+        if (!rules.regex.test(value.replace(/\D/g, ''))) {
+          return rules.message;
+        }
+        break;
+        
+      case 'email':
+        if (!rules.regex.test(value)) {
+          return rules.message;
+        }
+        break;
+    }
+    
+    return '';
+  };
+
+  // Handle field changes with validation
+  const handleFieldChange = (fieldName, value) => {
+    switch(fieldName) {
+      case 'fullName':
+        // Only allow letters, spaces, and common punctuation
+        const cleanedName = value.replace(/[^a-zA-Z\s.'-]/g, '');
+        setFullName(cleanedName);
+        break;
+        
+      case 'username':
+        // Only allow letters, numbers, dots, underscores
+        const cleanedUsername = value.replace(/[^a-zA-Z0-9._]/g, '');
+        setUsername(cleanedUsername);
+        break;
+        
+      case 'password':
+        setPassword(value);
+        break;
+        
+      case 'confirmPassword':
+        setConfirmPassword(value);
+        break;
+        
+      case 'contactNumber':
+        // Only allow numbers
+        const cleanedContact = value.replace(/\D/g, '');
+        setContactNumber(cleanedContact);
+        break;
+        
+      case 'email':
+        setEmail(value.toLowerCase()); // Convert to lowercase
+        break;
+    }
+    
+    if (touched[fieldName]) {
+      const error = validateField(fieldName, value);
+      setErrors(prev => ({...prev, [fieldName]: error}));
+    }
+  };
+
+  const handleBlur = (fieldName) => {
+    setTouched(prev => ({...prev, [fieldName]: true}));
+    const value = fieldName === 'fullName' ? fullName :
+                 fieldName === 'username' ? username :
+                 fieldName === 'password' ? password :
+                 fieldName === 'confirmPassword' ? confirmPassword :
+                 fieldName === 'contactNumber' ? contactNumber : email;
+    const error = validateField(fieldName, value);
+    setErrors(prev => ({...prev, [fieldName]: error}));
+  };
+
+  const getFieldStatus = (fieldName) => {
+    if (!touched[fieldName]) return 'neutral';
+    const error = errors[fieldName];
+    if (error) return 'invalid';
+    return 'valid';
+  };
+
+  const isFormValid = () => {
+    const requiredFields = ['fullName', 'username', 'password', 'confirmPassword', 'contactNumber', 'email'];
+    return requiredFields.every(field => !errors[field]);
+  };
+
+  // ========== UPDATED HANDLEREGISTER FUNCTION ==========
+  const handleRegister = async () => {
+    // Mark all fields as touched to show errors
+    const newTouched = {
+      fullName: true,
+      username: true,
+      password: true,
+      confirmPassword: true,
+      contactNumber: true,
+      email: true
+    };
+    setTouched(newTouched);
+    
+    // Validate all fields
+    const newErrors = {
+      fullName: validateField('fullName', fullName),
+      username: validateField('username', username),
+      password: validateField('password', password),
+      confirmPassword: validateField('confirmPassword', confirmPassword),
+      contactNumber: validateField('contactNumber', contactNumber),
+      email: validateField('email', email)
+    };
+    setErrors(newErrors);
+    
+    // Check if any errors exist
+    const hasErrors = Object.values(newErrors).some(error => error !== '');
+    if (hasErrors) {
+      Alert.alert("Validation Error", "Please fix all errors before submitting.");
+      return;
+    }
+    
+    setLoading(true);
     try {
-      // Replace with your backend endpoint
-      const res = await fetch('http://10.0.2.2:3000/register', {
+      const API_URL = 'http://localhost:3000';
+      const today = new Date();
+      const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+
+      const res = await fetch(`${API_URL}/patient-register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, username, password, email, contactNumber }),
-      })
-      const data = await res.json()
+        body: JSON.stringify({ 
+          fullName, 
+          username,
+          password,
+          contactNumber,
+          email,
+          dateCreated,
+          status: 'Active' 
+        }),
+      });
+      
+      const data = await res.json();
+      
       if (res.ok) {
-        Alert.alert("Success", "Account created successfully!")
+        Alert.alert(
+          "Success", 
+          "Account created successfully! You can now log in.",
+          [
+            {
+              text: "Go to Login",
+              onPress: () => navigation.navigate("Login")
+            }
+          ]
+        );
       } else {
-        Alert.alert("Error", data.error || "Registration failed")
+        Alert.alert("Registration Failed", data.error || "Registration failed. Please try again.");
       }
     } catch (err) {
-      console.error(err)
-      Alert.alert("Error", "Network error, please try again")
+      console.error(err);
+      Alert.alert("Network Error", "Could not connect to server. Please try again.");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <View style={styles.container}>
@@ -60,7 +291,7 @@ export default function RegistrationPage() {
                 <Text style={styles.whiteFont}>Join Us,</Text>
                 <Text style={[styles.whiteFont, {fontStyle: "italic", fontWeight: '600'}]}>create your account!</Text>
                 <Text style={{color: '#e0e0e0', marginTop: 50, fontSize: 20, lineHeight: 22, maxWidth: 400}}>
-                  Register now to access Agsikap’s veterinary management system.
+                  Register now to access Furtopia's veterinary management system.
                 </Text>
               </View>
             </View>
@@ -69,82 +300,259 @@ export default function RegistrationPage() {
 
         {/* RIGHT SIDE */}
         <View style={styles.loginSection}>
-          <Text style={styles.agsikapTitle}>Agsikap</Text>
-          <Text style={[styles.loginHeader, {marginTop: 5}]}>Create Your Account</Text>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('UserHome')}
+            style={{ 
+              alignSelf: 'flex-start',
+              marginBottom: 30,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 6
+            }}
+          >
+            <Ionicons name="arrow-back-outline" size={18} color="#3d67ee" />
+            <Text style={{ color: '#3d67ee', fontSize: 14, fontWeight: '500' }}>
+              Back to Home
+            </Text>
+          </TouchableOpacity>
+
+          <Text style={styles.agsikapTitle}>Furtopia</Text>
+          <Text style={[styles.loginHeader, {marginTop: 5}]}>Create Your Patient Account</Text>
           <Text style={styles.loginSubtext}>
-            Fill in your details to get started.
+            Fill in your details to create your account.
           </Text>
 
           {/* Full Name */}
           <View style={styles.inputGroup}>
-            <Ionicons name="person-outline" size={20} color="#888" style={[styles.inputIcon]} />
+            <Ionicons name="person-outline" size={20} color="#888" style={styles.inputIcon} />
             <TextInput
-              style={styles.inputField}
-              placeholder="Full Name"
+              style={[
+                styles.inputField,
+                getFieldStatus('fullName') === 'invalid' && styles.inputError,
+                getFieldStatus('fullName') === 'valid' && styles.inputValid
+              ]}
+              placeholder="Full Name *"
               placeholderTextColor="#aaa"
               value={fullName}
-              onChangeText={setFullName}
+              onChangeText={(text) => handleFieldChange('fullName', text)}
+              onBlur={() => handleBlur('fullName')}
+              maxLength={50}
             />
+            <View style={styles.fieldFeedbackContainer}>
+              <View style={styles.errorContainer}>
+                {touched.fullName && errors.fullName ? (
+                  <Text style={styles.errorText}>{errors.fullName}</Text>
+                ) : null}
+              </View>
+              <Text style={[
+                styles.charCount,
+                getFieldStatus('fullName') === 'invalid' && styles.charCountError,
+                getFieldStatus('fullName') === 'valid' && styles.charCountValid
+              ]}>
+                {fullName.length}/50
+              </Text>
+            </View>
           </View>
 
           {/* Username */}
           <View style={styles.inputGroup}>
             <Ionicons name="at-outline" size={20} color="#888" style={styles.inputIcon} />
             <TextInput
-              style={styles.inputField}
-              placeholder="Username"
+              style={[
+                styles.inputField,
+                getFieldStatus('username') === 'invalid' && styles.inputError,
+                getFieldStatus('username') === 'valid' && styles.inputValid
+              ]}
+              placeholder="Username *"
               placeholderTextColor="#aaa"
               value={username}
-              onChangeText={setUsername}
+              onChangeText={(text) => handleFieldChange('username', text)}
+              onBlur={() => handleBlur('username')}
+              maxLength={20}
+              autoCapitalize="none"
             />
+            <View style={styles.fieldFeedbackContainer}>
+              <View style={styles.errorContainer}>
+                {touched.username && errors.username ? (
+                  <Text style={styles.errorText}>{errors.username}</Text>
+                ) : null}
+              </View>
+              <Text style={[
+                styles.charCount,
+                getFieldStatus('username') === 'invalid' && styles.charCountError,
+                getFieldStatus('username') === 'valid' && styles.charCountValid
+              ]}>
+                {username.length}/20
+              </Text>
+            </View>
           </View>
 
           {/* Password */}
           <View style={styles.inputGroup}>
             <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.inputIcon} />
             <TextInput
-              style={styles.inputField}
-              placeholder="Password"
+              style={[
+                styles.inputField,
+                getFieldStatus('password') === 'invalid' && styles.inputError,
+                getFieldStatus('password') === 'valid' && styles.inputValid
+              ]}
+              placeholder="Password (8-30 chars) *"
               placeholderTextColor="#aaa"
               secureTextEntry
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => handleFieldChange('password', text)}
+              onBlur={() => handleBlur('password')}
+              maxLength={30}
             />
+            <View style={styles.fieldFeedbackContainer}>
+              <View style={styles.errorContainer}>
+                {touched.password && errors.password ? (
+                  <Text style={styles.errorText}>{errors.password}</Text>
+                ) : null}
+              </View>
+              <Text style={[
+                styles.charCount,
+                getFieldStatus('password') === 'invalid' && styles.charCountError,
+                getFieldStatus('password') === 'valid' && styles.charCountValid
+              ]}>
+                {password.length}/30
+              </Text>
+            </View>
+          </View>
+
+          {/* Confirm Password */}
+          <View style={styles.inputGroup}>
+            <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.inputIcon} />
+            <TextInput
+              style={[
+                styles.inputField,
+                getFieldStatus('confirmPassword') === 'invalid' && styles.inputError,
+                getFieldStatus('confirmPassword') === 'valid' && styles.inputValid
+              ]}
+              placeholder="Confirm Password *"
+              placeholderTextColor="#aaa"
+              secureTextEntry
+              value={confirmPassword}
+              onChangeText={(text) => handleFieldChange('confirmPassword', text)}
+              onBlur={() => handleBlur('confirmPassword')}
+              maxLength={30}
+            />
+            <View style={styles.fieldFeedbackContainer}>
+              <View style={styles.errorContainer}>
+                {touched.confirmPassword && errors.confirmPassword ? (
+                  <Text style={styles.errorText}>{errors.confirmPassword}</Text>
+                ) : null}
+              </View>
+              <Text style={[
+                styles.charCount,
+                getFieldStatus('confirmPassword') === 'invalid' && styles.charCountError,
+                getFieldStatus('confirmPassword') === 'valid' && styles.charCountValid
+              ]}>
+                {confirmPassword.length}/30
+              </Text>
+            </View>
           </View>
 
           {/* Email */}
           <View style={styles.inputGroup}>
             <Ionicons name="mail-outline" size={20} color="#888" style={styles.inputIcon} />
             <TextInput
-              style={styles.inputField}
-              placeholder="Email"
+              style={[
+                styles.inputField,
+                getFieldStatus('email') === 'invalid' && styles.inputError,
+                getFieldStatus('email') === 'valid' && styles.inputValid
+              ]}
+              placeholder="Email *"
               placeholderTextColor="#aaa"
               keyboardType="email-address"
+              autoCapitalize="none"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => handleFieldChange('email', text)}
+              onBlur={() => handleBlur('email')}
+              maxLength={100}
             />
+            <View style={styles.fieldFeedbackContainer}>
+              <View style={styles.errorContainer}>
+                {touched.email && errors.email ? (
+                  <Text style={styles.errorText}>{errors.email}</Text>
+                ) : null}
+              </View>
+              <Text style={[
+                styles.charCount,
+                getFieldStatus('email') === 'invalid' && styles.charCountError,
+                getFieldStatus('email') === 'valid' && styles.charCountValid
+              ]}>
+                {email.length}/100
+              </Text>
+            </View>
           </View>
 
           {/* Contact Number */}
           <View style={styles.inputGroup}>
             <Ionicons name="call-outline" size={20} color="#888" style={styles.inputIcon} />
             <TextInput
-              style={styles.inputField}
-              placeholder="Contact Number"
+              style={[
+                styles.inputField,
+                getFieldStatus('contactNumber') === 'invalid' && styles.inputError,
+                getFieldStatus('contactNumber') === 'valid' && styles.inputValid
+              ]}
+              placeholder="Contact (7-15 digits) *"
               placeholderTextColor="#aaa"
               keyboardType="phone-pad"
               value={contactNumber}
-              onChangeText={setContactNumber}
+              onChangeText={(text) => handleFieldChange('contactNumber', text)}
+              onBlur={() => handleBlur('contactNumber')}
+              maxLength={15}
             />
+            <View style={styles.fieldFeedbackContainer}>
+              <View style={styles.errorContainer}>
+                {touched.contactNumber && errors.contactNumber ? (
+                  <Text style={styles.errorText}>{errors.contactNumber}</Text>
+                ) : null}
+              </View>
+              <Text style={[
+                styles.charCount,
+                getFieldStatus('contactNumber') === 'invalid' && styles.charCountError,
+                getFieldStatus('contactNumber') === 'valid' && styles.charCountValid
+              ]}>
+                {contactNumber.length}/15
+              </Text>
+            </View>
+          </View>
+
+          {/* Information Text */}
+          <View style={{ marginTop: 10, marginBottom: 20 }}>
+            <Text style={{ fontSize: 12, color: '#666', lineHeight: 16 }}>
+              * Required fields. Choose a username and password you'll remember.
+            </Text>
           </View>
 
           {/* Register Button */}
           <TouchableOpacity 
-            style={[styles.loginButton, {opacity: loading ? 0.7 : 1, marginTop: 20}]} 
+            style={[
+              styles.loginButton, 
+              {opacity: loading ? 0.7 : 1, marginTop: 10},
+              !isFormValid() && styles.loginButtonDisabled
+            ]} 
             onPress={handleRegister}
-            disabled={loading}
+            disabled={loading || !isFormValid()}
           >
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Register</Text>}
+          </TouchableOpacity>
+
+          {/* Login Link */}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Login')}
+            style={{
+              marginTop: 25,
+              paddingVertical: 10,
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ fontSize: 14, color: '#555' }}>
+              Already have an account?
+              <Text style={{ color: '#3d67ee', fontWeight: '600' }}> Log in</Text>
+            </Text>
           </TouchableOpacity>
         </View>
       </View>

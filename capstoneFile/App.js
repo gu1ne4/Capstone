@@ -24,6 +24,11 @@ import History from './AppointmentModule/History';
 import EmpAccessHomepage from './components/EmployeeInterface/EmpAccessHomepage';
 import UserHomePage from './components/UserInterface/UserHomePage';
 import UpdateAccPage from './components/UpdateAccPage';
+import ForgetPassPage from './components/ForgetPassPage';
+
+import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
+
+
 
 export default function App() {
   const CScreen = createNativeStackNavigator();
@@ -63,6 +68,9 @@ export default function App() {
           <CScreen.Screen name="UpdateAcc" component={UpdateAccPage} options={{headerShown: false}} />
           <CScreen.Screen name="EmpAccessHomepage" component={EmpAccessHomepage} options={{headerShown: false}} />
           <CScreen.Screen name="UserHomePage" component={UserHomePage} options={{headerShown: false}} />
+ 
+        <CScreen.Screen name="ForgetPass" component={ForgetPassPage} options={{ headerShown: false }} />
+        
 
         </CScreen.Navigator>
       </NavigationContainer>

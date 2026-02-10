@@ -31,7 +31,7 @@ export default function HomePage() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  const API_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
+ const API_URL = 'http://localhost:3000';
 
   // ==========================================
   //  UI STATE
@@ -249,9 +249,88 @@ export default function HomePage() {
     if (newEmpID.length < 5) { showAlert('error', 'Invalid Input', 'Employee ID must be at least 5 digits.'); return; }
     if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
 
-    // 3. Duplicate Check
+    const isDuplicate = accounts.some(acc => {
+    const accUsername = acc.username || '';
+    const accEmployeeID = String(acc.employeeID || acc.employeeid || '');
+    
+    return (
+      accUsername.toLowerCase() === newUsername.toLowerCase() ||
+      accEmployeeID === newEmpID.toString()
+    );
+  });
+    if (isDuplicate) {
+      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
+      return;
+    }
+
+    const today = new Date();
+    const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+    const generatedPassword = generateRandomPassword();
+
+    try {
+     const res = await fetch(`${API_URL}/register`, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    fullname: newFullName,  // lowercase 'fullname' not 'fullName'
+    contactnumber: newContact,  // lowercase 'contactnumber'
+    email: newEmail,
+    role: newRole,
+    department: newDept,
+    employeeid: newEmpID,  // lowercase 'employeeid'
+    userimage: userImageBase64,  // lowercase 'userimage'
+    status: newStatus,
+    datecreated: dateCreated  // lowercase 'datecreated'
+  }),
+});
+
+      const data = await res.json();
+      if (res.ok) {
+        setAddAccountVisible(false);
+        showAlert('success', 'Success', 'Account Registered Successfully!', () => {
+          fetchAccounts();
+          resetForm();
+        });
+      } else {
+        showAlert('error', 'Registration Failed', data.error || 'Failed to create account.');
+      }
+    } catch (error) {
+      showAlert('error', 'Network Error', 'Could not connect to the server.');
+    }
+  };
+
+  const openEditModal = (user) => {
+    setEditingId(user.pk || user.id); 
+    setNewUsername(user.username || '');
+    setNewFullName(user.fullName || user.fullname || '');
+    setNewContact((user.contactNumber || user.contactnumber || '').toString());
+    setNewEmpID((user.employeeID || user.employeeid || '').toString());
+    setNewEmail(user.email || '');
+
+    const validRoles = ['Admin', 'User', 'Moderator', 'Veterinarian', 'Receptionist'];
+    const dbRole = user.role || 'Admin';
+    const matchedRole = validRoles.find(r => r.toLowerCase() === dbRole.toLowerCase()) || 'Admin';
+    setNewRole(matchedRole);
+
+    setNewDept(user.department || user.departmend || 'Marketing');
+    setNewStatus(user.status || 'Active');
+
+    const img = user.userImage || user.userimage;
+    setUserImage(img);
+    setUserImageBase64(null); 
+
+    setEditAccountVisible(true);
+  };
+
+  const handleUpdateAccount = async () => {
+    if (newUsername.length < 4) { showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); return; }
+    if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
+    if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
+    if (newEmpID.length < 5) { showAlert('error', 'Invalid Input', 'Employee ID must be at least 5 digits.'); return; }
+    if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
+
     const isDuplicate = accounts.some(acc => 
-      (String(acc.pk) !== String(editingId) && String(acc.id) !== String(editingId)) && 
+      (acc.pk !== editingId && acc.id !== editingId) && 
       (acc.username.toLowerCase() === newUsername.toLowerCase() || 
        (acc.employeeID || acc.employeeid).toString() === newEmpID.toString())
     );
