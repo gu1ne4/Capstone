@@ -1,6 +1,6 @@
 import { StyleSheet } from "react-native";
 
-// meow
+//meow
 const apStyle = StyleSheet.create({
     sideContainer: {
         display: 'flex',
