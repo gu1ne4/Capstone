@@ -7,7 +7,7 @@ import { useNavigation } from '@react-navigation/native'
 export default function RegistrationPage() {
   const navigation = useNavigation();
   
-  // State variables - using camelCase for internal state
+  // State variables
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -16,7 +16,7 @@ export default function RegistrationPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   
-  // Validation states - match the field names in state
+  // Validation states
   const [errors, setErrors] = useState({
     fullName: '',
     username: '',
@@ -59,9 +59,9 @@ export default function RegistrationPage() {
     },
     contactNumber: { 
       regex: /^\d+$/, 
-      minLength: 7,
-      maxLength: 15,
-      message: '7-15 digits only',
+      minLength: 11, // Ensure full 11 digits (09XX...)
+      maxLength: 11,
+      message: 'Must be a valid 11-digit number',
       required: true 
     },
     email: { 
@@ -89,66 +89,49 @@ export default function RegistrationPage() {
         break;
         
       case 'username':
-        if (value.length < rules.minLength) {
-          return `At least ${rules.minLength} characters`;
-        }
-        if (value.length > rules.maxLength) {
-          return `Max ${rules.maxLength} characters`;
-        }
-        if (!rules.regex.test(value)) {
-          return rules.message;
-        }
+        if (value.length < rules.minLength) return `At least ${rules.minLength} characters`;
+        if (value.length > rules.maxLength) return `Max ${rules.maxLength} characters`;
+        if (!rules.regex.test(value)) return rules.message;
         break;
         
       case 'password':
-        if (value.length < rules.minLength) {
-          return `At least ${rules.minLength} characters`;
-        }
-        if (value.length > rules.maxLength) {
-          return `Max ${rules.maxLength} characters`;
-        }
+        if (value.length < rules.minLength) return `At least ${rules.minLength} characters`;
+        if (value.length > rules.maxLength) return `Max ${rules.maxLength} characters`;
         break;
         
       case 'confirmPassword':
-        if (value !== password) {
-          return 'Passwords do not match';
-        }
+        if (value !== password) return 'Passwords do not match';
         break;
         
       case 'contactNumber':
+        // Clean dashes to validate strictly the digits
         const cleanContact = value.replace(/\D/g, '');
-        if (cleanContact.length < rules.minLength) {
-          return `At least ${rules.minLength} digits`;
-        }
-        if (cleanContact.length > rules.maxLength) {
-          return `Max ${rules.maxLength} digits`;
-        }
-        if (!rules.regex.test(cleanContact)) {
-          return rules.message;
+        if (cleanContact.length !== 11) {
+          return 'Must be 11 digits (e.g. 0912-345-6789)';
         }
         break;
         
       case 'email':
-        if (!rules.regex.test(value)) {
-          return rules.message;
-        }
+        if (!rules.regex.test(value)) return rules.message;
         break;
     }
     
     return '';
   };
 
-  // Handle field changes with validation
+  // Handle field changes with validation AND FORMATTING
   const handleFieldChange = (fieldName, value) => {
+    let finalValue = value;
+
     switch(fieldName) {
       case 'fullName':
-        const cleanedName = value.replace(/[^a-zA-Z\s.'-]/g, '');
-        setFullName(cleanedName);
+        finalValue = value.replace(/[^a-zA-Z\s.'-]/g, '');
+        setFullName(finalValue);
         break;
         
       case 'username':
-        const cleanedUsername = value.replace(/[^a-zA-Z0-9._]/g, '');
-        setUsername(cleanedUsername);
+        finalValue = value.replace(/[^a-zA-Z0-9._]/g, '');
+        setUsername(finalValue);
         break;
         
       case 'password':
@@ -159,18 +142,37 @@ export default function RegistrationPage() {
         setConfirmPassword(value);
         break;
         
+      // ============================================================
+      //  CONTACT NUMBER FORMATTING (XXXX-XXX-XXXX)
+      // ============================================================
       case 'contactNumber':
-        const cleanedContact = value.replace(/\D/g, '');
-        setContactNumber(cleanedContact);
+        // 1. Remove non-numeric characters
+        let cleaned = value.replace(/\D/g, '');
+
+        // 2. Limit to 11 digits
+        if (cleaned.length > 11) cleaned = cleaned.substring(0, 11);
+
+        // 3. Apply Format: XXXX-XXX-XXXX
+        let formatted = cleaned;
+        if (cleaned.length > 4) {
+          formatted = `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
+        }
+        if (cleaned.length > 7) {
+          formatted = `${cleaned.slice(0, 4)}-${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
+        }
+        
+        finalValue = formatted;
+        setContactNumber(finalValue);
         break;
         
       case 'email':
-        setEmail(value.toLowerCase());
+        finalValue = value.toLowerCase();
+        setEmail(finalValue);
         break;
     }
     
     if (touched[fieldName]) {
-      const error = validateField(fieldName, value);
+      const error = validateField(fieldName, finalValue);
       setErrors(prev => ({...prev, [fieldName]: error}));
     }
   };
@@ -178,10 +180,10 @@ export default function RegistrationPage() {
   const handleBlur = (fieldName) => {
     setTouched(prev => ({...prev, [fieldName]: true}));
     const value = fieldName === 'fullName' ? fullName :
-                 fieldName === 'username' ? username :
-                 fieldName === 'password' ? password :
-                 fieldName === 'confirmPassword' ? confirmPassword :
-                 fieldName === 'contactNumber' ? contactNumber : email;
+                  fieldName === 'username' ? username :
+                  fieldName === 'password' ? password :
+                  fieldName === 'confirmPassword' ? confirmPassword :
+                  fieldName === 'contactNumber' ? contactNumber : email;
     const error = validateField(fieldName, value);
     setErrors(prev => ({...prev, [fieldName]: error}));
   };
@@ -221,7 +223,6 @@ export default function RegistrationPage() {
     };
     setErrors(newErrors);
     
-    // Check if any errors exist
     const hasErrors = Object.values(newErrors).some(error => error !== '');
     if (hasErrors) {
       Alert.alert("Validation Error", "Please fix all errors before submitting.");
@@ -234,15 +235,15 @@ export default function RegistrationPage() {
       const today = new Date();
       const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
 
-      // Log the data being sent
+      // Backend expects lowercase keys mostly
       const requestData = { 
-        fullname: fullName,           // Backend expects lowercase
+        fullname: fullName, 
         username: username,
         password: password,
-        contactnumber: contactNumber, // Backend expects lowercase
+        contactnumber: contactNumber, // Sending formatted (e.g. 0912-345-6789)
         email: email,
         datecreated: dateCreated,  
-        userimage: null,   // Backend expects lowercase
+        userimage: null, 
         status: 'Active' 
       };
       
@@ -279,7 +280,19 @@ export default function RegistrationPage() {
         setTouched({});
         
       } else {
-        Alert.alert("Registration Failed", data.error || "Registration failed. Please try again.");
+        // ============================================================
+        //  UNIQUE EMAIL / DUPLICATE HANDLING
+        // ============================================================
+        // If backend returns a duplicate email error, show specific message
+        let errorMessage = data.error || "Registration failed. Please try again.";
+        
+        if (errorMessage.toLowerCase().includes('email')) {
+          errorMessage = "This email is already in use.";
+        } else if (errorMessage.toLowerCase().includes('username')) {
+          errorMessage = "This username is already taken.";
+        }
+
+        Alert.alert("Registration Failed", errorMessage);
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -506,7 +519,7 @@ export default function RegistrationPage() {
             </View>
           </View>
 
-          {/* Contact Number */}
+          {/* Contact Number (Formatted) */}
           <View style={styles.inputGroup}>
             <Ionicons name="call-outline" size={20} color="#888" style={styles.inputIcon} />
             <TextInput
@@ -515,13 +528,13 @@ export default function RegistrationPage() {
                 getFieldStatus('contactNumber') === 'invalid' && styles.inputError,
                 getFieldStatus('contactNumber') === 'valid' && styles.inputValid
               ]}
-              placeholder="Contact (7-15 digits) *"
+              placeholder="0000-000-0000 *"
               placeholderTextColor="#aaa"
               keyboardType="phone-pad"
               value={contactNumber}
               onChangeText={(text) => handleFieldChange('contactNumber', text)}
               onBlur={() => handleBlur('contactNumber')}
-              maxLength={15}
+              maxLength={13} // 11 digits + 2 dashes
             />
             <View style={styles.fieldFeedbackContainer}>
               <View style={styles.errorContainer}>
@@ -534,7 +547,7 @@ export default function RegistrationPage() {
                 getFieldStatus('contactNumber') === 'invalid' && styles.charCountError,
                 getFieldStatus('contactNumber') === 'valid' && styles.charCountValid
               ]}>
-                {contactNumber.length}/15
+                {contactNumber.length}/13
               </Text>
             </View>
           </View>
