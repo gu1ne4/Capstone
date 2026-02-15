@@ -679,6 +679,131 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
     );
 };
 
+// Confirmation Modal for Cancel/Complete actions
+const ConfirmationModal = ({ 
+  visible, 
+  onClose, 
+  onConfirm, 
+  title, 
+  message, 
+  confirmText = 'Yes', 
+  cancelText = 'No',
+  confirmColor = '#3d67ee',
+  type = 'info' // 'cancel', 'complete', or 'info'
+}) => {
+  
+  const getIconName = () => {
+    switch(type) {
+      case 'cancel':
+        return 'alert-circle';
+      case 'complete':
+        return 'checkmark-circle';
+      default:
+        return 'information-circle';
+    }
+  };
+
+  const getIconColor = () => {
+    switch(type) {
+      case 'cancel':
+        return '#d32f2f';
+      case 'complete':
+        return '#2e7d32';
+      default:
+        return '#3d67ee';
+    }
+  };
+
+  const getConfirmButtonColor = () => {
+    switch(type) {
+      case 'cancel':
+        return '#d32f2f';
+      case 'complete':
+        return '#2e7d32';
+      default:
+        return confirmColor;
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent={true}
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <View style={[apStyle.modalOverlay]}>
+        <View style={[apStyle.modalContent, { width: '40%', maxHeight: '50%', padding: 0 }]}>
+          
+          {/* Icon Header */}
+          <View style={{ 
+            alignItems: 'center', 
+            paddingTop: 30, 
+            paddingBottom: 20 
+          }}>
+            <View style={{
+              width: 70,
+              height: 70,
+              borderRadius: 35,
+              backgroundColor: type === 'cancel' ? '#ffebee' : (type === 'complete' ? '#e8f5e9' : '#e3f2fd'),
+              justifyContent: 'center',
+              alignItems: 'center'
+            }}>
+              <Ionicons 
+                name={getIconName()} 
+                size={40} 
+                color={getIconColor()} 
+              />
+            </View>
+          </View>
+
+          {/* Title and Message */}
+          <View style={{ paddingHorizontal: 30, alignItems: 'center' }}>
+            <Text style={{
+              fontSize: 22,
+              fontWeight: '700',
+              color: '#333',
+              marginBottom: 10,
+              textAlign: 'center'
+            }}>
+              {title}
+            </Text>
+            
+            <Text style={{
+              fontSize: 16,
+              color: '#666',
+              textAlign: 'center',
+              lineHeight: 22,
+            }}>
+              {message}
+            </Text>
+          </View>
+
+          {/* Action Buttons */}
+          <View style={[apStyle.modalActions, { padding: 20, borderTopWidth: 1, borderTopColor: '#f0f0f0' }]}>
+            <TouchableOpacity 
+              onPress={onClose}
+              style={[apStyle.modalButton, { backgroundColor: '#f5f5f5', flex: 1, marginRight: 10 }]}
+            >
+              <Text style={{ color: '#666', fontSize: 16, fontWeight: '500' }}>{cancelText}</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              onPress={() => {
+                onConfirm();
+                onClose();
+              }}
+              style={[apStyle.modalButton, { backgroundColor: getConfirmButtonColor(), flex: 1, marginLeft: 10 }]}
+            >
+              <Text style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>{confirmText}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 export default function Schedule() {
     const ns = useNavigation();
     const route = useRoute();
@@ -705,12 +830,24 @@ const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
     const [doctors, setDoctors] = useState([]);
     const [loading, setLoading] = useState(false);
 
+    // Confirmation Modal State
+const [showConfirmationModal, setShowConfirmationModal] = useState(false);
+const [confirmationAction, setConfirmationAction] = useState(null);
+const [selectedAppointmentForAction, setSelectedAppointmentForAction] = useState(null);
+const [confirmationType, setConfirmationType] = useState('info');
+
     // Filter appointments based on service and doctor
-    const filteredAppointments = userData.filter(appointment => {
-        const matchesService = service === '' || appointment.service === service;
-        const matchesDoctor = doctorFilter === '' || appointment.doctor === doctorFilter;
-        return matchesService && matchesDoctor;
-    });
+    // Update the filteredAppointments calculation (around line 270)
+const filteredAppointments = userData.filter(appointment => {
+  // Only show scheduled appointments (not completed or cancelled)
+  if (appointment.status === 'completed' || appointment.status === 'cancelled') {
+    return false;
+  }
+  
+  const matchesService = service === '' || appointment.service === service;
+  const matchesDoctor = doctorFilter === '' || appointment.doctor === doctorFilter;
+  return matchesService && matchesDoctor;
+});
 
     const handleViewUser = (user) => {
         setSelectedUser(user);
@@ -768,44 +905,91 @@ const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
     }
     };
 
+// Update the handleCancelAppointment function to use custom modal
+const handleCancelAppointment = (appointment) => {
+  console.log('handleCancelAppointment called with:', appointment);
+  
+  if (!appointment || !appointment.id) {
+    Alert.alert('Error', 'Invalid appointment data');
+    return;
+  }
+  
+  setSelectedAppointmentForAction(appointment);
+  setConfirmationType('cancel');
+  setConfirmationAction(() => async () => {
+    try {
+      setLoading(true);
+      console.log('Calling updateAppointmentStatus with status: cancelled');
+      const result = await availabilityService.updateAppointmentStatus(appointment.id, 'cancelled');
+      console.log('Update result:', result);
+      
+      if (result) {
+        // Remove from current appointments
+        const updatedUserData = userData.filter(user => user.id !== appointment.id);
+        setUserData(updatedUserData);
+        
+        // Go back to table view if we're viewing this appointment
+        if (selectedUser && selectedUser.id === appointment.id) {
+          setCurrentView('table');
+          setSelectedUser(null);
+        }
+        
+        Alert.alert('Success', 'Appointment has been cancelled and moved to history.');
+      }
+    } catch (error) {
+      console.error('Error cancelling appointment:', error);
+      Alert.alert('Error', error.message || 'Failed to cancel appointment. Please try again.');
+    } finally {
+      setLoading(false);
+      setSelectedAppointmentForAction(null);
+    }
+  });
+  
+  setShowConfirmationModal(true);
+};
 
-    const handleCancelAppointment = () => {
-        Alert.alert(
-            'Cancel Appointment',
-            'Are you sure you want to cancel this appointment? This action cannot be undone.',
-            [
-                {
-                    text: 'No',
-                    style: 'cancel'
-                },
-                {
-                    text: 'Yes, Cancel',
-                    style: 'destructive',
-                    onPress: () => {
-                        // Update the user data to mark as cancelled
-                        const updatedUserData = userData.map(user => {
-                            if (user.id === selectedUser.id) {
-                                return {
-                                    ...user,
-                                    status: 'Cancelled'
-                                };
-                            }
-                            return user;
-                        });
-
-                        setUserData(updatedUserData);
-                        setSelectedUser(prev => ({
-                            ...prev,
-                            status: 'Cancelled'
-                        }));
-                        
-                        Alert.alert('Cancelled', 'Appointment has been cancelled.');
-                    }
-                }
-            ]
-        );
-    };
-
+// Update handleCompleteAppointment function to use custom modal
+const handleCompleteAppointment = (appointment) => {
+  console.log('handleCompleteAppointment called with:', appointment);
+  
+  if (!appointment || !appointment.id) {
+    Alert.alert('Error', 'Invalid appointment data');
+    return;
+  }
+  
+  setSelectedAppointmentForAction(appointment);
+  setConfirmationType('complete');
+  setConfirmationAction(() => async () => {
+    try {
+      setLoading(true);
+      console.log('Calling updateAppointmentStatus with status: completed');
+      const result = await availabilityService.updateAppointmentStatus(appointment.id, 'completed');
+      console.log('Update result:', result);
+      
+      if (result) {
+        // Remove from current appointments
+        const updatedUserData = userData.filter(user => user.id !== appointment.id);
+        setUserData(updatedUserData);
+        
+        // Go back to table view if we're viewing this appointment
+        if (selectedUser && selectedUser.id === appointment.id) {
+          setCurrentView('table');
+          setSelectedUser(null);
+        }
+        
+        Alert.alert('Success', 'Appointment marked as completed and moved to history.');
+      }
+    } catch (error) {
+      console.error('Error completing appointment:', error);
+      Alert.alert('Error', error.message || 'Failed to complete appointment. Please try again.');
+    } finally {
+      setLoading(false);
+      setSelectedAppointmentForAction(null);
+    }
+  });
+  
+  setShowConfirmationModal(true);
+};
     const handleCreateAppointment = () => {
         setShowCreateModal(true);
     };
@@ -909,7 +1093,7 @@ const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
         }, 300);
     };
 
-    const UserDetailsView = ({ user, onBack }) => {
+const UserDetailsView = ({ user, onBack, onCancel, onComplete, onAssignDoctor }) => {
     if (!user) return null;
     
     // Map the API properties to what your component expects
@@ -1017,7 +1201,7 @@ const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
                             </View>
                             
                             <TouchableOpacity 
-                                onPress={() => openDoctorModal(user)}
+                                onPress={() => onAssignDoctor(user)}
                                 style={{ 
                                 flexDirection: 'row', 
                                 alignItems: 'center', 
@@ -1043,11 +1227,10 @@ const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
                                 {user.doctor === 'Not Assigned' ? 'Assign Doctor' : 'Change Doctor'}
                                 </Text>
                             </TouchableOpacity>
-                            </View>
+                        </View>
                     </View>
                 </View>
 
-                {/* Action Buttons */}
                 <View style={[apStyle.sectionContainer, { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 30 }]}>
                     <TouchableOpacity style={[apStyle.actionButton, { backgroundColor: '#3d67ee' }]}>
                         <Ionicons name="calendar" size={18} color="#fff" />
@@ -1055,34 +1238,55 @@ const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
                     </TouchableOpacity>
                     
                     <TouchableOpacity 
-                        onPress={handleCancelAppointment}
-                        disabled={user.status === 'Cancelled'}
+                        onPress={() => onCancel(user)}
+                        disabled={user.status === 'cancelled'}
                         style={[
                             apStyle.actionButton, 
                             { 
-                                backgroundColor: user.status === 'Cancelled' ? '#e0e0e0' : '#ffebee', 
+                                backgroundColor: user.status === 'cancelled' ? '#e0e0e0' : '#ffebee', 
                                 borderWidth: 1, 
-                                borderColor: user.status === 'Cancelled' ? '#bdbdbd' : '#ffcdd2',
-                                opacity: user.status === 'Cancelled' ? 0.6 : 1
+                                borderColor: user.status === 'cancelled' ? '#bdbdbd' : '#ffcdd2',
+                                opacity: user.status === 'cancelled' ? 0.6 : 1
                             }
                         ]}
                     >
                         <Ionicons 
-                            name={user.status === 'Cancelled' ? "close-circle" : "close-circle-outline"} 
+                            name={user.status === 'cancelled' ? "close-circle" : "close-circle-outline"} 
                             size={18}
-                            color={user.status === 'Cancelled' ? '#757575' : '#d32f2f'}
+                            color={user.status === 'cancelled' ? '#757575' : '#d32f2f'}
                         />
                         <Text style={[
                             apStyle.actionButtonText, 
-                            { color: user.status === 'Cancelled' ? '#757575' : '#d32f2f' }
+                            { color: user.status === 'cancelled' ? '#757575' : '#d32f2f' }
                         ]}>
-                            {user.status === 'Cancelled' ? 'Cancelled' : 'Cancel'}
+                            {user.status === 'cancelled' ? 'Cancelled' : 'Cancel'}
                         </Text>
                     </TouchableOpacity>
                     
-                    <TouchableOpacity style={[apStyle.actionButton, { backgroundColor: '#e8f5e9', borderWidth: 1, borderColor: '#c8e6c9' }]}>
-                        <Ionicons name="checkmark-circle" size={18} color="#2e7d32" />
-                        <Text style={[apStyle.actionButtonText, { color: '#2e7d32' }]}>Complete</Text>
+                    <TouchableOpacity 
+                        onPress={() => onComplete(user)}
+                        disabled={user.status === 'completed'}
+                        style={[
+                            apStyle.actionButton, 
+                            { 
+                                backgroundColor: user.status === 'completed' ? '#e0e0e0' : '#e8f5e9', 
+                                borderWidth: 1, 
+                                borderColor: user.status === 'completed' ? '#bdbdbd' : '#c8e6c9',
+                                opacity: user.status === 'completed' ? 0.6 : 1
+                            }
+                        ]}
+                    >
+                        <Ionicons 
+                            name={user.status === 'completed' ? "checkmark-circle" : "checkmark-circle-outline"} 
+                            size={18}
+                            color={user.status === 'completed' ? '#757575' : '#2e7d32'}
+                        />
+                        <Text style={[
+                            apStyle.actionButtonText, 
+                            { color: user.status === 'completed' ? '#757575' : '#2e7d32' }
+                        ]}>
+                            {user.status === 'completed' ? 'Completed' : 'Complete'}
+                        </Text>
                     </TouchableOpacity>
                 </View>
             </ScrollView>
@@ -1090,7 +1294,18 @@ const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
     );
 };
 
-const TableView = ({ onViewUser }) => {
+const TableView = ({ 
+    onViewUser, 
+    loading, 
+    filteredAppointments, 
+    service, 
+    setService, 
+    doctorFilter, 
+    setDoctorFilter, 
+    doctors, 
+    userData, 
+    handleCreateAppointment 
+}) => {
   return (
     <View style={[apStyle.whiteContainer, {padding: 30, flex: 1}]}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
@@ -1116,8 +1331,7 @@ const TableView = ({ onViewUser }) => {
           <Text>Loading appointments...</Text>
         </View>
       ) : (
-        <>
-          {/* Filters */}
+        <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginLeft: 5, marginTop: 20 }}>
             <Ionicons name="filter-sharp" size={25} color="#3d67ee" style={{ marginRight: 10 }} />
             
@@ -1236,12 +1450,11 @@ const TableView = ({ onViewUser }) => {
               )}
             </DataTable>
           </ScrollView>
-        </>
+        </View>
       )}
     </View>
   );
 };
-
 // Doctor Assignment Modal Component
 const AssignDoctorModal = ({ 
   visible, 
@@ -1694,15 +1907,29 @@ const AssignDoctorModal = ({
                     </View>
 
                     <View style={apStyle.bodyContainer}>
-                        {currentView === 'table' ? (
-                            <TableView onViewUser={handleViewUser} />
-                        ) : (
-                            <UserDetailsView 
-                                user={selectedUser} 
-                                onBack={handleBackToList}
-                            />
-                        )}
-                    </View>
+    {currentView === 'table' ? (
+        <TableView 
+            onViewUser={handleViewUser}
+            loading={loading}
+            filteredAppointments={filteredAppointments}
+            service={service}
+            setService={setService}
+            doctorFilter={doctorFilter}
+            setDoctorFilter={setDoctorFilter}
+            doctors={doctors}
+            userData={userData}
+            handleCreateAppointment={handleCreateAppointment}
+        />
+    ) : (
+        <UserDetailsView 
+            user={selectedUser} 
+            onBack={handleBackToList}
+            onCancel={handleCancelAppointment}
+            onComplete={handleCompleteAppointment}
+            onAssignDoctor={openDoctorModal} 
+        />
+    )}
+</View>
                 </View>
             </View>
 
@@ -1719,6 +1946,24 @@ const AssignDoctorModal = ({
                 visible={showCreateModal}
                 onClose={handleCloseModal}
                 onSubmit={handleSubmitAppointment}
+            />
+
+            {/* Confirmation Modal */}
+            <ConfirmationModal 
+            visible={showConfirmationModal}
+            onClose={() => {
+                setShowConfirmationModal(false);
+                setSelectedAppointmentForAction(null);
+            }}
+            onConfirm={confirmationAction}
+            title={confirmationType === 'cancel' ? 'Cancel Appointment' : 'Complete Appointment'}
+            message={confirmationType === 'cancel' 
+                ? 'Are you sure you want to cancel this appointment? This will move it to history.'
+                : 'Mark this appointment as completed? It will be moved to history.'
+            }
+            confirmText={confirmationType === 'cancel' ? 'Yes, Cancel' : 'Yes, Complete'}
+            cancelText="No"
+            type={confirmationType}
             />
 
             

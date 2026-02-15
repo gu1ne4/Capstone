@@ -264,6 +264,42 @@ async deleteSpecialDate(eventDate) {
     }
   },
 
+  // Add these methods to your availabilityService.js
+
+// Update appointment status (complete or cancel)
+async updateAppointmentStatus(appointmentId, status) {
+  try {
+    const response = await fetch(`${API_URL}/api/appointments/${appointmentId}/status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Failed to ${status} appointment`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error(`Error ${status}ing appointment:`, error);
+    throw error;
+  }
+},
+
+// Get completed/cancelled appointments for history
+async getAppointmentHistory() {
+  try {
+    const response = await fetch(`${API_URL}/api/appointments/history`);
+    if (!response.ok) throw new Error('Failed to load appointment history');
+    const data = await response.json();
+    return data.appointments || [];
+  } catch (error) {
+    console.error('Error loading appointment history:', error);
+    return [];
+  }
+},
+
   // Check if a date is a special date (you'll need to implement this table)
   isSpecialDate(dateString, specialDates) {
     if (!specialDates || !dateString) return false;

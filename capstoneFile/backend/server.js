@@ -752,7 +752,6 @@ app.post('/verify-otp', async (req, res) => {
       [email]
     );
     
-    const employeeResult = await pool.query('SELECT pk, username, reset_otp, reset_otp_expiry FROM accounts WHERE email = $1', [email]);
     if (employeeResult.rows.length > 0) {
       user = employeeResult.rows[0];
       tableName = 'accounts';
@@ -1774,6 +1773,118 @@ app.get('/api/appointments/check-columns', async (req, res) => {
     
   } catch (err) {
     console.error("❌ Check columns error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== APPOINTMENT STATUS UPDATE ROUTES ==========
+
+// Update appointment status (complete/cancel)
+app.put('/api/appointments/:id/status', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  
+  // Validate status
+  if (!['completed', 'cancelled'].includes(status)) {
+    return res.status(400).json({ error: 'Invalid status. Must be "completed" or "cancelled"' });
+  }
+  
+  try {
+    console.log(`🔄 Updating appointment ${id} to ${status}`);
+    
+    const result = await pool.query(
+      `UPDATE appointments 
+       SET status = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2
+       RETURNING *`,
+      [status, id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    
+    console.log(`✅ Appointment ${id} marked as ${status}`);
+    
+    res.json({ 
+      message: `Appointment marked as ${status} successfully`,
+      appointment: result.rows[0]
+    });
+    
+  } catch (err) {
+    console.error(`❌ Error updating appointment status:`, err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET appointment history (completed and cancelled)
+app.get('/api/appointments/history', async (req, res) => {
+  try {
+    console.log("📋 Fetching appointment history...");
+    
+    const appointments = await pool.query(`
+      SELECT 
+        a.id,
+        a.patient_name as "name",
+        a.appointment_type as "service",
+        a.reason_for_visit as "reasonForVisit",
+        CONCAT(
+          TO_CHAR(a.appointment_date, 'Mon DD, YYYY'), 
+          ' - ', 
+          a.time_slot_display
+        ) as "date_time",
+        CASE 
+          WHEN a.doctor_id IS NOT NULL THEN ac."fullname"
+          ELSE 'Not Assigned'
+        END as "doctor",
+        a.doctor_id as "assignedDoctor",
+        a.status,
+        a.patient_email,
+        a.patient_phone,
+        a.pet_name,
+        a.pet_type,
+        COALESCE(a.pet_gender, 'Unknown') as "petGender"
+      FROM appointments a
+      LEFT JOIN accounts ac ON a.doctor_id = ac.pk
+      WHERE a.status IN ('completed', 'cancelled')
+      ORDER BY a.appointment_date DESC, a.time_slot_display
+    `);
+    
+    console.log(`✅ Found ${appointments.rows.length} history appointments`);
+    
+    res.json({ 
+      appointments: appointments.rows 
+    });
+    
+  } catch (err) {
+    console.error("❌ Get appointment history error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DEBUG: Check appointment status
+app.get('/api/debug/appointments', async (req, res) => {
+  try {
+    console.log("🔍 DEBUG: Fetching all appointments with status");
+    
+    const appointments = await pool.query(`
+      SELECT id, patient_name, status, appointment_date 
+      FROM appointments 
+      ORDER BY id
+    `);
+    
+    console.log("📊 Appointments in database:");
+    appointments.rows.forEach(app => {
+      console.log(`   ID: ${app.id}, Name: ${app.patient_name}, Status: "${app.status}"`);
+    });
+    
+    res.json({ 
+      message: 'Debug info',
+      appointments: appointments.rows 
+    });
+    
+  } catch (err) {
+    console.error("❌ Debug error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

@@ -1,4 +1,4 @@
-import { View, Text, TextInput, TouchableOpacity, ImageBackground, Image, Alert, ActivityIndicator } from 'react-native'
+import { View, Text, TextInput, TouchableOpacity, ImageBackground, Image, Alert, ActivityIndicator, ScrollView } from 'react-native'
 import React, { useState } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import styles from '../styles/StyleSheet'   
@@ -318,8 +318,9 @@ export default function RegistrationPage() {
         </View>
 
         {/* RIGHT SIDE */}
-        <View style={styles.loginSection}>
-          <TouchableOpacity
+        <View style={[styles.loginSection, {padding: 50}]}>
+          <ScrollView style={{padding: 20}}>
+            <TouchableOpacity
             onPress={() => navigation.navigate('UserHome')}
             style={{ 
               alignSelf: 'flex-start',
@@ -371,6 +372,75 @@ export default function RegistrationPage() {
                 {fullName.length}/50
               </Text>
             </View>
+          </View>
+
+          {/* Email */}
+          <View style={styles.inputGroup}>
+            <Ionicons name="mail-outline" size={20} color="#888" style={styles.inputIcon} />
+            <TextInput
+              style={[
+                styles.inputField,
+                getFieldStatus('email') === 'invalid' && styles.inputError,
+                getFieldStatus('email') === 'valid' && styles.inputValid
+              ]}
+              placeholder="Email *"
+              placeholderTextColor="#aaa"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={email}
+              onChangeText={(text) => handleFieldChange('email', text)}
+              onBlur={() => handleBlur('email')}
+              maxLength={100}
+            />
+            <View style={styles.fieldFeedbackContainer}>
+              <View style={styles.errorContainer}>
+                {touched.email && errors.email ? (
+                  <Text style={styles.errorText}>{errors.email}</Text>
+                ) : null}
+              </View>
+              <Text style={[
+                styles.charCount,
+                getFieldStatus('email') === 'invalid' && styles.charCountError,
+                getFieldStatus('email') === 'valid' && styles.charCountValid
+              ]}>
+                {email.length}/100
+              </Text>
+            </View>
+          </View>
+
+          {/* Contact Number */}
+          <View style={styles.inputGroup}>
+            <Ionicons name="call-outline" size={20} color="#888" style={styles.inputIcon} />
+            <TextInput
+              style={[
+                styles.inputField,
+                getFieldStatus('contactNumber') === 'invalid' && styles.inputError,
+                getFieldStatus('contactNumber') === 'valid' && styles.inputValid
+              ]}
+              placeholder="Contact (7-15 digits) *"
+              placeholderTextColor="#aaa"
+              keyboardType="phone-pad"
+              value={contactNumber}
+              onChangeText={(text) => handleFieldChange('contactNumber', text)}
+              onBlur={() => handleBlur('contactNumber')}
+              maxLength={15}
+            />
+            <View style={styles.fieldFeedbackContainer}>
+              <View style={styles.errorContainer}>
+                {touched.contactNumber && errors.contactNumber ? (
+                  <Text style={styles.errorText}>{errors.contactNumber}</Text>
+                ) : null}
+              </View>
+              <Text style={[
+                styles.charCount,
+                getFieldStatus('contactNumber') === 'invalid' && styles.charCountError,
+                getFieldStatus('contactNumber') === 'valid' && styles.charCountValid
+              ]}>
+                {contactNumber.length}/15
+              </Text>
+            </View>
+
+            
           </View>
 
           {/* Username */}
@@ -472,72 +542,6 @@ export default function RegistrationPage() {
             </View>
           </View>
 
-          {/* Email */}
-          <View style={styles.inputGroup}>
-            <Ionicons name="mail-outline" size={20} color="#888" style={styles.inputIcon} />
-            <TextInput
-              style={[
-                styles.inputField,
-                getFieldStatus('email') === 'invalid' && styles.inputError,
-                getFieldStatus('email') === 'valid' && styles.inputValid
-              ]}
-              placeholder="Email *"
-              placeholderTextColor="#aaa"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={(text) => handleFieldChange('email', text)}
-              onBlur={() => handleBlur('email')}
-              maxLength={100}
-            />
-            <View style={styles.fieldFeedbackContainer}>
-              <View style={styles.errorContainer}>
-                {touched.email && errors.email ? (
-                  <Text style={styles.errorText}>{errors.email}</Text>
-                ) : null}
-              </View>
-              <Text style={[
-                styles.charCount,
-                getFieldStatus('email') === 'invalid' && styles.charCountError,
-                getFieldStatus('email') === 'valid' && styles.charCountValid
-              ]}>
-                {email.length}/100
-              </Text>
-            </View>
-          </View>
-
-          {/* Contact Number */}
-          <View style={styles.inputGroup}>
-            <Ionicons name="call-outline" size={20} color="#888" style={styles.inputIcon} />
-            <TextInput
-              style={[
-                styles.inputField,
-                getFieldStatus('contactNumber') === 'invalid' && styles.inputError,
-                getFieldStatus('contactNumber') === 'valid' && styles.inputValid
-              ]}
-              placeholder="Contact (7-15 digits) *"
-              placeholderTextColor="#aaa"
-              keyboardType="phone-pad"
-              value={contactNumber}
-              onChangeText={(text) => handleFieldChange('contactNumber', text)}
-              onBlur={() => handleBlur('contactNumber')}
-              maxLength={15}
-            />
-            <View style={styles.fieldFeedbackContainer}>
-              <View style={styles.errorContainer}>
-                {touched.contactNumber && errors.contactNumber ? (
-                  <Text style={styles.errorText}>{errors.contactNumber}</Text>
-                ) : null}
-              </View>
-              <Text style={[
-                styles.charCount,
-                getFieldStatus('contactNumber') === 'invalid' && styles.charCountError,
-                getFieldStatus('contactNumber') === 'valid' && styles.charCountValid
-              ]}>
-                {contactNumber.length}/15
-              </Text>
-            </View>
-          </View>
 
           {/* Information Text */}
           <View style={{ marginTop: 10, marginBottom: 20 }}>
@@ -573,6 +577,7 @@ export default function RegistrationPage() {
               <Text style={{ color: '#3d67ee', fontWeight: '600' }}> Log in</Text>
             </Text>
           </TouchableOpacity>
+          </ScrollView>
         </View>
       </View>
     </View>
