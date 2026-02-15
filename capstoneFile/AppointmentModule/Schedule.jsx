@@ -27,14 +27,14 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
     const [petName, setPetName] = useState('');
     const [petType, setPetType] = useState('');
     const [petGender, setPetGender] = useState('');
+    const [reasonForVisit, setReasonForVisit] = useState(''); // NEW STATE
     
     // NEW STATE FOR AVAILABILITY
-    const [availabilityData, setAvailabilityData] = useState(null);
+    const [dayAvailability, setDayAvailability] = useState(null);
     const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
     const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
-    const [bookedSlots, setBookedSlots] = useState({}); 
+    const [specialDates, setSpecialDates] = useState([]);
 
-    
     // Initialize when modal opens
     useEffect(() => {
         if (visible) {
@@ -45,8 +45,8 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
             const todayString = `${year}-${month}-${day}`;
             setSelectedDate(todayString);
             
-            // Load availability data
-            loadAvailabilityData();
+            // Load day availability
+            loadDayAvailability();
             
             // Load initial time slots for today
             const dayName = availabilityService.getDayNameFromDate(todayString);
@@ -62,107 +62,138 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
             setPetName('');
             setPetType('');
             setPetGender('');
+            setReasonForVisit(''); // Reset reason
             setAvailableTimeSlots([]);
-            setBookedSlots({});
+            setDayAvailability(null);
+            setSpecialDates([]);
         }
     }, [visible]);
 
-    const loadAvailabilityData = async () => {
+    const loadDayAvailability = async () => {
         try {
-            const data = await availabilityService.getAvailabilityData();
-            setAvailabilityData(data);
+            // Get day availability using the service
+            const dayData = await availabilityService.getDayAvailability();
+            console.log('Loaded day availability:', dayData);
+            setDayAvailability(dayData);
+            
+            // You can also load special dates here if you have them
+            // const specials = await availabilityService.getSpecialDates();
+            // setSpecialDates(specials);
         } catch (error) {
-            console.error('Failed to load availability data:', error);
+            console.error('Failed to load day availability:', error);
         }
     };
 
     const loadTimeSlotsForDay = async (dayName) => {
-  if (!dayName || !selectedDate) return;
-  
-  setLoadingTimeSlots(true);
-  try {
-    // Load the time slots for this day
-    const slots = await availabilityService.getTimeSlotsForDay(dayName);
-    
-    // For each slot, check availability for the specific selectedDate
-    const formattedSlotsWithAvailability = await Promise.all(
-      slots.map(async (slot) => {
-        // Get availability for THIS SPECIFIC DATE
-        const slotAvailability = await availabilityService.getBookedSlotsCount(slot.id, selectedDate);
+        if (!dayName || !selectedDate) return;
         
-        // Format time for display
-        const formatTime = (time24) => {
-          if (!time24) return '';
-          const [hours, minutes] = time24.split(':');
-          const hour = parseInt(hours);
-          const ampm = hour >= 12 ? 'PM' : 'AM';
-          const displayHour = hour % 12 || 12;
-          return `${displayHour}:${minutes} ${ampm}`;
-        };
+        setLoadingTimeSlots(true);
+        try {
+            // Load the time slots for this day
+            const slots = await availabilityService.getTimeSlotsForDay(dayName);
+            console.log('Loaded time slots for', dayName, ':', slots);
+            
+            // For each slot, check availability for the specific selectedDate
+            const formattedSlotsWithAvailability = await Promise.all(
+                slots.map(async (slot) => {
+                    // Get availability for THIS SPECIFIC DATE
+                    const slotAvailability = await availabilityService.getBookedSlotsCount(slot.id, selectedDate);
+                    
+                    // Format time for display
+                    const formatTime = (timeStr) => {
+                        if (!timeStr) return '';
+                        const [hours, minutes] = timeStr.split(':');
+                        const hour = parseInt(hours);
+                        const ampm = hour >= 12 ? 'PM' : 'AM';
+                        const displayHour = hour % 12 || 12;
+                        return `${displayHour}:${minutes} ${ampm}`;
+                    };
+                    
+                    return {
+                        id: slot.id,
+                        displayText: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`,
+                        startTime: slot.start_time,
+                        endTime: slot.end_time,
+                        capacity: slot.capacity || 1,
+                        bookedCount: slotAvailability.bookedCount || 0,
+                        availableSlots: slotAvailability.availableSlots || 0
+                    };
+                })
+            );
+            
+            // Filter out slots that have 0 available slots (fully booked)
+            const availableSlots = formattedSlotsWithAvailability.filter(slot => slot.availableSlots > 0);
+            
+            setAvailableTimeSlots(availableSlots);
+            setSelectedTimeSlot(''); // Reset selected time slot when day changes
+        } catch (error) {
+            console.error('Failed to load time slots:', error);
+            setAvailableTimeSlots([]);
+        } finally {
+            setLoadingTimeSlots(false);
+        }
+    };
+
+    // Refresh time slots when date changes
+    const refreshTimeSlotAvailability = async () => {
+        if (!selectedDate) return;
         
-        return {
-          id: slot.id,
-          displayText: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`,
-          startTime: slot.start_time,
-          endTime: slot.end_time,
-          capacity: slot.capacity || slot.slot_capacity || 1,
-          bookedCount: slotAvailability.bookedCount || 0,
-          availableSlots: slotAvailability.availableSlots || slot.capacity || 1
-        };
-      })
-    );
-    
-    // Filter out slots that have 0 or negative available slots (fully booked)
-    const availableSlots = formattedSlotsWithAvailability.filter(slot => slot.availableSlots > 0);
-    
-    setAvailableTimeSlots(availableSlots);
-    setSelectedTimeSlot(''); // Reset selected time slot when day changes
-  } catch (error) {
-    console.error('Failed to load time slots:', error);
-    setAvailableTimeSlots([]);
-  } finally {
-    setLoadingTimeSlots(false);
-  }
-};
+        const dayName = availabilityService.getDayNameFromDate(selectedDate);
+        if (!dayName) return;
+        
+        setLoadingTimeSlots(true);
+        try {
+            const slots = await availabilityService.getTimeSlotsForDay(dayName);
+            
+            const formattedSlotsWithAvailability = await Promise.all(
+                slots.map(async (slot) => {
+                    const slotAvailability = await availabilityService.getBookedSlotsCount(slot.id, selectedDate);
+                    
+                    const formatTime = (timeStr) => {
+                        if (!timeStr) return '';
+                        const [hours, minutes] = timeStr.split(':');
+                        const hour = parseInt(hours);
+                        const ampm = hour >= 12 ? 'PM' : 'AM';
+                        const displayHour = hour % 12 || 12;
+                        return `${displayHour}:${minutes} ${ampm}`;
+                    };
+                    
+                    return {
+                        id: slot.id,
+                        displayText: `${formatTime(slot.start_time)} - ${formatTime(slot.end_time)}`,
+                        startTime: slot.start_time,
+                        endTime: slot.end_time,
+                        capacity: slot.capacity || 1,
+                        bookedCount: slotAvailability.bookedCount || 0,
+                        availableSlots: slotAvailability.availableSlots || 0
+                    };
+                })
+            );
+            
+            const availableSlots = formattedSlotsWithAvailability.filter(slot => slot.availableSlots > 0);
+            setAvailableTimeSlots(availableSlots);
+            
+            // If current selected slot is no longer available, clear it
+            if (selectedTimeSlot) {
+                const currentSlot = formattedSlotsWithAvailability.find(slot => slot.displayText === selectedTimeSlot);
+                if (!currentSlot || currentSlot.availableSlots <= 0) {
+                    setSelectedTimeSlot('');
+                    Alert.alert('Slot Unavailable', 'The previously selected time slot is no longer available.');
+                }
+            }
+        } catch (error) {
+            console.error('Failed to refresh time slots:', error);
+        } finally {
+            setLoadingTimeSlots(false);
+        }
+    };
 
-// Add this function to refresh time slots when date changes
-const refreshTimeSlotAvailability = async () => {
-  if (!selectedDate) return;
-  
-  const dayName = availabilityService.getDayNameFromDate(selectedDate);
-  if (!dayName) return;
-  
-  setLoadingTimeSlots(true);
-  try {
-    const slots = await availabilityService.getTimeSlotsForDay(dayName);
-    const formattedSlots = await availabilityService.formatTimeSlotsForDisplay(slots, selectedDate);
-    
-    // Filter to only show slots with availability
-    const availableSlots = formattedSlots.filter(slot => slot.availableSlots > 0);
-    
-    setAvailableTimeSlots(availableSlots);
-    
-    // If current selected slot is no longer available, clear it
-    if (selectedTimeSlot) {
-      const currentSlot = formattedSlots.find(slot => slot.displayText === selectedTimeSlot);
-      if (!currentSlot || currentSlot.availableSlots <= 0) {
-        setSelectedTimeSlot('');
-        Alert.alert('Slot Unavailable', 'The previously selected time slot is no longer available.');
-      }
-    }
-  } catch (error) {
-    console.error('Failed to refresh time slots:', error);
-  } finally {
-    setLoadingTimeSlots(false);
-  }
-};
-
-// Call this whenever selectedDate changes
-useEffect(() => {
-  if (selectedDate) {
-    refreshTimeSlotAvailability();
-  }
-}, [selectedDate]);
+    // Call this whenever selectedDate changes
+    useEffect(() => {
+        if (selectedDate) {
+            refreshTimeSlotAvailability();
+        }
+    }, [selectedDate]);
 
     const getTodayDate = () => {
         const today = new Date();
@@ -183,19 +214,15 @@ useEffect(() => {
         });
     };
 
-    // Check if a date is disabled based on availability settings from database
+    // Check if a date is disabled based on day availability
     const isDateDisabled = (dateString) => {
-        if (!availabilityData || !dateString) return true;
+        if (!dayAvailability || !dateString) return true;
         
-        // Check if it's a special date (holiday)
-        if (availabilityData.specialDates) {
-            const isSpecial = availabilityService.isSpecialDate(dateString, availabilityData.specialDates);
-            if (isSpecial) return true;
-        }
-        
-        // Check day availability from database
+        // Get day name from date
         const dayName = availabilityService.getDayNameFromDate(dateString);
-        const isAvailable = availabilityData.dayAvailability[dayName];
+        
+        // Check if this day is available in the database
+        const isAvailable = dayAvailability[dayName];
         
         // Return true if day is NOT available
         return !isAvailable;
@@ -210,13 +237,12 @@ useEffect(() => {
             markedDates[selectedDate] = {
                 selected: true,
                 selectedColor: '#3d67ee',
-                selectedTextColor: 'white',
-                disabled: isDateDisabled(selectedDate)
+                selectedTextColor: 'white'
             };
         }
         
-        // Mark disabled dates for the next 90 days based on database availability
-        if (availabilityData && availabilityData.dayAvailability) {
+        // Mark disabled dates for the next 90 days based on day availability
+        if (dayAvailability) {
             for (let i = 0; i < 90; i++) {
                 const date = new Date(today);
                 date.setDate(today.getDate() + i);
@@ -226,24 +252,14 @@ useEffect(() => {
                 const dateString = `${year}-${month}-${day}`;
                 const dayName = availabilityService.getDayNameFromDate(dateString);
                 
-                // Check if this day is available in the database
-                const isDayAvailable = availabilityData.dayAvailability[dayName];
+                // Check if this day is available
+                const isDayAvailable = dayAvailability[dayName];
                 
-                if (isDateDisabled(dateString) || !isDayAvailable) {
+                if (!isDayAvailable) {
                     markedDates[dateString] = {
                         disabled: true,
                         disableTouchEvent: true,
-                        dotColor: 'transparent',
-                        customStyles: {
-                            container: {
-                                backgroundColor: '#f5f5f5',
-                                borderRadius: 0
-                            },
-                            text: {
-                                color: '#ccc',
-                                textDecorationLine: 'line-through'
-                            }
-                        }
+                        dotColor: 'transparent'
                     };
                 }
             }
@@ -269,13 +285,11 @@ useEffect(() => {
         loadTimeSlotsForDay(dayName);
     };
 
-        const isTimeSlotFullyBooked = (slotId) => {
-
+    const isTimeSlotFullyBooked = (slotId) => {
         const slot = availableTimeSlots.find(s => s.id === slotId);
         if (!slot) return true;
-
         return slot.availableSlots <= 0;
-        };
+    };
 
     // Handle time slot selection
     const handleTimeSlotSelect = (slotId) => {
@@ -290,122 +304,107 @@ useEffect(() => {
         }
     };
 
-
     const handleSubmit = async () => {
-    // Validation
-    if (!patientName.trim()) {
-        Alert.alert('Error', 'Please enter patient name');
-        return;
-    }
-    if (!appointmentType) {
-        Alert.alert('Error', 'Please select appointment type');
-        return;
-    }
-    if (!selectedDate) {
-        Alert.alert('Error', 'Please select a date');
-        return;
-    }
-    if (!selectedTimeSlot) {
-        Alert.alert('Error', 'Please select a time slot');
-        return;
-    }
+        // Validation
+        if (!patientName.trim()) {
+            Alert.alert('Error', 'Please enter patient name');
+            return;
+        }
+        if (!appointmentType) {
+            Alert.alert('Error', 'Please select appointment type');
+            return;
+        }
+        if (!selectedDate) {
+            Alert.alert('Error', 'Please select a date');
+            return;
+        }
+        if (!selectedTimeSlot) {
+            Alert.alert('Error', 'Please select a time slot');
+            return;
+        }
 
-    // Check if the selected time slot is still available
-    const selectedSlot = availableTimeSlots.find(slot => 
-        slot.displayText === selectedTimeSlot
-    );
-    
-    if (!selectedSlot) {
-        Alert.alert('Error', 'Selected time slot is no longer available');
-        return;
-    }
-    
-    if (selectedSlot.availableSlots <= 0) {
-        Alert.alert('Slot Full', 'This time slot is now fully booked. Please select another time.');
-        return;
-    }
-
-    try {
-        // Create appointment data
-        const appointmentData = {
-            patientName,
-            patientEmail,
-            patientPhone,
-            petName,
-            petType,
-            petGender,
-            appointmentType,
-            selectedDate,
-            timeSlotId: selectedSlot.id,
-            timeSlotDisplay: selectedSlot.displayText
-        };
-
-        // Call the API to create the appointment
-        await availabilityService.createAppointment(appointmentData);
+        // Check if the selected time slot is still available
+        const selectedSlot = availableTimeSlots.find(slot => 
+            slot.displayText === selectedTimeSlot
+        );
         
-        // Reset form
-        setPatientName('');
-        setPatientEmail('');
-        setPatientPhone('');
-        setPetName('');
-        setPetType('');
-        setPetGender('');
-        setAppointmentType('');
-        setSelectedDate('');
-        setSelectedTimeSlot('');
+        if (!selectedSlot) {
+            Alert.alert('Error', 'Selected time slot is no longer available');
+            return;
+        }
         
-        // Close the modal immediately (no alert!)
-        onClose();
+        if (selectedSlot.availableSlots <= 0) {
+            Alert.alert('Slot Full', 'This time slot is now fully booked. Please select another time.');
+            return;
+        }
 
-    } catch (error) {
-        console.error('Error creating appointment:', error);
-        Alert.alert('Error', error.message || 'Failed to create appointment. Please try again.');
-    }
-};
+        try {
+            // Create appointment data with reason for visit
+            const appointmentData = {
+                patientName,
+                patientEmail,
+                patientPhone,
+                petName,
+                petType,
+                petGender,
+                appointmentType,
+                reasonForVisit, // Include reason in appointment data
+                selectedDate,
+                timeSlotId: selectedSlot.id,
+                timeSlotDisplay: selectedSlot.displayText
+            };
 
-    // Render time slot with availability indicator
-const renderTimeSlot = (slot) => {
-  const isFullyBooked = slot.availableSlots <= 0;
-  const isSelected = selectedTimeSlot === slot.displayText;
-  
-  return (
-    <TouchableOpacity
-      key={slot.id}
-      style={[
-        apStyle.timeSlot,
-        isSelected && apStyle.selectedTimeSlot,
-        isFullyBooked && apStyle.disabledTimeSlot
-      ]}
-      onPress={() => !isFullyBooked && handleTimeSlotSelect(slot.id)}
-      disabled={isFullyBooked}
-    >
-      <Text style={[
-        apStyle.timeSlotText,
-        isSelected && apStyle.selectedTimeSlotText,
-        isFullyBooked && apStyle.disabledTimeSlotText
-      ]}>
-        {slot.displayText}
-      </Text>
-      <View style={{
-        position: 'absolute',
-        top: 5,
-        right: 5,
-        backgroundColor: isFullyBooked ? '#ff6b6b' : (slot.availableSlots > 2 ? '#4CAF50' : '#ff9800'),
-        borderRadius: 10,
-        paddingHorizontal: 6,
-        paddingVertical: 2
-      }}>
-        <Text style={{
-          fontSize: 10,
-          color: 'white',
-          fontWeight: 'bold'
-        }}>
-          {slot.availableSlots} left
-        </Text>
-      </View>
-    </TouchableOpacity>
-  );
-};
+            // Call the API to create the appointment
+            await availabilityService.createAppointment(appointmentData);
+            
+            // Reset form
+            setPatientName('');
+            setPatientEmail('');
+            setPatientPhone('');
+            setPetName('');
+            setPetType('');
+            setPetGender('');
+            setReasonForVisit('');
+            setAppointmentType('');
+            setSelectedDate('');
+            setSelectedTimeSlot('');
+            
+            // Close the modal
+            onClose();
+
+        } catch (error) {
+            console.error('Error creating appointment:', error);
+            Alert.alert('Error', error.message || 'Failed to create appointment. Please try again.');
+        }
+    };
+
+    // Render time slot with availability indicator (REMOVED the "X left" badge)
+    const renderTimeSlot = (slot) => {
+        const isFullyBooked = slot.availableSlots <= 0;
+        const isSelected = selectedTimeSlot === slot.displayText;
+        
+        return (
+            <TouchableOpacity
+                key={slot.id}
+                style={[
+                    apStyle.timeSlot,
+                    isSelected && apStyle.selectedTimeSlot,
+                    isFullyBooked && apStyle.disabledTimeSlot
+                ]}
+                onPress={() => !isFullyBooked && handleTimeSlotSelect(slot.id)}
+                disabled={isFullyBooked}
+            >
+                <Text style={[
+                    apStyle.timeSlotText,
+                    isSelected && apStyle.selectedTimeSlotText,
+                    isFullyBooked && apStyle.disabledTimeSlotText
+                ]}>
+                    {slot.displayText}
+                </Text>
+                {/* REMOVED the badge showing available slots */}
+            </TouchableOpacity>
+        );
+    };
 
     return (
         <Modal
@@ -428,7 +427,7 @@ const renderTimeSlot = (slot) => {
                         <View style={apStyle.formSection}>
                             <Text style={apStyle.sectionTitle}>Patient Information</Text>
                             
-                            <View style={apStyle.formRow}>
+                            <View style={[apStyle.formRow, {gap: 20}]}>
                                 <View style={apStyle.formGroup}>
                                     <Text style={apStyle.formLabel}>Full Name *</Text>
                                     <TextInput
@@ -468,11 +467,25 @@ const renderTimeSlot = (slot) => {
                             </View>
                         </View>
 
+                        {/* REASON FOR VISIT - NEW FIELD */}
+                            <View style={[apStyle.formGroup, {marginBottom: 40}]}>
+                                <Text style={apStyle.formLabel}>Reason for Visit</Text>
+                                <TextInput
+                                    style={[apStyle.formInput, { height: 80, textAlignVertical: 'top' }]}
+                                    value={reasonForVisit}
+                                    onChangeText={setReasonForVisit}
+                                    placeholder="Please describe the reason for your visit"
+                                    placeholderTextColor="#999"
+                                    multiline={true}
+                                    numberOfLines={3}
+                                />
+                            </View>
+
                         {/* Pet Information */}
                         <View style={apStyle.formSection}>
                             <Text style={apStyle.sectionTitle}>Pet Information</Text>
                             
-                            <View style={apStyle.formRow}>
+                            <View style={[apStyle.formRow, {gap: 20}]}>
                                 <View style={apStyle.formGroup}>
                                     <Text style={apStyle.formLabel}>Pet Name</Text>
                                     <TextInput
@@ -513,7 +526,7 @@ const renderTimeSlot = (slot) => {
                         </View>
 
                         {/* Appointment Details */}
-                        <View style={apStyle.formSection}>
+                        <View style={[apStyle.formSection, {marginBottom: 10}]}>
                             <Text style={apStyle.sectionTitle}>Appointment Details</Text>
                             
                             <View style={apStyle.formGroup}>
@@ -534,8 +547,10 @@ const renderTimeSlot = (slot) => {
                                     </Picker>
                                 </View>
                             </View>
+
                             
-                            <View style={apStyle.formGroup}>
+                            
+                            <View style={[apStyle.formGroup]}>
                                 <Text style={apStyle.formLabel}>Select Date *</Text>
                                 <TouchableOpacity 
                                     style={apStyle.dateSelector}
@@ -673,6 +688,9 @@ export default function Schedule() {
     const [showAppointmentsDropdown, setShowAppointmentsDropdown] = useState(false);
     const [service, setService] = useState('');
     const [doctorFilter, setDoctorFilter] = useState('');
+    const [bookedDates, setBookedDates] = useState({});
+    // Add this line with your other useState declarations
+const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
     
     const [currentView, setCurrentView] = useState('table'); 
     const [selectedUser, setSelectedUser] = useState(null);
@@ -793,25 +811,67 @@ export default function Schedule() {
     };
 
     const loadAppointments = async () => {
-    setLoading(true);
-    try {
-        console.log('🔄 Loading appointments...');
-        const appointments = await availabilityService.getAppointmentsForTable();
-        console.log('📋 Appointments loaded:', appointments);
-        console.log('First appointment:', appointments[0]);
-        setUserData(appointments);
-    } catch (error) {
-        console.error('Failed to load appointments:', error);
-        Alert.alert('Error', 'Failed to load appointments');
-    } finally {
-        setLoading(false);
-    }
+  setLoading(true);
+  try {
+    console.log('🔄 Loading appointments...');
+    const appointments = await availabilityService.getAppointmentsForTable();
+    console.log('📋 Appointments loaded:', appointments);
+    console.log('First appointment:', appointments[0]);
+    setUserData(appointments);
+    
+    // Process booked dates for calendar
+    const booked = {};
+    appointments.forEach(app => {
+      // Extract date from date_time string (format: "Mon DD, YYYY - HH:MM AM/PM")
+      const dateTimeParts = app.date_time.split(' - ');
+      if (dateTimeParts.length > 0) {
+        const dateStr = dateTimeParts[0]; // This gives "Mon DD, YYYY"
+        
+        // Convert to YYYY-MM-DD format for calendar
+        const date = new Date(dateStr);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        const formattedDate = `${year}-${month}-${day}`;
+        
+        booked[formattedDate] = {
+          marked: true,
+          dotColor: '#3d67ee',
+          activeOpacity: 0.8,
+        };
+      }
+    });
+    
+    setBookedDates(booked);
+    
+  } catch (error) {
+    console.error('Failed to load appointments:', error);
+    Alert.alert('Error', 'Failed to load appointments');
+  } finally {
+    setLoading(false);
+  }
 };
+
 
     const loadDoctors = async () => {
     try {
         const doctorsList = await availabilityService.getDoctors();
-        setDoctors(doctorsList);
+        console.log('Raw doctors data:', doctorsList); // Add this to see what you're getting
+        
+        // Map the properties to what your components expect
+        const formattedDoctors = doctorsList.map(doctor => ({
+        id: doctor.pk || doctor.id,
+        pk: doctor.pk,
+        fullName: doctor.fullname || doctor.fullName || doctor.name || 'Unknown',
+        name: doctor.fullname || doctor.fullName || doctor.name || 'Unknown',
+        role: doctor.role || 'Veterinarian',
+        department: doctor.department || 'General',
+        userImage: doctor.userImage || doctor.userimage,
+        // Keep any other properties you need
+        }));
+        
+        console.log('Formatted doctors:', formattedDoctors);
+        setDoctors(formattedDoctors);
     } catch (error) {
         console.error('Failed to load doctors:', error);
     }
@@ -857,10 +917,10 @@ export default function Schedule() {
         fullName: user.name,
         email: user.patient_email,
         phone: user.patient_phone,
-        address: 'To be provided', // You might want to add this to your database
+        reasonForVisit: user.reasonForVisit || 'Not provided',  
         petName: user.pet_name,
         petType: user.pet_type,
-        petBreed: 'Unknown', // You might want to add this to your database
+        petBreed: 'Unknown', 
         gender: user.petGender || 'Unknown'
     };
     
@@ -903,8 +963,8 @@ export default function Schedule() {
                         </View>
                         
                         <View style={apStyle.detailItem}>
-                            <Text style={apStyle.detailLabel}>Address</Text>
-                            <Text style={apStyle.detailValue}>{userDetails.address}</Text>
+                            <Text style={apStyle.detailLabel}>Reason for Visit</Text>
+                            <Text style={apStyle.detailValue}>{userDetails.reasonForVisit}</Text>
                         </View>
                     </View>
                 </View>
@@ -1087,11 +1147,11 @@ const TableView = ({ onViewUser }) => {
                 <Picker.Item label="All Doctors" value="" color="#a8a8a8" />
                 <Picker.Item label="Not Assigned" value="Not Assigned" />
                 {doctors.map(doctor => (
-                  <Picker.Item 
+                <Picker.Item 
                     key={doctor.pk || doctor.id} 
                     label={`${doctor.fullName || doctor.name} (${doctor.role || 'Doctor'})`} 
                     value={doctor.fullName || doctor.name} 
-                  />
+                />
                 ))}
               </Picker>
             </View>
@@ -1542,36 +1602,71 @@ const AssignDoctorModal = ({
                     <View style={apStyle.sideContainer}>
                         <View style={[apStyle.whiteContainer, {padding: 10, overflow: 'hidden', flex: 2}]}>
                             <Calendar 
-                                monthFormat={'MMMM yyyy'}
-                                current={'2026-02-01'} 
-                                onDayPress={(day) => {
-                                    console.log('selected day', day);
-                                }}
-                                markedDates={{
-                                    '2026-02-14': { marked: true, dotColor: 'red' },
-                                }}
-                                theme={{
-                                    selectedDayBackgroundColor: '#3d67ee',
-                                    todayTextColor: '#3d67ee',
-                                    arrowColor: '#3d67ee',
-                                    monthTextColor: '#000',
-
-                                    textMonthFontWeight: 700,
-                                    textMonthFontFamily: 'Segoe UI',
-                                    textMonthFontSize: 20,
-
-                                    textDayFontFamily: 'Segoe UI',
-                                    textDayFontSize: 14,
-                                }}
-                                style={{
-                                    borderRadius: 8,
-                                    padding: 10,
-                                    width: '100%',  
-                                    height: 200, 
-                                    alignSelf: 'center'
-                                }}
-                            />
-                        </View>
+  monthFormat={'MMMM yyyy'}
+  current={new Date().toISOString().split('T')[0]}
+  onDayPress={(day) => {
+    console.log('selected day', day);
+    setSelectedCalendarDate(day.dateString);
+  }}
+  markedDates={{
+    ...bookedDates,
+    ...(selectedCalendarDate ? {
+      [selectedCalendarDate]: {
+        selected: true,
+        selectedColor: '#3d67ee',
+        selectedTextColor: 'white'
+      }
+    } : {})
+  }}
+  // Custom styling for marked dates
+  theme={{
+    // Style for marked dates (days with appointments)
+    'stylesheet.day.basic': {
+      base: {
+        width: 32,
+        height: 32,
+        alignItems: 'center',
+        justifyContent: 'center',
+      },
+      today: {
+        backgroundColor: '#f0f7ff',
+        borderRadius: 16,
+      },
+      todayText: {
+        color: '#3d67ee',
+        fontWeight: '600',
+      },
+    },
+    // Make the dots bigger and more visible
+    dotStyle: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      marginTop: 2,
+    },
+    // Style for the selected day
+    selectedDayBackgroundColor: '#3d67ee',
+    selectedDayTextColor: 'white',
+    todayTextColor: '#3d67ee',
+    arrowColor: '#3d67ee',
+    monthTextColor: '#000',
+    textMonthFontWeight: '700',
+    textMonthFontFamily: 'Segoe UI',
+    textMonthFontSize: 20,
+    textDayFontFamily: 'Segoe UI',
+    textDayFontSize: 14,
+    textDisabledColor: '#ccc',
+    dayTextColor: '#2d4150',
+  }}
+  style={{
+    borderRadius: 8,
+    padding: 10,
+    width: '100%',  
+    height: 200, 
+    alignSelf: 'center'
+  }}
+/>
+                            </View>
                         <View style={[apStyle.whiteContainer, {flex: 1}]}>
                             <Text style={{fontFamily: 'Segoe UI', fontSize: 18, fontWeight: '700'}}>Doctors Available</Text>
                             <ScrollView style={{ marginTop: 10 }}>
@@ -1580,20 +1675,14 @@ const AssignDoctorModal = ({
                                         <DataTable.Row key={doctor.id}>
                                             <DataTable.Cell style={{ flex: 2 }}>
                                                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                                    <View style={{
-                                                        width: 10,
-                                                        height: 10,
-                                                        borderRadius: 5,
-                                                        backgroundColor: doctor.available ? '#4CAF50' : '#F44336',
-                                                        marginRight: 10
-                                                    }} />
+                                                    <View/>
                                                     <Image 
                                                         source={require('../assets/userAvatar.jpg')} 
                                                         style={{width: 30, height: 30, borderRadius: 20, marginRight: 10 }}
                                                     />
                                                     <View>
-                                                        <Text style={{ fontSize: 14, fontWeight: '600' }}>{doctor.name}</Text>
-                                                        <Text style={{ fontSize: 12, color: '#666' }}>{doctor.specialty}</Text>
+                                                        <Text style={{ fontSize: 14, }}>{doctor.name}</Text>
+                                                        <Text style={{ fontSize: 12, color: '#666' }}>{doctor.department}</Text>
                                                     </View>
                                                 </View>
                                             </DataTable.Cell>

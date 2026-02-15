@@ -39,6 +39,7 @@ export default function UserAccPage() {
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [searchHovered, setSearchHovered] = useState(false);
   const [filterHovered, setFilterHovered] = useState(false);
+  const [togglingStatus, setTogglingStatus] = useState(false);
 
   // Modal State
   const [modalVisible, setModalVisible] = useState(false);
@@ -48,7 +49,8 @@ export default function UserAccPage() {
   const [page, setPage] = useState(0);
   const itemsPerPage = 8;
 
-     const [showAppointmentsDropdown, setShowAppointmentsDropdown] = useState(false);
+  const [showAppointmentsDropdown, setShowAppointmentsDropdown] = useState(false);
+  
   // Form Data
   const [editingId, setEditingId] = useState(null);
   const [selectedAccount, setSelectedAccount] = useState({});
@@ -60,6 +62,9 @@ export default function UserAccPage() {
   const [userImage, setUserImage] = useState(null); 
   const [userImageBase64, setUserImageBase64] = useState(null); 
   const [status, setStatus] = useState("defaultStatus");
+  
+  // Status toggle tracking
+  const [statusToggleAccount, setStatusToggleAccount] = useState(null);
 
   // ==========================================
   //  HELPERS
@@ -141,6 +146,84 @@ export default function UserAccPage() {
     showAlert('confirm', 'Confirm Status Change', messageJSX, () => { setNewStatus(nextStatus); }, true);
   };
 
+  // ==========================================
+  //  STATUS TOGGLE HANDLER FOR TABLE
+  // ==========================================
+  const handleStatusToggleFromTable = (account, newStatusValue) => {
+    const nextStatus = newStatusValue ? 'Active' : 'Disabled';
+    const action = nextStatus === 'Active' ? 'ACTIVATE' : 'DEACTIVATE';
+    const accountName = account.fullName || account.fullname || account.username;
+    
+    const messageJSX = (
+      <View>
+        <Text style={{marginBottom: 8}}>
+          Are you sure you want to <Text style={{fontWeight: 'bold', color: nextStatus === 'Active' ? 'green' : 'red'}}>{action}</Text> this account?
+        </Text>
+        <Text style={{fontStyle: 'italic', color: '#666'}}>
+          Account: {accountName}
+        </Text>
+      </View>
+    );
+    
+    // Store account info for the update
+    setStatusToggleAccount({ ...account, newStatus: nextStatus });
+    
+    showAlert('confirm', 'Confirm Status Change', messageJSX, () => {
+      updateAccountStatus(account.pk, nextStatus);
+    }, true);
+  };
+
+  const updateAccountStatus = async (accountId, newStatus) => {
+    setTogglingStatus(true);
+    
+    try {
+      // Find the account to get its current data
+      const account = accounts.find(a => a.pk === accountId);
+      if (!account) {
+        showAlert('error', 'Error', 'Account not found');
+        setTogglingStatus(false);
+        return;
+      }
+      
+      // Prepare the update data (keep all existing data, just change status)
+      const updateData = {
+        username: account.username,
+        fullname: account.fullName || account.fullname,
+        contactnumber: account.contactNumber || account.contactnumber,
+        email: account.email,
+        status: newStatus,
+        // Include image if it exists (but don't change it)
+        userimage: account.userimage || null
+      };
+      
+      console.log(`🔄 Updating account ${accountId} status to: ${newStatus}`);
+      
+      const res = await fetch(`${API_URL}/patients/${accountId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updateData),
+      });
+      
+      const responseData = await res.json();
+      
+      if (res.ok) {
+        console.log(`✅ Account status updated to ${newStatus}`);
+        showAlert('success', 'Success', `Account has been ${newStatus === 'Active' ? 'activated' : 'deactivated'} successfully!`, () => {
+          fetchAccounts(); // Refresh the list
+        });
+      } else {
+        console.error('❌ Update failed:', responseData);
+        showAlert('error', 'Update Failed', responseData.error || 'Failed to update account status');
+      }
+    } catch (error) {
+      console.error('❌ Network error:', error);
+      showAlert('error', 'Network Error', 'Could not connect to the server.');
+    } finally {
+      setTogglingStatus(false);
+      setStatusToggleAccount(null);
+    }
+  };
+
   const handleLogoutPress = () => {
     showAlert('confirm', 'Log Out', 'Are you sure you want to log out?', async () => {
       await AsyncStorage.removeItem('userSession');
@@ -158,49 +241,46 @@ export default function UserAccPage() {
   // ==========================================
   //  SAVE / UPDATE ACTIONS
   // ==========================================
-const handleSaveAccount = async () => {
-  // 1. EMPTY CHECK
-  if (!newFullName || !newContact || !newEmail) {
-    showAlert('error', 'Missing Information', 'Please fill in Full Name, Contact, and E-Mail.'); return;
-  }
-  
-  // 2. MIN LENGTH CHECKS
-  if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
-  if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
-  if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
-
-  // 3. DUPLICATE CHECK (Check Email)
-  const isDuplicate = accounts.some(acc => acc.email.toLowerCase() === newEmail.toLowerCase());
-  if (isDuplicate) { showAlert('error', 'Duplicate Entry', 'This email is already registered.'); return; }
-
-  const dateCreated = new Date().toLocaleDateString('en-US'); 
-
-  try {
-    // CHANGE THIS LINE ONLY:
-    // FROM: const res = await fetch(`${API_URL}/patients/register`, {
-    // TO:
-    const res = await fetch(`${API_URL}/patient-register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        fullName: newFullName,
-        contactNumber: newContact,
-        email: newEmail,
-        userImage: userImageBase64,
-        status: newStatus,
-        dateCreated: dateCreated
-      }),
-    });
-
-    const data = await res.json();
-    if (res.ok) {
-      setAddAccountVisible(false);
-      showAlert('success', 'Success', 'Patient Account Created Successfully!', () => { fetchAccounts(); resetForm(); });
-    } else {
-      showAlert('error', 'Failed', data.error || 'Registration failed');
+  const handleSaveAccount = async () => {
+    // 1. EMPTY CHECK
+    if (!newFullName || !newContact || !newEmail) {
+      showAlert('error', 'Missing Information', 'Please fill in Full Name, Contact, and E-Mail.'); return;
     }
-  } catch (e) { showAlert('error', 'Network Error', 'Could not connect to the server.'); }
-};
+    
+    // 2. MIN LENGTH CHECKS
+    if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
+    if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
+    if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
+
+    // 3. DUPLICATE CHECK (Check Email)
+    const isDuplicate = accounts.some(acc => acc.email.toLowerCase() === newEmail.toLowerCase());
+    if (isDuplicate) { showAlert('error', 'Duplicate Entry', 'This email is already registered.'); return; }
+
+    const dateCreated = new Date().toLocaleDateString('en-US'); 
+
+    try {
+      const res = await fetch(`${API_URL}/patient-register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: newFullName,
+          contactNumber: newContact,
+          email: newEmail,
+          userImage: userImageBase64,
+          status: newStatus,
+          dateCreated: dateCreated
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setAddAccountVisible(false);
+        showAlert('success', 'Success', 'Patient Account Created Successfully!', () => { fetchAccounts(); resetForm(); });
+      } else {
+        showAlert('error', 'Failed', data.error || 'Registration failed');
+      }
+    } catch (e) { showAlert('error', 'Network Error', 'Could not connect to the server.'); }
+  };
 
   const openEditModal = (user) => {
     setEditingId(user.pk);
@@ -388,12 +468,6 @@ const handleSaveAccount = async () => {
                    </View>
                 )}
              </View>
-
-             <View style={[homeStyle.subTable2, { justifyContent: 'flex-end' }]}>
-                <TouchableOpacity style={homeStyle.blackBtn} onPress={() => { resetForm(); setAddAccountVisible(true); }}>
-                   <Text style={{color:'#ffffff', fontWeight:'600'}}><Ionicons name="person-add" color="#ffffff" style={{ marginTop: 3 }}/> Add Patient</Text>
-                </TouchableOpacity>
-             </View>
           </View>
 
           {loading ? <ActivityIndicator size="large" color="#3d67ee" style={{marginTop: 50}}/> : (
@@ -404,7 +478,7 @@ const handleSaveAccount = async () => {
                 <DataTable.Title textStyle={homeStyle.tableFont} style={{flex: 3, justifyContent: 'center'}}>E-Mail</DataTable.Title>
                 <DataTable.Title textStyle={homeStyle.tableFont} style={{flex: 1.5, justifyContent: 'center'}}>Status</DataTable.Title>
                 <DataTable.Title textStyle={homeStyle.tableFont} style={{flex: 1, justifyContent: 'center'}}>View</DataTable.Title>
-                <DataTable.Title textStyle={homeStyle.tableFont} style={{flex: 1, justifyContent: 'flex-end'}}>Edit</DataTable.Title>
+                <DataTable.Title textStyle={homeStyle.tableFont} style={{flex: 1.5, justifyContent: 'center'}}>Active/Disable</DataTable.Title>
               </DataTable.Header>
               {filteredUsers.length > 0 ? (
                   filteredUsers.slice(page * itemsPerPage, (page + 1) * itemsPerPage).map(u => (
@@ -423,10 +497,23 @@ const handleSaveAccount = async () => {
                             </View>
                         </DataTable.Cell>
                         <DataTable.Cell style={{flex: 1, justifyContent: 'center'}}>
-                            <TouchableOpacity onPress={() => handleViewDetails(u)}><Ionicons name="eye" size={15} color="#3d67ee"/></TouchableOpacity>
+                            <TouchableOpacity onPress={() => handleViewDetails(u)}>
+                              <Ionicons name="eye" size={15} color="#3d67ee"/>
+                            </TouchableOpacity>
                         </DataTable.Cell>
-                        <DataTable.Cell style={{flex: 1, justifyContent: 'flex-end'}}>
-                            <TouchableOpacity onPress={() => openEditModal(u)}><Ionicons name="pencil-sharp" size={15} color="#3d67ee"/></TouchableOpacity>
+                        <DataTable.Cell style={{flex: 1.5, justifyContent: 'center'}}>
+                          <View style={{flexDirection: 'row', alignItems: 'center', justifyContent: 'center'}}>
+                            <Switch
+                              value={u.status === 'Active'}
+                              onValueChange={(value) => handleStatusToggleFromTable(u, value)}
+                              thumbColor={u.status === 'Active' ? '#3d67ee' : '#888'}
+                              trackColor={{ false: '#ccc', true: '#a9ff8f' }}
+                              disabled={togglingStatus && statusToggleAccount?.pk === u.pk}
+                            />
+                            {togglingStatus && statusToggleAccount?.pk === u.pk && (
+                              <ActivityIndicator size="small" color="#3d67ee" style={{marginLeft: 5}} />
+                            )}
+                          </View>
                         </DataTable.Cell>
                         </DataTable.Row>
                     ))

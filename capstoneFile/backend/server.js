@@ -920,7 +920,7 @@ app.post('/patient-login', async (req, res) => {
   }
 });
 
-// Get All Patients
+// Get All Patients - UPDATED to convert status from bit to string
 app.get('/patients', async (req, res) => {
   try {
     const allPatients = await pool.query('SELECT * FROM patient_account ORDER BY pk ASC');
@@ -931,7 +931,26 @@ app.get('/patients', async (req, res) => {
       if (imgBuffer) {
         imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
       }
-      return { ...patient, userimage: imageStr };
+      
+      // Convert status from bit to string
+      let statusStr = 'Disabled'; // Default
+      if (patient.status) {
+        // Check if it's a buffer or string
+        if (Buffer.isBuffer(patient.status)) {
+          // If it's a buffer, convert to string and check
+          const statusVal = patient.status.toString();
+          statusStr = statusVal === '1' ? 'Active' : 'Disabled';
+        } else {
+          // If it's already a string/number
+          statusStr = patient.status.toString() === '1' ? 'Active' : 'Disabled';
+        }
+      }
+      
+      return { 
+        ...patient, 
+        userimage: imageStr,
+        status: statusStr // Return as string
+      };
     });
 
     console.log(`📤 Sending ${formattedPatients.length} patients to frontend`);
@@ -943,6 +962,7 @@ app.get('/patients', async (req, res) => {
 });
 
 // Update Patient
+// Update Patient - UPDATED to handle status conversion
 app.put('/patients/:id', async (req, res) => {
   const { id } = req.params;
   const { username, fullname, contactnumber, email, userimage, status } = req.body;
@@ -955,22 +975,32 @@ app.put('/patients/:id', async (req, res) => {
       imageBuffer = Buffer.from(base64Data, 'base64');
     }
 
+    // Convert status string to bit value
+    let statusForDb;
+    if (status === 'Active') {
+      statusForDb = '1';
+    } else if (status === 'Disabled') {
+      statusForDb = '0';
+    } else {
+      statusForDb = status; // If it's already a bit value (1 or 0)
+    }
+
     let query, values;
 
     if (imageBuffer) {
       query = `
         UPDATE patient_account 
-        SET username=$1, fullname=$2, contactnumber=$3, email=$4, status=$5, userimage=$6 
+        SET username=$1, fullname=$2, contactnumber=$3, email=$4, status=$5::bit varying, userimage=$6 
         WHERE pk=$7 RETURNING *
       `;
-      values = [username, fullname, contactnumber, email, status, imageBuffer, id];
+      values = [username, fullname, contactnumber, email, statusForDb, imageBuffer, id];
     } else {
       query = `
         UPDATE patient_account 
-        SET username=$1, fullname=$2, contactnumber=$3, email=$4, status=$5 
+        SET username=$1, fullname=$2, contactnumber=$3, email=$4, status=$5::bit varying 
         WHERE pk=$6 RETURNING *
       `;
-      values = [username, fullname, contactnumber, email, status, id];
+      values = [username, fullname, contactnumber, email, statusForDb, id];
     }
 
     const updated = await pool.query(query, values);
@@ -1096,11 +1126,12 @@ app.post('/request-password-reset', async (req, res) => {
   }
 });
 
-// 2. Verify OTP - UPDATED
+// 2. Verify OTP - FIXED VERSION
 app.post('/verify-otp', async (req, res) => {
   console.log("🔑 OTP verification request");
+  console.log("📦 Request body:", req.body);
   
-  const { email, otp } = req.body; // No userType needed
+  const { email, otp } = req.body;
   
   if (!email || !otp) {
     return res.status(400).json({ error: 'Email and OTP are required' });
@@ -1110,6 +1141,8 @@ app.post('/verify-otp', async (req, res) => {
     let user = null;
     let tableName = '';
     let userType = '';
+    
+    console.log(`🔍 Looking for user with email: ${email}`);
     
     // Check both tables
     const employeeResult = await pool.query(
@@ -1121,6 +1154,7 @@ app.post('/verify-otp', async (req, res) => {
       user = employeeResult.rows[0];
       tableName = 'accounts';
       userType = 'employee';
+      console.log(`✅ Found in accounts table:`, user);
     } else {
       const patientResult = await pool.query(
         'SELECT pk, username, reset_otp, reset_otp_expiry FROM patient_account WHERE email = $1',
@@ -1131,31 +1165,56 @@ app.post('/verify-otp', async (req, res) => {
         user = patientResult.rows[0];
         tableName = 'patient_account';
         userType = 'patient';
+        console.log(`✅ Found in patient_account table:`, user);
       }
     }
     
     if (!user) {
+      console.log(`❌ Email not found: ${email}`);
       return res.status(404).json({ error: 'Email not found' });
     }
     
+    console.log(`📊 User data:`, {
+      hasResetOtp: !!user.reset_otp,
+      resetOtp: user.reset_otp,
+      providedOtp: otp,
+      resetOtpExpiry: user.reset_otp_expiry,
+      currentTime: new Date()
+    });
+    
     // Check if OTP exists and hasn't expired
     if (!user.reset_otp) {
+      console.log(`❌ No OTP requested for this email`);
       return res.status(400).json({ error: 'No OTP requested for this email' });
     }
     
-    if (user.reset_otp_expiry < new Date()) {
+    // Convert expiry to Date object if it's a string
+    const expiryTime = new Date(user.reset_otp_expiry);
+    const currentTime = new Date();
+    
+    console.log(`⏰ Expiry time: ${expiryTime}`);
+    console.log(`⏰ Current time: ${currentTime}`);
+    console.log(`⏰ Is expired: ${expiryTime < currentTime}`);
+    
+    if (expiryTime < currentTime) {
+      console.log(`❌ OTP has expired`);
+      
       // Clear expired OTP
       await pool.query(
         `UPDATE ${tableName} SET reset_otp = NULL, reset_otp_expiry = NULL WHERE pk = $1`,
         [user.pk]
       );
+      
       return res.status(400).json({ error: 'OTP has expired' });
     }
     
-    // Verify OTP
-    if (user.reset_otp !== otp) {
+    // Compare OTPs (convert both to strings for safe comparison)
+    if (String(user.reset_otp) !== String(otp)) {
+      console.log(`❌ OTP mismatch: stored="${user.reset_otp}", provided="${otp}"`);
       return res.status(400).json({ error: 'Invalid OTP' });
     }
+    
+    console.log(`✅ OTP verified successfully for ${email}`);
     
     // OTP is valid
     res.json({
@@ -1167,7 +1226,8 @@ app.post('/verify-otp', async (req, res) => {
     
   } catch (err) {
     console.error("❌ OTP verification error:", err.message);
-    res.status(500).json({ error: 'Failed to verify OTP' });
+    console.error("❌ Full error stack:", err.stack);
+    res.status(500).json({ error: 'Failed to verify OTP: ' + err.message });
   }
 });
 
@@ -1492,6 +1552,13 @@ app.get('/', (req, res) => {
         request: 'POST /request-password-reset',
         verify: 'POST /verify-otp',
         reset: 'POST /reset-password'
+      },
+      availability: {
+        dayAvailability: 'GET /api/day-availability',
+        updateDay: 'PUT /api/day-availability/:day',
+        timeSlots: 'GET /api/time-slots/:day',
+        saveTimeSlots: 'POST /api/time-slots/:day',
+        deleteTimeSlot: 'DELETE /api/time-slots/:slotId'
       }
     }
   });
@@ -1687,89 +1754,124 @@ app.post('/debug-otp-status', async (req, res) => {
   }
 });
 
-// ========== SIMPLIFIED ROUTES ==========
+// ========== NEW AVAILABILITY ROUTES (for new database structure) ==========
 
-// SAVE/UPDATE day availability (UPDATED VERSION)
-app.post('/api/availability/day', async (req, res) => {
-  const { vet_id, day_of_week, pk_id, is_available } = req.body;
-  console.log(`📅 Update day: vet_id=${vet_id}, day_of_week=${day_of_week}, pk_id=${pk_id}, is_available=${is_available}`);
+// GET day availability (all 7 days)
+app.get('/api/day-availability', async (req, res) => {
+  console.log("📅 Fetching day availability");
   
   try {
-    let actualDayOfWeek = day_of_week;
-    
-    // If pk_id is provided, use it to determine day_of_week
-    if (pk_id && !day_of_week) {
-      const dayMap = {
-        1: 'monday',
-        2: 'tuesday',
-        3: 'wednesday',
-        4: 'thursday',
-        5: 'friday',
-        6: 'saturday',
-        7: 'sunday'
-      };
-      actualDayOfWeek = dayMap[pk_id];
-      
-      if (!actualDayOfWeek) {
-        return res.status(400).json({ error: 'Invalid PK ID' });
-      }
-    }
-    
-    // Simple upsert using ON CONFLICT with the unique constraint
     const result = await pool.query(
-      `INSERT INTO vet_availability_settings 
-       (vet_id, setting_type, day_of_week, is_available)
-       VALUES ($1, 'day_availability', $2, $3)
-       ON CONFLICT (vet_id, setting_type, day_of_week) 
-       DO UPDATE SET 
-         is_available = EXCLUDED.is_available,
-         updated_at = CURRENT_TIMESTAMP
-       RETURNING *`,
-      [vet_id, actualDayOfWeek, is_available]
+      `SELECT * FROM day_availability 
+       ORDER BY 
+         CASE day_of_week
+           WHEN 'monday' THEN 1 WHEN 'tuesday' THEN 2 WHEN 'wednesday' THEN 3
+           WHEN 'thursday' THEN 4 WHEN 'friday' THEN 5 WHEN 'saturday' THEN 6
+           WHEN 'sunday' THEN 7
+         END`
     );
     
-    console.log(`✅ Day ${actualDayOfWeek} updated to ${is_available ? 'available' : 'unavailable'}`);
-    
-    res.json({ 
-      message: 'Day availability saved', 
-      data: result.rows[0] 
-    });
+    res.json({ day_availability: result.rows });
   } catch (err) {
-    console.error("❌ Save day availability error:", err.message);
+    console.error("❌ Get day availability error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-// SAVE time slots
-app.post('/api/availability/time-slots', async (req, res) => {
-  const { vet_id, day_of_week, slots } = req.body;
+// UPDATE day availability
+app.put('/api/day-availability/:day', async (req, res) => {
+  const { day } = req.params;
+  const { is_available } = req.body;
+  
+  console.log(`📅 Updating ${day} to ${is_available}`);
+  
+  try {
+    const result = await pool.query(
+      `UPDATE day_availability 
+       SET is_available = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE day_of_week = $2
+       RETURNING *`,
+      [is_available, day.toLowerCase()]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Day not found' });
+    }
+    
+    res.json({ 
+      message: 'Day availability updated', 
+      day: result.rows[0] 
+    });
+  } catch (err) {
+    console.error("❌ Update day availability error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET time slots for a specific day
+app.get('/api/time-slots/:day', async (req, res) => {
+  const { day } = req.params;
+  
+  try {
+    const result = await pool.query(
+      `SELECT * FROM time_slots 
+       WHERE day_of_week = $1 AND is_active = true
+       ORDER BY start_time`,
+      [day.toLowerCase()]
+    );
+    
+    res.json({ timeSlots: result.rows });
+  } catch (err) {
+    console.error("❌ Get time slots error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// SAVE time slots for a day (replace all)
+app.post('/api/time-slots/:day', async (req, res) => {
+  const { day } = req.params;
+  const { slots } = req.body;
+  
+  console.log(`📅 Saving time slots for ${day}:`, slots);
   
   try {
     await pool.query('BEGIN');
     
-    // Delete existing time slots for this vet and day
+    // Soft delete ALL existing slots for this day
     await pool.query(
-      `DELETE FROM vet_availability_settings 
-       WHERE vet_id = $1 
-       AND setting_type = 'time_slot' 
-       AND day_of_week = $2`,
-      [vet_id, day_of_week]
+      `UPDATE time_slots 
+       SET is_active = false 
+       WHERE day_of_week = $1`,
+      [day.toLowerCase()]
     );
     
-    // Insert new time slots
+    // Insert new slots
     for (const slot of slots) {
+      const startTime = convertToTimeFormat(slot.startTime);
+      const endTime = convertToTimeFormat(slot.endTime);
+      
       await pool.query(
-        `INSERT INTO vet_availability_settings 
-         (vet_id, setting_type, day_of_week, start_time, end_time, slot_capacity)
-         VALUES ($1, 'time_slot', $2, $3, $4, $5)`,
-        [vet_id, day_of_week, slot.startTime, slot.endTime, slot.capacity || 1]
+        `INSERT INTO time_slots 
+         (day_of_week, start_time, end_time, capacity, is_active)
+         VALUES ($1, $2, $3, $4, true)`,
+        [day.toLowerCase(), startTime, endTime, slot.capacity || 1]
       );
     }
     
     await pool.query('COMMIT');
+    
+    // Fetch and return updated slots
+    const updated = await pool.query(
+      `SELECT * FROM time_slots 
+       WHERE day_of_week = $1 AND is_active = true
+       ORDER BY start_time`,
+      [day.toLowerCase()]
+    );
+    
+    console.log(`✅ Saved ${updated.rows.length} time slots for ${day}`);
     res.json({ 
       message: 'Time slots saved successfully',
-      count: slots.length
+      timeSlots: updated.rows
     });
     
   } catch (err) {
@@ -1779,161 +1881,46 @@ app.post('/api/availability/time-slots', async (req, res) => {
   }
 });
 
-// SAVE special date
-app.post('/api/availability/special-dates', async (req, res) => {
-  const { vet_id, event_name, event_date, is_holiday } = req.body;
+// Helper function to convert time string to PostgreSQL TIME format
+function convertToTimeFormat(timeStr) {
+  if (!timeStr) return null;
   
-  try {
-    // Check if it already exists
-    const checkResult = await pool.query(
-      `SELECT id FROM vet_availability_settings 
-       WHERE vet_id = $1 
-       AND setting_type = 'special_date' 
-       AND event_date = $2`,
-      [vet_id, event_date]
-    );
+  // Handle "9:00 AM" format
+  const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (match) {
+    let hours = parseInt(match[1]);
+    const minutes = parseInt(match[2]);
+    const ampm = match[3].toUpperCase();
     
-    if (checkResult.rows.length > 0) {
-      // Update existing
-      const updateResult = await pool.query(
-        `UPDATE vet_availability_settings 
-         SET event_name = $1, is_holiday = $2, updated_at = CURRENT_TIMESTAMP
-         WHERE vet_id = $3 
-         AND setting_type = 'special_date' 
-         AND event_date = $4
-         RETURNING *`,
-        [event_name, is_holiday || false, vet_id, event_date]
-      );
-      
-      res.json({ 
-        message: 'Special date updated', 
-        event: updateResult.rows[0] 
-      });
-    } else {
-      // Insert new
-      const insertResult = await pool.query(
-        `INSERT INTO vet_availability_settings 
-         (vet_id, setting_type, event_name, event_date, is_holiday)
-         VALUES ($1, 'special_date', $2, $3, $4)
-         RETURNING *`,
-        [vet_id, event_name, event_date, is_holiday || false]
-      );
-      
-      res.json({ 
-        message: 'Special date saved', 
-        event: insertResult.rows[0] 
-      });
-    }
-  } catch (err) {
-    console.error("❌ Save special date error:", err.message);
-    res.status(500).json({ error: err.message });
+    if (ampm === 'PM' && hours < 12) hours += 12;
+    if (ampm === 'AM' && hours === 12) hours = 0;
+    
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
   }
-});
-
-// GET all availability settings for a vet
-app.get('/api/availability/:vetId', async (req, res) => {
-  const { vetId } = req.params;
   
-  try {
-    const result = await pool.query(
-      `SELECT * FROM vet_availability_settings 
-       WHERE vet_id = $1 
-       ORDER BY setting_type, day_of_week, start_time`,
-      [vetId]
-    );
-    
-    // Initialize with default values
-    const organizedData = {
-      day_availability: [
-        { day_of_week: 'sunday', is_available: false },
-        { day_of_week: 'monday', is_available: false },
-        { day_of_week: 'tuesday', is_available: false },
-        { day_of_week: 'wednesday', is_available: false },
-        { day_of_week: 'thursday', is_available: false },
-        { day_of_week: 'friday', is_available: false },
-        { day_of_week: 'saturday', is_available: false }
-      ],
-      time_slots: [],
-      special_dates: []
-    };
-    
-    // Update with database values
-    result.rows.forEach(row => {
-      if (row.setting_type === 'day_availability') {
-        const dayIndex = organizedData.day_availability.findIndex(
-          d => d.day_of_week === row.day_of_week
-        );
-        if (dayIndex !== -1) {
-          organizedData.day_availability[dayIndex].is_available = row.is_available;
-        }
-      } else if (row.setting_type === 'time_slot') {
-        organizedData.time_slots.push({
-          day_of_week: row.day_of_week,
-          start_time: row.start_time,
-          end_time: row.end_time,
-          capacity: row.slot_capacity
-        });
-      } else if (row.setting_type === 'special_date') {
-        organizedData.special_dates.push({
-          event_name: row.event_name,
-          event_date: row.event_date,
-          is_holiday: row.is_holiday
-        });
-      }
-    });
-    
-    res.json(organizedData);
-    
-  } catch (err) {
-    console.error("❌ Get availability error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
+  return timeStr; // Return as-is if already in correct format
+}
 
-// ========== GET time slots for a specific day ==========
-app.get('/api/availability/time-slots/:vetId/:day', async (req, res) => {
-  const { vetId, day } = req.params;
-  
-  try {
-    const result = await pool.query(
-      `SELECT * FROM vet_availability_settings 
-       WHERE vet_id = $1 
-       AND setting_type = 'time_slot' 
-       AND day_of_week = $2
-       ORDER BY start_time`,
-      [vetId, day]
-    );
-    
-    res.json({ 
-      timeSlots: result.rows.map(row => ({
-        id: row.id,
-        start_time: row.start_time,
-        end_time: row.end_time,
-        capacity: row.slot_capacity
-      }))
-    });
-  } catch (err) {
-    console.error("❌ Get time slots error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ========== DELETE a specific time slot ==========
-app.delete('/api/availability/time-slots/:slotId', async (req, res) => {
+// DELETE time slot (soft delete)
+app.delete('/api/time-slots/:slotId', async (req, res) => {
   const { slotId } = req.params;
   
   try {
     const result = await pool.query(
-      `DELETE FROM vet_availability_settings 
+      `UPDATE time_slots 
+       SET is_active = false 
        WHERE id = $1 
-       AND setting_type = 'time_slot'
        RETURNING *`,
       [slotId]
     );
     
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Time slot not found' });
+    }
+    
     res.json({ 
       message: 'Time slot deleted',
-      deleted: result.rows[0]
+      slot: result.rows[0]
     });
   } catch (err) {
     console.error("❌ Delete time slot error:", err.message);
@@ -1941,20 +1928,44 @@ app.delete('/api/availability/time-slots/:slotId', async (req, res) => {
   }
 });
 
-const bookedAppointments = {};
+// ========== UPDATED APPOINTMENT ROUTES (for new structure) ==========
 
-// GET booked slots for a specific time slot
+// GET booked slots count for a specific time slot on a specific date
 app.get('/api/appointments/booked-slots/:slotId', async (req, res) => {
   const { slotId } = req.params;
+  const { date } = req.query;
   
   try {
-    // In a real app, you would query the database
-    // For now, we'll use the in-memory store
-    const bookedCount = bookedAppointments[slotId] || 0;
+    // Get slot capacity
+    const slotResult = await pool.query(
+      `SELECT capacity FROM time_slots WHERE id = $1`,
+      [slotId]
+    );
+    
+    if (slotResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Time slot not found' });
+    }
+    
+    const capacity = slotResult.rows[0].capacity;
+    
+    // Count booked appointments for this slot on this date
+    const bookedResult = await pool.query(
+      `SELECT COUNT(*) as booked_count 
+       FROM appointments 
+       WHERE time_slot_id = $1 
+         AND appointment_date = $2 
+         AND status NOT IN ('cancelled', 'no-show')`,
+      [slotId, date]
+    );
+    
+    const bookedCount = parseInt(bookedResult.rows[0].booked_count) || 0;
     
     res.json({ 
       slotId, 
-      bookedCount 
+      date,
+      bookedCount,
+      capacity,
+      availableSlots: capacity - bookedCount
     });
   } catch (err) {
     console.error("❌ Get booked slots error:", err.message);
@@ -1962,7 +1973,7 @@ app.get('/api/appointments/booked-slots/:slotId', async (req, res) => {
   }
 });
 
-
+// CREATE appointment (Updated - added reasonForVisit)
 app.post('/api/appointments', async (req, res) => {
   const { 
     patientName, 
@@ -1972,6 +1983,7 @@ app.post('/api/appointments', async (req, res) => {
     petType,
     petGender,
     appointmentType,
+    reasonForVisit, // NEW FIELD
     selectedDate,
     timeSlotId,
     timeSlotDisplay,
@@ -1982,31 +1994,41 @@ app.post('/api/appointments', async (req, res) => {
     patientName,
     selectedDate,
     timeSlotId,
-    petGender
+    reasonForVisit: reasonForVisit ? 'Provided' : 'Not provided'
   });
 
   try {
-    // Start transaction
     await pool.query('BEGIN');
 
-    // 1. Check if time slot exists and get its capacity WITH FOR UPDATE (lock the row)
+    // 1. Check if time slot exists and is active
     const slotResult = await pool.query(
-      `SELECT * FROM vet_availability_settings 
-       WHERE id = $1 AND setting_type = 'time_slot'
-       FOR UPDATE`,  // Locks the row to prevent concurrent booking
+      `SELECT * FROM time_slots 
+       WHERE id = $1 AND is_active = true
+       FOR UPDATE`,
       [timeSlotId]
     );
 
     if (slotResult.rows.length === 0) {
       await pool.query('ROLLBACK');
-      return res.status(400).json({ error: 'Time slot not found' });
+      return res.status(400).json({ error: 'Time slot not found or inactive' });
     }
 
     const slot = slotResult.rows[0];
-    const capacity = slot.slot_capacity || 1;
-    const currentBookings = slot.current_bookings || 0;
+    const capacity = slot.capacity;
 
-    // 2. Check if there's available capacity
+    // 2. Count current bookings for this slot on this date
+    const bookedResult = await pool.query(
+      `SELECT COUNT(*) as booked_count 
+       FROM appointments 
+       WHERE time_slot_id = $1 
+         AND appointment_date = $2 
+         AND status NOT IN ('cancelled', 'no-show')`,
+      [timeSlotId, selectedDate]
+    );
+    
+    const currentBookings = parseInt(bookedResult.rows[0].booked_count) || 0;
+
+    // 3. Check if there's available capacity
     if (currentBookings >= capacity) {
       await pool.query('ROLLBACK');
       return res.status(400).json({ 
@@ -2017,21 +2039,12 @@ app.post('/api/appointments', async (req, res) => {
       });
     }
 
-    // 3. Increment the current_bookings count
-    await pool.query(
-      `UPDATE vet_availability_settings 
-       SET current_bookings = current_bookings + 1,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1`,
-      [timeSlotId]
-    );
-
-    // 4. Create the appointment
+    // 4. Create the appointment with reason_for_visit
     const appointmentQuery = `
       INSERT INTO appointments 
       (patient_name, patient_email, patient_phone, pet_name, pet_type, pet_gender,
-       appointment_type, appointment_date, time_slot_id, time_slot_display, doctor_id, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'scheduled')
+       appointment_type, reason_for_visit, appointment_date, time_slot_id, time_slot_display, doctor_id, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'scheduled')
       RETURNING *
     `;
 
@@ -2043,6 +2056,7 @@ app.post('/api/appointments', async (req, res) => {
       petType,
       petGender,
       appointmentType,
+      reasonForVisit || null, // Use null if empty
       selectedDate,
       timeSlotId,
       timeSlotDisplay,
@@ -2051,13 +2065,9 @@ app.post('/api/appointments', async (req, res) => {
 
     const newAppointment = await pool.query(appointmentQuery, appointmentValues);
     
-    // Commit transaction
     await pool.query('COMMIT');
 
     console.log(`✅ Appointment created for ${patientName}`);
-    console.log(`   Date: ${selectedDate}`);
-    console.log(`   Time: ${timeSlotDisplay}`);
-    console.log(`   Available slots: ${capacity - currentBookings - 1}`);
 
     res.status(201).json({ 
       message: 'Appointment created successfully', 
@@ -2072,7 +2082,37 @@ app.post('/api/appointments', async (req, res) => {
   }
 });
 
-// GET appointments for a specific date sad
+// CANCEL appointment (Updated - removed current_bookings update)
+app.put('/api/appointments/:id/cancel', async (req, res) => {
+  const { id } = req.params;
+  
+  try {
+    const result = await pool.query(
+      `UPDATE appointments 
+       SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
+       WHERE id = $1 AND status != 'cancelled'
+       RETURNING *`,
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Appointment not found or already cancelled' });
+    }
+    
+    res.json({ 
+      message: 'Appointment cancelled successfully',
+      appointment: result.rows[0]
+    });
+    
+  } catch (err) {
+    console.error("❌ Cancel appointment error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ========== EXISTING APPOINTMENT ROUTES (keep as is) ==========
+
+// GET appointments for a specific date
 app.get('/api/appointments/date/:date', async (req, res) => {
   const { date } = req.params;
   
@@ -2093,20 +2133,18 @@ app.get('/api/appointments/date/:date', async (req, res) => {
   }
 });
 
-// ========== APPOINTMENT MANAGEMENT ROUTES ==========
-
 // GET all appointments
 app.get('/api/appointments', async (req, res) => {
   try {
     const appointments = await pool.query(`
       SELECT 
         a.*,
-        v.day_of_week,
-        v.start_time,
-        v.end_time,
-        v.slot_capacity
+        ts.day_of_week,
+        ts.start_time,
+        ts.end_time,
+        ts.capacity
       FROM appointments a
-      LEFT JOIN vet_availability_settings v ON a.time_slot_id = v.id
+      LEFT JOIN time_slots ts ON a.time_slot_id = ts.id
       ORDER BY a.appointment_date DESC, a.time_slot_display
     `);
     
@@ -2117,6 +2155,7 @@ app.get('/api/appointments', async (req, res) => {
   }
 });
 
+// GET appointments for table (UPDATED with reason_for_visit)
 app.get('/api/appointments/table', async (req, res) => {
   try {
     console.log("📋 Fetching appointments for table...");
@@ -2126,6 +2165,7 @@ app.get('/api/appointments/table', async (req, res) => {
         a.id,
         a.patient_name as "name",
         a.appointment_type as "service",
+        a.reason_for_visit as "reasonForVisit",
         CONCAT(
           TO_CHAR(a.appointment_date, 'Mon DD, YYYY'), 
           ' - ', 
@@ -2160,84 +2200,59 @@ app.get('/api/appointments/table', async (req, res) => {
   }
 });
 
-// UPDATE: Count booked slots for a time slot on a specific date
-app.get('/api/appointments/booked-slots/:slotId', async (req, res) => {
-  const { slotId } = req.params;
-  const { date } = req.query;
+// Assign doctor to appointment
+app.put('/api/appointments/:id/assign-doctor', async (req, res) => {
+  const { id } = req.params;
+  const { doctorId } = req.body;
   
   try {
-    const result = await pool.query(
-      `SELECT COUNT(*) as booked_count 
-       FROM appointments 
-       WHERE time_slot_id = $1 
-         AND appointment_date = $2 
-         AND status != 'cancelled'`,
-      [slotId, date]
+    console.log(`⚕️ Assigning doctor ${doctorId} to appointment ${id}`);
+    
+    // Check if appointment exists
+    const appointmentCheck = await pool.query(
+      'SELECT * FROM appointments WHERE id = $1',
+      [id]
     );
     
-    const bookedCount = parseInt(result.rows[0].booked_count) || 0;
+    if (appointmentCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    
+    // Get doctor's name
+    const doctorResult = await pool.query(
+      'SELECT "fullname" FROM accounts WHERE pk = $1',
+      [doctorId]
+    );
+    
+    const doctorName = doctorResult.rows.length > 0 
+      ? doctorResult.rows[0].fullname 
+      : 'Unknown Doctor';
+    
+    // Update appointment with doctor
+    const updateQuery = `
+      UPDATE appointments 
+      SET doctor_id = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2 
+      RETURNING *
+    `;
+    
+    const updatedAppointment = await pool.query(updateQuery, [doctorId, id]);
+    
+    console.log(`✅ Doctor ${doctorName} assigned to appointment ${id}`);
     
     res.json({ 
-      slotId, 
-      date,
-      bookedCount 
+      message: 'Doctor assigned successfully', 
+      appointment: updatedAppointment.rows[0],
+      doctorName: doctorName
     });
+    
   } catch (err) {
-    console.error("❌ Get booked slots error:", err.message);
+    console.error("❌ Assign doctor error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
-
-// Add doctor_id column to appointments table if not exists
-app.get('/api/appointments/check-columns', async (req, res) => {
-  try {
-    // Check if doctor_id column exists
-    const checkResult = await pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'appointments' 
-        AND column_name = 'doctor_id'
-    `);
-    
-    if (checkResult.rows.length === 0) {
-      // Add the column
-      await pool.query(`
-        ALTER TABLE appointments 
-        ADD COLUMN doctor_id INTEGER REFERENCES accounts(pk)
-      `);
-      console.log("✅ Added doctor_id column to appointments table");
-    }
-    
-    // Check if pet_gender column exists
-    const genderCheck = await pool.query(`
-      SELECT column_name 
-      FROM information_schema.columns 
-      WHERE table_name = 'appointments' 
-        AND column_name = 'pet_gender'
-    `);
-    
-    if (genderCheck.rows.length === 0) {
-      // Add the column
-      await pool.query(`
-        ALTER TABLE appointments 
-        ADD COLUMN pet_gender VARCHAR(20)
-      `);
-      console.log("✅ Added pet_gender column to appointments table");
-    }
-    
-    res.json({ 
-      message: 'Columns checked/added successfully',
-      has_doctor_id: true,
-      has_pet_gender: true
-    });
-  } catch (err) {
-    console.error("❌ Check columns error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Add this route to check/add missing columns to appointments table
+// Check appointments table columns
 app.get('/api/appointments/check-columns', async (req, res) => {
   try {
     console.log("🔍 Checking appointments table columns...");
@@ -2312,221 +2327,6 @@ app.get('/api/appointments/check-columns', async (req, res) => {
   }
 });
 
-app.get('/api/appointments/booked-slots/:slotId', async (req, res) => {
-  const { slotId } = req.params;
-  const { date } = req.query;
-  
-  try {
-    // Get slot capacity and current bookings
-    const result = await pool.query(
-      `SELECT 
-        slot_capacity as capacity,
-        current_bookings as booked_count
-       FROM vet_availability_settings 
-       WHERE id = $1 AND setting_type = 'time_slot'`,
-      [slotId]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Time slot not found' });
-    }
-    
-    const slot = result.rows[0];
-    const bookedCount = slot.booked_count || 0;
-    const capacity = slot.capacity || 1;
-    
-    res.json({ 
-      slotId, 
-      date,
-      bookedCount,
-      capacity,
-      availableSlots: capacity - bookedCount
-    });
-  } catch (err) {
-    console.error("❌ Get booked slots error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.put('/api/appointments/:id/cancel', async (req, res) => {
-  const { id } = req.params;
-  
-  try {
-    await pool.query('BEGIN');
-    
-    // 1. Get appointment details including time_slot_id
-    const appointmentResult = await pool.query(
-      `SELECT time_slot_id, status FROM appointments WHERE id = $1`,
-      [id]
-    );
-    
-    if (appointmentResult.rows.length === 0) {
-      await pool.query('ROLLBACK');
-      return res.status(404).json({ error: 'Appointment not found' });
-    }
-    
-    const appointment = appointmentResult.rows[0];
-    
-    if (appointment.status === 'cancelled') {
-      await pool.query('ROLLBACK');
-      return res.status(400).json({ error: 'Appointment is already cancelled' });
-    }
-    
-    // 2. Decrement current_bookings for the time slot
-    if (appointment.time_slot_id) {
-      await pool.query(
-        `UPDATE vet_availability_settings 
-         SET current_bookings = GREATEST(0, current_bookings - 1),
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = $1`,
-        [appointment.time_slot_id]
-      );
-    }
-    
-    // 3. Update appointment status to cancelled
-    const updateResult = await pool.query(
-      `UPDATE appointments 
-       SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 
-       RETURNING *`,
-      [id]
-    );
-    
-    await pool.query('COMMIT');
-    
-    res.json({ 
-      message: 'Appointment cancelled successfully',
-      appointment: updateResult.rows[0]
-    });
-    
-  } catch (err) {
-    await pool.query('ROLLBACK');
-    console.error("❌ Cancel appointment error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Reset current_bookings at the start of each day (run as a cron job)
-app.post('/api/availability/reset-bookings', async (req, res) => {
-  try {
-    const result = await pool.query(
-      `UPDATE vet_availability_settings 
-       SET current_bookings = 0,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE setting_type = 'time_slot'
-       AND DATE(updated_at) < CURRENT_DATE`
-    );
-    
-    res.json({ 
-      message: 'Bookings reset successfully',
-      rowsUpdated: result.rowCount
-    });
-    
-  } catch (err) {
-    console.error("❌ Reset bookings error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.put('/api/appointments/:id/assign-doctor', async (req, res) => {
-  const { id } = req.params;
-  const { doctorId } = req.body;
-  
-  try {
-    console.log(`⚕️ Assigning doctor ${doctorId} to appointment ${id}`);
-    
-    // Check if appointment exists
-    const appointmentCheck = await pool.query(
-      'SELECT * FROM appointments WHERE id = $1',
-      [id]
-    );
-    
-    if (appointmentCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Appointment not found' });
-    }
-    
-    // Get doctor's name
-    const doctorResult = await pool.query(
-      'SELECT "fullname" FROM accounts WHERE pk = $1',
-      [doctorId]
-    );
-    
-    const doctorName = doctorResult.rows.length > 0 
-      ? doctorResult.rows[0].fullname 
-      : 'Unknown Doctor';
-    
-    // Update appointment with doctor
-    const updateQuery = `
-      UPDATE appointments 
-      SET doctor_id = $1, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $2 
-      RETURNING *
-    `;
-    
-    const updatedAppointment = await pool.query(updateQuery, [doctorId, id]);
-    
-    console.log(`✅ Doctor ${doctorName} assigned to appointment ${id}`);
-    
-    res.json({ 
-      message: 'Doctor assigned successfully', 
-      appointment: updatedAppointment.rows[0],
-      doctorName: doctorName
-    });
-    
-  } catch (err) {
-    console.error("❌ Assign doctor error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ========== UPDATE DAY AVAILABILITY BY PK ID ==========
-app.put('/api/availability/day-by-pk', async (req, res) => {
-  const { vet_id, pk_id, is_available } = req.body;
-  console.log(`📅 Update day by PK: vet_id=${vet_id}, pk_id=${pk_id}, is_available=${is_available}`);
-  
-  try {
-    // Map PK ID to day name
-    const dayMap = {
-      1: 'monday',
-      2: 'tuesday',
-      3: 'wednesday',
-      4: 'thursday',
-      5: 'friday',
-      6: 'saturday',
-      7: 'sunday'
-    };
-    
-    const day_of_week = dayMap[pk_id];
-    
-    if (!day_of_week) {
-      return res.status(400).json({ error: 'Invalid PK ID' });
-    }
-    
-    // Simple upsert using ON CONFLICT with the unique constraint
-    const result = await pool.query(
-      `INSERT INTO vet_availability_settings 
-       (vet_id, setting_type, day_of_week, is_available)
-       VALUES ($1, 'day_availability', $2, $3)
-       ON CONFLICT (vet_id, setting_type, day_of_week) 
-       DO UPDATE SET 
-         is_available = EXCLUDED.is_available,
-         updated_at = CURRENT_TIMESTAMP
-       RETURNING *`,
-      [vet_id, day_of_week, is_available]
-    );
-    
-    console.log(`✅ Day ${day_of_week} (PK: ${pk_id}) updated to ${is_available ? 'available' : 'unavailable'}`);
-    
-    res.json({ 
-      message: 'Day availability saved', 
-      data: result.rows[0] 
-    });
-  } catch (err) {
-    console.error("❌ Save day availability error:", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // ========== START SERVER ==========
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
@@ -2535,5 +2335,11 @@ app.listen(PORT, () => {
   console.log(`📁 Patient endpoints available`);
   console.log(`🔗 Unified login at POST /unified-login`);
   console.log(`📧 Password reset endpoints available`);
+  console.log(`📅 New availability endpoints:`);
+  console.log(`   GET /api/day-availability`);
+  console.log(`   PUT /api/day-availability/:day`);
+  console.log(`   GET /api/time-slots/:day`);
+  console.log(`   POST /api/time-slots/:day`);
+  console.log(`   DELETE /api/time-slots/:slotId`);
   console.log(`🧪 Test endpoints: /test-email, /test-db-connection`);
 });
