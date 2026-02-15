@@ -27,7 +27,7 @@ export default function UserAccPage() {
   const [loading, setLoading] = useState(true);
   
   // ✅ API URL (Port 3001)
-  const API_URL = Platform.OS === 'web' ? 'http://localhost:3001' : 'http://10.0.2.2:3001';
+  const API_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
 
   // UI State
   const [searchVisible, setSearchVisible] = useState(false);
@@ -158,46 +158,49 @@ export default function UserAccPage() {
   // ==========================================
   //  SAVE / UPDATE ACTIONS
   // ==========================================
-  const handleSaveAccount = async () => {
-    // 1. EMPTY CHECK
-    if (!newFullName || !newContact || !newEmail) {
-      showAlert('error', 'Missing Information', 'Please fill in Full Name, Contact, and E-Mail.'); return;
+const handleSaveAccount = async () => {
+  // 1. EMPTY CHECK
+  if (!newFullName || !newContact || !newEmail) {
+    showAlert('error', 'Missing Information', 'Please fill in Full Name, Contact, and E-Mail.'); return;
+  }
+  
+  // 2. MIN LENGTH CHECKS
+  if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
+  if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
+  if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
+
+  // 3. DUPLICATE CHECK (Check Email)
+  const isDuplicate = accounts.some(acc => acc.email.toLowerCase() === newEmail.toLowerCase());
+  if (isDuplicate) { showAlert('error', 'Duplicate Entry', 'This email is already registered.'); return; }
+
+  const dateCreated = new Date().toLocaleDateString('en-US'); 
+
+  try {
+    // CHANGE THIS LINE ONLY:
+    // FROM: const res = await fetch(`${API_URL}/patients/register`, {
+    // TO:
+    const res = await fetch(`${API_URL}/patient-register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: newFullName,
+        contactNumber: newContact,
+        email: newEmail,
+        userImage: userImageBase64,
+        status: newStatus,
+        dateCreated: dateCreated
+      }),
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      setAddAccountVisible(false);
+      showAlert('success', 'Success', 'Patient Account Created Successfully!', () => { fetchAccounts(); resetForm(); });
+    } else {
+      showAlert('error', 'Failed', data.error || 'Registration failed');
     }
-    
-    // 2. MIN LENGTH CHECKS
-    if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
-    if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
-    if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
-
-    // 3. DUPLICATE CHECK (Check Email)
-    const isDuplicate = accounts.some(acc => acc.email.toLowerCase() === newEmail.toLowerCase());
-    if (isDuplicate) { showAlert('error', 'Duplicate Entry', 'This email is already registered.'); return; }
-
-    const dateCreated = new Date().toLocaleDateString('en-US'); 
-
-    try {
-      const res = await fetch(`${API_URL}/patients/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullName: newFullName,
-          contactNumber: newContact,
-          email: newEmail,
-          userImage: userImageBase64,
-          status: newStatus,
-          dateCreated: dateCreated
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setAddAccountVisible(false);
-        showAlert('success', 'Success', 'Patient Account Created Successfully!', () => { fetchAccounts(); resetForm(); });
-      } else {
-        showAlert('error', 'Failed', data.error || 'Registration failed');
-      }
-    } catch (e) { showAlert('error', 'Network Error', 'Could not connect to the server.'); }
-  };
+  } catch (e) { showAlert('error', 'Network Error', 'Could not connect to the server.'); }
+};
 
   const openEditModal = (user) => {
     setEditingId(user.pk);

@@ -31,7 +31,7 @@ export default function HomePage() {
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   
- const API_URL = 'http://localhost:3000';
+  const API_URL = 'http://localhost:3000';
 
   // ==========================================
   //  UI STATE
@@ -102,6 +102,7 @@ export default function HomePage() {
       const session = await AsyncStorage.getItem('userSession');
       if (session) {
         const user = JSON.parse(session);
+        console.log('Parsed user data:', user); 
         setCurrentUser(user);
       }
     } catch (error) {
@@ -138,11 +139,16 @@ export default function HomePage() {
   };
 
   const resetForm = () => {
-    setNewUsername(''); setNewFullName(''); setNewContact(''); 
-    setNewEmpID(''); setNewEmail(''); 
+    setNewUsername(''); 
+    setNewFullName(''); 
+    setNewContact(''); 
+    setNewEmpID(''); 
+    setNewEmail(''); 
     setNewRole('Admin'); 
-    setNewDept('Marketing'); setNewStatus('Active');
-    setUserImage(null); setUserImageBase64(null); 
+    setNewDept('Marketing'); 
+    setNewStatus('Active');
+    setUserImage(null); 
+    setUserImageBase64(null); 
     setEditingId(null);
   };
 
@@ -231,220 +237,8 @@ export default function HomePage() {
   };
 
   // ==========================================
-  //  VALIDATION & CRUD LOGIC
+  //  MODAL FUNCTIONS (SINGLE DECLARATIONS)
   // ==========================================
-
-  // ✅ 1. EDIT: TRIGGER (Validate -> Length Check -> Duplicate Check -> Confirm)
-  const handleSavePress = () => {
-    // 1. Empty Fields Check
-    if (!newUsername || !newFullName || !newContact || !newEmpID || !newEmail) {
-      showAlert('error', 'Missing Information', 'Please fill in all required fields.');
-      return;
-    }
-
-    // 2. Length Validation Check (RESTORED)
-    if (newUsername.length < 4) { showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); return; }
-    if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
-    if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
-    if (newEmpID.length < 5) { showAlert('error', 'Invalid Input', 'Employee ID must be at least 5 digits.'); return; }
-    if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
-
-    const isDuplicate = accounts.some(acc => {
-    const accUsername = acc.username || '';
-    const accEmployeeID = String(acc.employeeID || acc.employeeid || '');
-    
-    return (
-      accUsername.toLowerCase() === newUsername.toLowerCase() ||
-      accEmployeeID === newEmpID.toString()
-    );
-  });
-    if (isDuplicate) {
-      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
-      return;
-    }
-
-    const today = new Date();
-    const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
-    const generatedPassword = generateRandomPassword();
-
-    try {
-     const res = await fetch(`${API_URL}/register`, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    fullname: newFullName,  // lowercase 'fullname' not 'fullName'
-    contactnumber: newContact,  // lowercase 'contactnumber'
-    email: newEmail,
-    role: newRole,
-    department: newDept,
-    employeeid: newEmpID,  // lowercase 'employeeid'
-    userimage: userImageBase64,  // lowercase 'userimage'
-    status: newStatus,
-    datecreated: dateCreated  // lowercase 'datecreated'
-  }),
-});
-
-      const data = await res.json();
-      if (res.ok) {
-        setAddAccountVisible(false);
-        showAlert('success', 'Success', 'Account Registered Successfully!', () => {
-          fetchAccounts();
-          resetForm();
-        });
-      } else {
-        showAlert('error', 'Registration Failed', data.error || 'Failed to create account.');
-      }
-    } catch (error) {
-      showAlert('error', 'Network Error', 'Could not connect to the server.');
-    }
-  };
-
-  const openEditModal = (user) => {
-    setEditingId(user.pk || user.id); 
-    setNewUsername(user.username || '');
-    setNewFullName(user.fullName || user.fullname || '');
-    setNewContact((user.contactNumber || user.contactnumber || '').toString());
-    setNewEmpID((user.employeeID || user.employeeid || '').toString());
-    setNewEmail(user.email || '');
-
-    const validRoles = ['Admin', 'User', 'Moderator', 'Veterinarian', 'Receptionist'];
-    const dbRole = user.role || 'Admin';
-    const matchedRole = validRoles.find(r => r.toLowerCase() === dbRole.toLowerCase()) || 'Admin';
-    setNewRole(matchedRole);
-
-    setNewDept(user.department || user.departmend || 'Marketing');
-    setNewStatus(user.status || 'Active');
-
-    const img = user.userImage || user.userimage;
-    setUserImage(img);
-    setUserImageBase64(null); 
-
-    setEditAccountVisible(true);
-  };
-
-  const handleUpdateAccount = async () => {
-    if (newUsername.length < 4) { showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); return; }
-    if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
-    if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
-    if (newEmpID.length < 5) { showAlert('error', 'Invalid Input', 'Employee ID must be at least 5 digits.'); return; }
-    if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
-
-    const isDuplicate = accounts.some(acc => 
-      (acc.pk !== editingId && acc.id !== editingId) && 
-      (acc.username.toLowerCase() === newUsername.toLowerCase() || 
-       (acc.employeeID || acc.employeeid).toString() === newEmpID.toString())
-    );
-
-    if (isDuplicate) {
-      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
-      return;
-    }
-
-    // 4. Confirmation
-    showAlert('confirm', 'Save Changes', 'Are you sure you want to save changes to this account?', () => {
-      handleUpdateAccount(); 
-    }, true);
-  };
-
-  // ✅ 2. EDIT: ACTION
-  const handleUpdateAccount = async () => {
-    try {
-      const res = await fetch(`${API_URL}/accounts/${editingId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: newUsername,
-          fullName: newFullName,
-          contactNumber: newContact,
-          email: newEmail,
-          role: newRole,
-          department: newDept,
-          employeeID: newEmpID,
-          status: newStatus,
-          userImage: userImageBase64 
-        }),
-      });
-
-      if (res.ok) {
-        setEditAccountVisible(false);
-        showAlert('success', 'Success', 'Account Updated Successfully!', () => {
-          fetchAccounts();
-          resetForm();
-        });
-      } else {
-        showAlert('error', 'Update Failed', 'Failed to update account information.');
-      }
-    } catch (error) {
-      showAlert('error', 'Network Error', 'Could not connect to the server.');
-    }
-  };
-
-  // ✅ 3. CREATE: TRIGGER + ACTION
-  const handleSaveAccount = async () => {
-    // 1. Empty Fields Check
-    if (!newUsername || !newFullName || !newContact || !newEmpID || !newEmail || !newRole || !newDept) {
-      showAlert('error', 'Missing Information', 'Please fill in all required fields.');
-      return;
-    }
-
-    // 2. Length Validation Check (RESTORED)
-    if (newUsername.length < 4) { showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); return; }
-    if (newFullName.length < 5) { showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); return; }
-    if (newContact.length < 7) { showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); return; }
-    if (newEmpID.length < 3) { showAlert('error', 'Invalid Input', 'Employee ID must be at least 3 digits.'); return; }
-    if (newEmail.length < 6) { showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); return; }
-
-    // 3. Duplicate Check
-    const isDuplicate = accounts.some(acc => 
-      acc.username.toLowerCase() === newUsername.toLowerCase() || 
-      (acc.employeeID || acc.employeeid).toString() === newEmpID.toString()
-    );
-
-    if (isDuplicate) {
-      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
-      return;
-    }
-
-    // 4. Confirmation
-    showAlert('confirm', 'Create Account', 'Are you sure you want to register this new account?', async () => {
-      const today = new Date();
-      const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
-      const generatedPassword = generateRandomPassword();
-
-      try {
-        const res = await fetch(`${API_URL}/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: newUsername,
-            password: generatedPassword,
-            fullName: newFullName,
-            contactNumber: newContact,
-            email: newEmail,
-            role: newRole,
-            department: newDept,
-            employeeID: newEmpID,
-            userImage: userImageBase64,
-            status: newStatus,
-            dateCreated: dateCreated
-          }),
-        });
-
-        if (res.ok) {
-          setAddAccountVisible(false);
-          showAlert('success', 'Success', 'Account Registered Successfully!', () => {
-            fetchAccounts();
-            resetForm();
-          });
-        } else {
-          const data = await res.json();
-          showAlert('error', 'Registration Failed', data.error || 'Failed to create account.');
-        }
-      } catch (error) {
-        showAlert('error', 'Network Error', 'Could not connect to the server.');
-      }
-    }, true);
-  };
 
   const openEditModal = (user) => {
     setEditingId(user.pk || user.id); 
@@ -474,6 +268,249 @@ export default function HomePage() {
     setViewAccountVisible(true);
   };
 
+  // ==========================================
+  //  VALIDATION & CRUD LOGIC
+  // ==========================================
+
+  // ✅ 1. EDIT: TRIGGER (Validate -> Length Check -> Duplicate Check -> Confirm)
+  const handleSavePress = async () => {
+    // 1. Empty Fields Check
+    if (!newUsername || !newFullName || !newContact || !newEmpID || !newEmail) {
+      showAlert('error', 'Missing Information', 'Please fill in all required fields.');
+      return;
+    }
+
+    // 2. Length Validation Check (RESTORED)
+    if (newUsername.length < 4) { 
+      showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); 
+      return; 
+    }
+    if (newFullName.length < 5) { 
+      showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); 
+      return; 
+    }
+    if (newContact.length < 7) { 
+      showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); 
+      return; 
+    }
+    if (newEmpID.length < 5) { 
+      showAlert('error', 'Invalid Input', 'Employee ID must be at least 5 digits.'); 
+      return; 
+    }
+    if (newEmail.length < 6) { 
+      showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); 
+      return; 
+    }
+
+    const isDuplicate = accounts.some(acc => {
+      const accUsername = acc.username || '';
+      const accEmployeeID = String(acc.employeeID || acc.employeeid || '');
+      
+      return (
+        accUsername.toLowerCase() === newUsername.toLowerCase() ||
+        accEmployeeID === newEmpID.toString()
+      );
+    });
+    
+    if (isDuplicate) {
+      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
+      return;
+    }
+
+    const today = new Date();
+    const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+    const generatedPassword = generateRandomPassword();
+
+    try {
+      const res = await fetch(`${API_URL}/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullname: newFullName,  // lowercase 'fullname' not 'fullName'
+          contactnumber: newContact,  // lowercase 'contactnumber'
+          email: newEmail,
+          role: newRole,
+          department: newDept,
+          employeeid: newEmpID,  // lowercase 'employeeid'
+          userimage: userImageBase64,  // lowercase 'userimage'
+          status: newStatus,
+          datecreated: dateCreated  // lowercase 'datecreated'
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setAddAccountVisible(false);
+        showAlert('success', 'Success', 'Account Registered Successfully!', () => {
+          fetchAccounts();
+          resetForm();
+        });
+      } else {
+        showAlert('error', 'Registration Failed', data.error || 'Failed to create account.');
+      }
+    } catch (error) {
+      showAlert('error', 'Network Error', 'Could not connect to the server.');
+    }
+  };
+
+  // ✅ 2. EDIT: ACTION
+  const handleUpdateAccount = async () => {
+    // Validate before proceeding
+    if (newUsername.length < 4) { 
+      showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); 
+      return; 
+    }
+    if (newFullName.length < 5) { 
+      showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); 
+      return; 
+    }
+    if (newContact.length < 7) { 
+      showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); 
+      return; 
+    }
+    if (newEmpID.length < 5) { 
+      showAlert('error', 'Invalid Input', 'Employee ID must be at least 5 digits.'); 
+      return; 
+    }
+    if (newEmail.length < 6) { 
+      showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); 
+      return; 
+    }
+
+    // Duplicate check
+    const isDuplicate = accounts.some(acc => 
+      (acc.pk !== editingId && acc.id !== editingId) && 
+      (
+        (acc.username || '').toLowerCase() === (newUsername || '').toLowerCase() || 
+        String(acc.employeeID || acc.employeeid || '') === String(newEmpID || '')
+      )
+    );
+
+    if (isDuplicate) {
+      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
+      return;
+    }
+
+    // Show confirmation dialog
+    showAlert('confirm', 'Save Changes', 'Are you sure you want to save changes to this account?', async () => {
+      try {
+        const res = await fetch(`${API_URL}/accounts/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: newUsername,
+            fullname: newFullName,
+            contactnumber: newContact,
+            email: newEmail,
+            role: newRole,
+            department: newDept,
+            employeeid: newEmpID,
+            status: newStatus,
+            userImage: userImageBase64 
+          }),
+        });
+
+        if (res.ok) {
+          setEditAccountVisible(false);
+          showAlert('success', 'Success', 'Account Updated Successfully!', () => {
+            fetchAccounts();
+            resetForm();
+          });
+        } else {
+          showAlert('error', 'Update Failed', 'Failed to update account information.');
+        }
+      } catch (error) {
+        showAlert('error', 'Network Error', 'Could not connect to the server.');
+      }
+    }, true);
+  };
+
+  // ✅ 3. CREATE: TRIGGER + ACTION
+  const handleSaveAccount = async () => {
+    // 1. Empty Fields Check
+    if (!newUsername || !newFullName || !newContact || !newEmpID || !newEmail || !newRole || !newDept) {
+      showAlert('error', 'Missing Information', 'Please fill in all required fields.');
+      return;
+    }
+
+    // 2. Length Validation Check (RESTORED)
+    if (newUsername.length < 4) { 
+      showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); 
+      return; 
+    }
+    if (newFullName.length < 5) { 
+      showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); 
+      return; 
+    }
+    if (newContact.length < 7) { 
+      showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); 
+      return; 
+    }
+    if (newEmpID.length < 3) { 
+      showAlert('error', 'Invalid Input', 'Employee ID must be at least 3 digits.'); 
+      return; 
+    }
+    if (newEmail.length < 6) { 
+      showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); 
+      return; 
+    }
+
+    // 3. Duplicate Check
+    const isDuplicate = accounts.some(acc => 
+      acc.username.toLowerCase() === newUsername.toLowerCase() || 
+      String(acc.employeeID || acc.employeeid || '') === String(newEmpID || '')
+    );
+
+    if (isDuplicate) {
+      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
+      return;
+    }
+
+    // 4. Confirmation
+    showAlert('confirm', 'Create Account', 'Are you sure you want to register this new account?', async () => {
+      const today = new Date();
+      const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+      const generatedPassword = generateRandomPassword();
+
+      try {
+        const res = await fetch(`${API_URL}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: newUsername,
+            password: generatedPassword,
+            fullname: newFullName,
+            contactnumber: newContact,
+            email: newEmail,
+            role: newRole,
+            department: newDept,
+            employeeid: newEmpID,
+            userImage: userImageBase64,
+            status: newStatus,
+            dateCreated: dateCreated
+          }),
+        });
+
+        if (res.ok) {
+          setAddAccountVisible(false);
+          showAlert('success', 'Success', 'Account Registered Successfully!', () => {
+            fetchAccounts();
+            resetForm();
+          });
+        } else {
+          const data = await res.json();
+          showAlert('error', 'Registration Failed', data.error || 'Failed to create account.');
+        }
+      } catch (error) {
+        showAlert('error', 'Network Error', 'Could not connect to the server.');
+      }
+    }, true);
+  };
+
+  // ==========================================
+  //  FILTER LOGIC
+  // ==========================================
+
   const noMatchFilters =
     status === "defaultStatus" &&
     role === "defaultRole" &&
@@ -497,14 +534,12 @@ export default function HomePage() {
     return matchesSearch && matchesStatus && matchesRole && matchesDept;
   });
 
-
   // ==========================================
   //  RENDER
   // ==========================================
 
   return (
     <View style={homeStyle.biContainer}>
-
       {/* NAVBAR */}
       <View style={homeStyle.navbarContainer}>
         <LinearGradient
@@ -555,39 +590,38 @@ export default function HomePage() {
               {/* Parent Button */}
               <View style={[isActive ? homeStyle.selectedGlass : null]}> 
                 <TouchableOpacity 
-                style={homeStyle.navBtn} 
-                onPress={() => setShowAccountDropdown(!showAccountDropdown)}
-              >
-                <Ionicons name={"people-outline"} size={15} color={"#fffefe"} style={{marginTop: 2}}/>
-                <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Account Overview</Text>
-                <Ionicons 
-                  name={showAccountDropdown ? "chevron-up-outline" : "chevron-down-outline"} 
-                  size={14} 
-                  color={"#fffefe"} 
-                  style={{marginLeft: 5, marginTop: 2}} 
-                />
-              </TouchableOpacity>
+                  style={homeStyle.navBtn} 
+                  onPress={() => setShowAccountDropdown(!showAccountDropdown)}
+                >
+                  <Ionicons name={"people-outline"} size={15} color={"#fffefe"} style={{marginTop: 2}}/>
+                  <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Account Overview</Text>
+                  <Ionicons 
+                    name={showAccountDropdown ? "chevron-up-outline" : "chevron-down-outline"} 
+                    size={14} 
+                    color={"#fffefe"} 
+                    style={{marginLeft: 5, marginTop: 2}} 
+                  />
+                </TouchableOpacity>
               </View>
 
               {/* Dropdown Subcategories */}
-                {showAccountDropdown && (
+              {showAccountDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
-                    <View style={[isActive ? homeStyle.subSelectedGlass : null, {width: '100%'}]}>
+                  <View style={[isActive ? homeStyle.subSelectedGlass : null, {width: '100%'}]}>
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Accounts')}}>
-                        <Ionicons name="person-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
-                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Employees</Text>
+                      <Ionicons name="person-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                      <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Employees</Text>
                     </TouchableOpacity>
                   </View>
 
                   <View >
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('UserAccounts')}}>
-                        <Ionicons name="medkit-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
-                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Users / Patients</Text>
+                      <Ionicons name="medkit-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                      <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Users / Patients</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
-                )}
-
+              )}
             </View>
 
             <View>
@@ -607,30 +641,30 @@ export default function HomePage() {
               </TouchableOpacity>
 
               {/* Dropdown Subcategories */}
-                {showAppointmentsDropdown && (
+              {showAppointmentsDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
-                    <View>
+                  <View>
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Schedule')}}>
-                        <Ionicons name="calendar-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
-                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Schedule</Text>
+                      <Ionicons name="calendar-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                      <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Schedule</Text>
                     </TouchableOpacity>
-                    </View>
+                  </View>
 
-                    <View >
+                  <View >
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('AvailSettings')}}>
-                        <Ionicons name="today-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
-                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Availability Settings</Text>
+                      <Ionicons name="today-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                      <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Availability Settings</Text>
                     </TouchableOpacity>
-                    </View>
+                  </View>
 
-                    <View >
+                  <View >
                     <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('History')}}>
-                        <Ionicons name="time-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
-                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>History</Text>
+                      <Ionicons name="time-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                      <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>History</Text>
                     </TouchableOpacity>
-                    </View>
+                  </View>
                 </View>
-                )}
+              )}
             </View>
 
             <View >
@@ -660,11 +694,8 @@ export default function HomePage() {
         </LinearGradient>
       </View>
 
-
       {/* BODY */}
-
       <View style={homeStyle.bodyContainer}>
-
         <View style={homeStyle.topContainer}>
           <View style={[homeStyle.subTopContainer]}>
             <Ionicons name="people-outline" size={23} color="#3d67ee" style={{ marginTop: 4 }} />
@@ -678,11 +709,9 @@ export default function HomePage() {
         </View>
 
         {/* TABLE CONTAINER */}
-
         <View style={homeStyle.tableContainer}>
           <View style={homeStyle.tableLayer1}>
             <View style={[homeStyle.subTable1, { flexDirection: 'row', alignItems: 'center', position: 'relative', zIndex: 1 }]}>
-
               <View style={{ position: 'relative' }}>
                 <Pressable onHoverIn={() => setSearchHovered(true)}
                   onHoverOut={() => setSearchHovered(false)}
@@ -773,7 +802,7 @@ export default function HomePage() {
           </View>
 
           {loading ? (
-             <ActivityIndicator size="large" color="#3d67ee" style={{marginTop: 50}} />
+            <ActivityIndicator size="large" color="#3d67ee" style={{marginTop: 50}} />
           ) : (
             <DataTable>
               <DataTable.Header style={homeStyle.tableHeader}>
@@ -800,8 +829,8 @@ export default function HomePage() {
                       <DataTable.Cell style={{ flex: 3 }}>
                         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                           <Image 
-                             source={uImage ? { uri: uImage } : require('../assets/userImg.jpg')} 
-                             style={{ width: 30, height: 30, borderRadius: 12, marginRight: 20 }} 
+                            source={uImage ? { uri: uImage } : require('../assets/userImg.jpg')} 
+                            style={{ width: 30, height: 30, borderRadius: 12, marginRight: 20 }} 
                           />
                           <Text style={homeStyle.tableFont}>{uName}</Text>
                         </View>
@@ -863,7 +892,7 @@ export default function HomePage() {
 
       {/* ADD ACCOUNT OVERLAY */}
       <Modal visible={addAccountVisible} transparent={true} animationType="fade" onRequestClose={() => handleCancel('create')}>
-      <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
+        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
           <View style={homeStyle.modalContainer}>
             <View style={{marginBottom: 20, alignItems: 'center'}}>
               <Text style={{ fontSize: 24, fontWeight: 'bold', fontFamily: 'Segoe UI' }}>Create Account</Text>
@@ -950,10 +979,10 @@ export default function HomePage() {
 
                 {/* CANCEL BTN */}
                 <View style={{ alignItems: "flex-end" }}>
-                    <TouchableOpacity style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 25, padding: 20, backgroundColor: '#dad8d8'}]} onPress={() => handleCancel('create')}>
+                  <TouchableOpacity style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 25, padding: 20, backgroundColor: '#dad8d8'}]} onPress={() => handleCancel('create')}>
                     <Text style={{ color: '#0c0c0c', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* RIGHT COLUMN */}
@@ -965,11 +994,11 @@ export default function HomePage() {
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Role</Text>
-                    <Picker 
+                  <Picker 
                     selectedValue={newRole} 
                     onValueChange={setNewRole} 
                     style={homeStyle.createPickerStyle}
-                    >
+                  >
                     <Picker.Item label="Admin" value="Admin" />
                     <Picker.Item label="Veterinarian" value="Veterinarian" />
                     <Picker.Item label="Receptionist" value="Receptionist" />
@@ -978,7 +1007,7 @@ export default function HomePage() {
 
                 <View>
                   <Text style={homeStyle.labelStyle}>Department</Text>
-                    <Picker selectedValue={newDept} onValueChange={setNewDept} style={homeStyle.createPickerStyle}>
+                  <Picker selectedValue={newDept} onValueChange={setNewDept} style={homeStyle.createPickerStyle}>
                     <Picker.Item label="Marketing" value="Marketing" />
                     <Picker.Item label="Sales" value="Sales" />
                     <Picker.Item label="IT" value="IT" />
@@ -992,13 +1021,13 @@ export default function HomePage() {
                 <View>
                   <TouchableOpacity onPress={handleSaveAccount}>
                     <LinearGradient
-                    colors={['#3d67ee', '#0738D9', '#041E76']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 28, gap: 10, padding: 20}]}
-                  >
-                  <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600' }}>Create Account</Text>  
-                  </LinearGradient>
+                      colors={['#3d67ee', '#0738D9', '#041E76']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 28, gap: 10, padding: 20}]}
+                    >
+                      <Text style={{ color: '#ffffff', fontSize: 14, fontWeight: '600' }}>Create Account</Text>  
+                    </LinearGradient>
                   </TouchableOpacity>
                 </View>
               </View>        
@@ -1099,10 +1128,10 @@ export default function HomePage() {
                 </View>
 
                 <View style={{ alignItems: "flex-end" }}>
-                    <TouchableOpacity style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 25, padding: 20, backgroundColor: '#dad8d8'}]} onPress={() => handleCancel('edit')}>
+                  <TouchableOpacity style={[homeStyle.blackBtn, {width: "50%", alignItems:"center", marginTop: 25, padding: 20, backgroundColor: '#dad8d8'}]} onPress={() => handleCancel('edit')}>
                     <Text style={{ color: '#0c0c0c', fontSize: 14, fontWeight: '600' }}>Cancel</Text>
-                    </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
+                </View>
               </View>
 
               {/* RIGHT COLUMN */}
@@ -1140,17 +1169,17 @@ export default function HomePage() {
                   
                   <View style={{ flexDirection: 'row', alignItems: 'center'}}>
                     <Switch
-                    value={newStatus === 'Active'}   
-                    onValueChange={handleStatusToggle} 
-                    thumbColor={newStatus === 'Active' ? '#3d67ee' : '#888'}
-                    trackColor={{ false: '#ccc', true: '#a9ff8f' }}
-                    style={{ marginLeft: 8, transform: [{ scaleX: 1.5 }, { scaleY: 1.5 }]}}
+                      value={newStatus === 'Active'}   
+                      onValueChange={handleStatusToggle} 
+                      thumbColor={newStatus === 'Active' ? '#3d67ee' : '#888'}
+                      trackColor={{ false: '#ccc', true: '#a9ff8f' }}
+                      style={{ marginLeft: 8, transform: [{ scaleX: 1.5 }, { scaleY: 1.5 }]}}
                     />
-                  <Text style={{ fontWeight: 600, marginLeft: 18, color: newStatus === 'Active' ? '#2e9e0c' : '#888' }}> {newStatus} </Text>
+                    <Text style={{ fontWeight: 600, marginLeft: 18, color: newStatus === 'Active' ? '#2e9e0c' : '#888' }}> {newStatus} </Text>
                   </View>
                 </View> 
 
-                <TouchableOpacity onPress={handleSavePress}>
+                <TouchableOpacity onPress={handleUpdateAccount}>
                   <LinearGradient
                     colors={['#3d67ee', '#0738D9', '#041E76']}
                     start={{ x: 0, y: 0 }}
@@ -1161,7 +1190,6 @@ export default function HomePage() {
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
-
             </View>
           </View>
         </View>
@@ -1193,7 +1221,6 @@ export default function HomePage() {
             </View>
 
             {/* Details section */}
-
             <View style={homeStyle.modalSections}>
               <View style={homeStyle.leftModalSection}>
                 <Text style={homeStyle.labelStyle}>Full Name</Text>
@@ -1207,7 +1234,6 @@ export default function HomePage() {
 
                 <Text style={homeStyle.labelStyle}>Account Creation Date</Text>
                 <Text style={homeStyle.textInputStyle}>{selectedAccount.dateCreated || selectedAccount.datecreated || 'N/A'}</Text>
-                
               </View>
 
               <View style={homeStyle.rightModalSection}>
@@ -1257,73 +1283,71 @@ export default function HomePage() {
       >
         <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
           <View style={{backgroundColor: 'white', padding: 25, borderRadius: 12, width: '80%', maxWidth: 350, alignItems: 'center', elevation: 5}}>
-              
-             {/* Dynamic Icon based on Type */}
-             <Ionicons 
-               name={
-                 modalConfig.type === 'success' ? "checkmark-circle-outline" :
-                 modalConfig.type === 'error' ? "close-circle-outline" :
-                 "alert-circle-outline"
-               } 
-               size={55} 
-               color={
-                 modalConfig.type === 'success' ? "#2e9e0c" :
-                 modalConfig.type === 'error' ? "#d93025" :
-                 "#3d67ee"
-               } 
-             />
-             
-             {/* Title */}
-             <Text style={{fontSize: 20, fontWeight: 'bold', marginVertical: 10, fontFamily: 'Segoe UI', color: 'black'}}>
-               {modalConfig.title}
-             </Text>
-             
-             {/* Message (supports String or JSX) */}
-             {typeof modalConfig.message === 'string' ? (
-                <Text style={{textAlign: 'center', color: '#666', marginBottom: 25, fontSize: 14}}>
-                  {modalConfig.message}
-                </Text>
-             ) : (
-                <View style={{marginBottom: 25}}>
-                  {modalConfig.message}
-                </View>
-             )}
-             
-             <View style={{flexDirection: 'row', gap: 15, width: '100%', justifyContent: 'center'}}>
-                {/* Cancel Button - Only show if required */}
-                {modalConfig.showCancel && (
-                  <TouchableOpacity 
-                    onPress={() => setModalVisible(false)} 
-                    style={{paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#f0f0f0', borderRadius: 8, minWidth: 100, alignItems: 'center'}}
-                  >
-                      <Text style={{color: '#333', fontWeight: '600'}}>Cancel</Text>
-                  </TouchableOpacity>
-                )}
-                
-                {/* Confirm/OK Button */}
+            {/* Dynamic Icon based on Type */}
+            <Ionicons 
+              name={
+                modalConfig.type === 'success' ? "checkmark-circle-outline" :
+                modalConfig.type === 'error' ? "close-circle-outline" :
+                "alert-circle-outline"
+              } 
+              size={55} 
+              color={
+                modalConfig.type === 'success' ? "#2e9e0c" :
+                modalConfig.type === 'error' ? "#d93025" :
+                "#3d67ee"
+              } 
+            />
+            
+            {/* Title */}
+            <Text style={{fontSize: 20, fontWeight: 'bold', marginVertical: 10, fontFamily: 'Segoe UI', color: 'black'}}>
+              {modalConfig.title}
+            </Text>
+            
+            {/* Message (supports String or JSX) */}
+            {typeof modalConfig.message === 'string' ? (
+              <Text style={{textAlign: 'center', color: '#666', marginBottom: 25, fontSize: 14}}>
+                {modalConfig.message}
+              </Text>
+            ) : (
+              <View style={{marginBottom: 25}}>
+                {modalConfig.message}
+              </View>
+            )}
+            
+            <View style={{flexDirection: 'row', gap: 15, width: '100%', justifyContent: 'center'}}>
+              {/* Cancel Button - Only show if required */}
+              {modalConfig.showCancel && (
                 <TouchableOpacity 
-                  onPress={() => {
-                    setModalVisible(false);
-                    if (modalConfig.onConfirm) modalConfig.onConfirm();
-                  }} 
-                  style={{
-                    paddingVertical: 10, 
-                    paddingHorizontal: 20, 
-                    backgroundColor: modalConfig.type === 'error' ? '#d93025' : '#3d67ee', 
-                    borderRadius: 8, 
-                    minWidth: 100, 
-                    alignItems: 'center'
-                  }}
+                  onPress={() => setModalVisible(false)} 
+                  style={{paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#f0f0f0', borderRadius: 8, minWidth: 100, alignItems: 'center'}}
                 >
-                   <Text style={{color: 'white', fontWeight: '600'}}>
-                     {modalConfig.type === 'confirm' ? 'Confirm' : 'OK'}
-                   </Text>
+                  <Text style={{color: '#333', fontWeight: '600'}}>Cancel</Text>
                 </TouchableOpacity>
-             </View>
+              )}
+              
+              {/* Confirm/OK Button */}
+              <TouchableOpacity 
+                onPress={() => {
+                  setModalVisible(false);
+                  if (modalConfig.onConfirm) modalConfig.onConfirm();
+                }} 
+                style={{
+                  paddingVertical: 10, 
+                  paddingHorizontal: 20, 
+                  backgroundColor: modalConfig.type === 'error' ? '#d93025' : '#3d67ee', 
+                  borderRadius: 8, 
+                  minWidth: 100, 
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{color: 'white', fontWeight: '600'}}>
+                  {modalConfig.type === 'confirm' ? 'Confirm' : 'OK'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
-
     </View>
   );
 }

@@ -1,12 +1,13 @@
 import { View, Text, TextInput, TouchableOpacity, ImageBackground, Image, Alert, ActivityIndicator } from 'react-native'
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Ionicons } from '@expo/vector-icons'
 import styles from '../styles/StyleSheet'   
 import { useNavigation } from '@react-navigation/native'
 
-// meow
 export default function RegistrationPage() {
   const navigation = useNavigation();
+  
+  // State variables - using camelCase for internal state
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -15,7 +16,7 @@ export default function RegistrationPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   
-  // Validation states
+  // Validation states - match the field names in state
   const [errors, setErrors] = useState({
     fullName: '',
     username: '',
@@ -53,6 +54,9 @@ export default function RegistrationPage() {
       maxLength: 30, 
       required: true 
     },
+    confirmPassword: { 
+      required: true 
+    },
     contactNumber: { 
       regex: /^\d+$/, 
       minLength: 7,
@@ -70,6 +74,8 @@ export default function RegistrationPage() {
   // Helper function for validation
   const validateField = (fieldName, value) => {
     const rules = validationRules[fieldName];
+    
+    if (!rules) return '';
     
     if (rules.required && !value.trim()) {
       return `${fieldName === 'confirmPassword' ? 'Confirm Password' : fieldName} is required`;
@@ -117,7 +123,7 @@ export default function RegistrationPage() {
         if (cleanContact.length > rules.maxLength) {
           return `Max ${rules.maxLength} digits`;
         }
-        if (!rules.regex.test(value.replace(/\D/g, ''))) {
+        if (!rules.regex.test(cleanContact)) {
           return rules.message;
         }
         break;
@@ -136,13 +142,11 @@ export default function RegistrationPage() {
   const handleFieldChange = (fieldName, value) => {
     switch(fieldName) {
       case 'fullName':
-        // Only allow letters, spaces, and common punctuation
         const cleanedName = value.replace(/[^a-zA-Z\s.'-]/g, '');
         setFullName(cleanedName);
         break;
         
       case 'username':
-        // Only allow letters, numbers, dots, underscores
         const cleanedUsername = value.replace(/[^a-zA-Z0-9._]/g, '');
         setUsername(cleanedUsername);
         break;
@@ -156,13 +160,12 @@ export default function RegistrationPage() {
         break;
         
       case 'contactNumber':
-        // Only allow numbers
         const cleanedContact = value.replace(/\D/g, '');
         setContactNumber(cleanedContact);
         break;
         
       case 'email':
-        setEmail(value.toLowerCase()); // Convert to lowercase
+        setEmail(value.toLowerCase());
         break;
     }
     
@@ -195,9 +198,8 @@ export default function RegistrationPage() {
     return requiredFields.every(field => !errors[field]);
   };
 
-  // ========== UPDATED HANDLEREGISTER FUNCTION ==========
   const handleRegister = async () => {
-    // Mark all fields as touched to show errors
+    // Mark all fields as touched
     const newTouched = {
       fullName: true,
       username: true,
@@ -232,18 +234,24 @@ export default function RegistrationPage() {
       const today = new Date();
       const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
 
+      // Log the data being sent
+      const requestData = { 
+        fullname: fullName,           // Backend expects lowercase
+        username: username,
+        password: password,
+        contactnumber: contactNumber, // Backend expects lowercase
+        email: email,
+        datecreated: dateCreated,  
+        userimage: null,   // Backend expects lowercase
+        status: 'Active' 
+      };
+      
+      console.log('Sending to backend:', requestData);
+
       const res = await fetch(`${API_URL}/patient-register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          fullName, 
-          username,
-          password,
-          contactNumber,
-          email,
-          dateCreated,
-          status: 'Active' 
-        }),
+        body: JSON.stringify(requestData),
       });
       
       const data = await res.json();
@@ -259,11 +267,22 @@ export default function RegistrationPage() {
             }
           ]
         );
+        
+        // Clear form
+        setFullName('');
+        setUsername('');
+        setPassword('');
+        setConfirmPassword('');
+        setContactNumber('');
+        setEmail('');
+        setErrors({});
+        setTouched({});
+        
       } else {
         Alert.alert("Registration Failed", data.error || "Registration failed. Please try again.");
       }
     } catch (err) {
-      console.error(err);
+      console.error('Fetch error:', err);
       Alert.alert("Network Error", "Could not connect to server. Please try again.");
     } finally {
       setLoading(false);

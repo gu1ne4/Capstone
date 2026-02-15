@@ -26,9 +26,6 @@ import UserHomePage from './components/UserInterface/UserHomePage';
 import UpdateAccPage from './components/UpdateAccPage';
 import ForgetPassPage from './components/ForgetPassPage';
 
-import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
-
-
 
 export default function App() {
   const CScreen = createNativeStackNavigator();
@@ -46,7 +43,7 @@ export default function App() {
     <PaperProvider theme={theme}>
       <NavigationContainer>
         {/* Set initialRouteName to 'Login' so the first-time logic we just fixed can run */}
-        <CScreen.Navigator initialRouteName='Login'>
+        <CScreen.Navigator initialRouteName='UserHome'>
           <CScreen.Screen name="Home" component={DashboardPage} options={{headerShown: false}} />
           <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
           <CScreen.Screen name="Accounts" component={HomePage} options={{headerShown: false}} />

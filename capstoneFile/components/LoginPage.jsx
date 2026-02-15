@@ -107,7 +107,7 @@ export default function LoginPage() {
     setErrors(prev => ({...prev, [fieldName]: validateField(fieldName, fieldName === 'username' ? username : password)}));
   };
 
-  // ========== UPDATED HANDLELOGIN FUNCTION ==========
+  // ========== MERGED HANDLELOGIN FUNCTION ==========
   const handleLogin = async () => {
     setTouched({ username: true, password: true });
     
@@ -122,11 +122,15 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    try {
-      const API_URL = 'http://localhost:3000';
+    
+    // Determine API URL based on platform
+    const baseUrl = Platform.OS === 'web' 
+      ? 'http://localhost:3000' 
+      : 'http://10.0.2.2:3000';
 
-      // Use unified login endpoint
-      const res = await fetch(`${API_URL}/unified-login`, {
+    try {
+      // Try the unified login endpoint first (from second version)
+      const res = await fetch(`${baseUrl}/unified-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -138,7 +142,7 @@ export default function LoginPage() {
         // Save Session
         await AsyncStorage.setItem('userSession', JSON.stringify(data.user));
         
-        // Check user type and redirect accordingly
+        // Unified login response handling (from second version)
         if (data.user.userType === 'employee') {
           // Employee login
           if (data.user.isInitialLogin && !fromPasswordReset) {
@@ -149,8 +153,8 @@ export default function LoginPage() {
           } else {
             // REGULAR LOGIN OR PASSWORD RESET LOGIN
             const message = fromPasswordReset 
-              ? `Password updated successfully! Welcome back ${data.user.fullName}!`
-              : `Welcome back ${data.user.fullName}!`;
+              ? `Password updated successfully! Welcome back ${data.user.fullname}!`
+              : `Welcome back ${data.user.fullname}!`;
             
             showPopup('Success', message, 'success', () => {
               navigation.replace("Accounts");
@@ -159,22 +163,58 @@ export default function LoginPage() {
         } else {
           // Patient login
           const message = fromPasswordReset 
-            ? `Password updated successfully! Welcome ${data.user.fullName}!`
-            : `Welcome ${data.user.fullName}!`;
+            ? `Password updated successfully! Welcome ${data.user.fullname}!`
+            : `Welcome ${data.user.fullname}!`;
           
           showPopup('Success', message, 'success', () => {
             navigation.replace("UserHome");
           });
         }
       } else {
-        const serverError = data.error ? data.error.toLowerCase() : '';
-        
-        if (serverError.includes('found') || serverError.includes('exist')) {
-          showPopup('Login Failed', "Account not found.", 'error');
-        } else if (serverError.includes('disabled') || serverError.includes('inactive')) {
-          showPopup('Account Disabled', "Your account has been disabled. Please contact support.", 'error');
-        } else {
-          showPopup('Login Failed', 'Invalid Username or Password', 'error');
+        // If unified login fails, fall back to original endpoint
+        try {
+          const fallbackRes = await fetch(`${baseUrl}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+          });
+
+          const fallbackData = await fallbackRes.json();
+
+          if (fallbackRes.ok) {
+            // 1. Save Session
+            await AsyncStorage.setItem('userSession', JSON.stringify(fallbackData.user));
+            
+            // 2. Check if first-time login
+            if (fallbackData.user.isInitialLogin) {
+              showPopup('First Login', 'Please update your credentials to continue.', 'success', () => {
+                navigation.replace("UpdateAcc", { userId: fallbackData.user.id });
+              });
+            } 
+            // 3. Normal login - Role-Based Redirection (from first version)
+            else {
+              showPopup('Success', `Welcome back, ${fallbackData.user.username}!`, 'success', () => {
+                const userRole = fallbackData.user.role; 
+
+                if (userRole === 'Admin') {
+                    navigation.replace("Accounts"); 
+                } 
+                else if (userRole === 'Veterinarian' || userRole === 'Receptionist') {
+                    navigation.replace("DashboardPage"); 
+                } 
+                else if (userRole === 'User') {
+                    navigation.replace("UserHome"); 
+                }
+                else {
+                    navigation.replace("Login"); 
+                }
+              });
+            }
+          } else {
+            handleLoginError(fallbackData.error || '');
+          }
+        } catch (fallbackError) {
+          handleLoginError(data.error || '');
         }
       }
     } catch (error) {
@@ -185,7 +225,19 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
-  // ========== END UPDATED HANDLELOGIN ==========
+
+  const handleLoginError = (serverError) => {
+    const errorLower = serverError.toLowerCase();
+    
+    if (errorLower.includes('found') || errorLower.includes('exist')) {
+      showPopup('Login Failed', "Account not found.", 'error');
+    } else if (errorLower.includes('disabled') || errorLower.includes('inactive')) {
+      showPopup('Account Disabled', "Your account has been disabled. Please contact support.", 'error');
+    } else {
+      showPopup('Login Failed', 'Invalid Username or Password', 'error');
+    }
+  };
+  // ========== END MERGED HANDLELOGIN ==========
 
   return (
     <View style={styles.container}>
@@ -317,27 +369,25 @@ export default function LoginPage() {
                 {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Login</Text>}
             </TouchableOpacity>
 
-            
+            <View style={{ marginTop: 25, alignItems: 'center', gap: 10 }}>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('Registration')}
+              >
+                <Text style={{ fontSize: 14, color: '#555' }}>
+                  Don't have an account?
+                  <Text style={{ color: '#3d67ee', fontWeight: '600' }}> Sign up</Text>
+                </Text>
+              </TouchableOpacity>
 
-                  <View style={{ marginTop: 25, alignItems: 'center', gap: 10 }}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Registration')}
-          >
-            <Text style={{ fontSize: 14, color: '#555' }}>
-              Don't have an account?
-              <Text style={{ color: '#3d67ee', fontWeight: '600' }}> Sign up</Text>
-            </Text>
-          </TouchableOpacity>
-
-          {/* NEW: Forgot Password Link */}
-          <TouchableOpacity
-            onPress={() => navigation.navigate('ForgetPass')}
-          >
-            <Text style={{ fontSize: 14, color: '#3d67ee', fontWeight: '500' }}>
-              Forgot Password?
-            </Text>
-          </TouchableOpacity>
-        </View>
+              {/* NEW: Forgot Password Link */}
+              <TouchableOpacity
+                onPress={() => navigation.navigate('ForgetPass')}
+              >
+                <Text style={{ fontSize: 14, color: '#3d67ee', fontWeight: '500' }}>
+                  Forgot Password?
+                </Text>
+              </TouchableOpacity>
+            </View>
 
         </View>
       </View>

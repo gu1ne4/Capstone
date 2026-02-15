@@ -43,6 +43,116 @@ pool.connect((err, client, release) => {
   });
 });
 
+// =================================================================================
+//  ADD MISSING COLUMNS ROUTES
+// =================================================================================
+
+// Add this route to create the missing reset columns
+app.post('/create-reset-columns', async (req, res) => {
+  console.log("🛠️ Creating missing reset columns...");
+  
+  try {
+    // 1. For accounts table (employees)
+    console.log("🔧 Checking/creating columns in 'accounts' table...");
+    
+    // Check if reset_otp column exists
+    const checkAccounts = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'accounts' 
+        AND column_name = 'reset_otp'
+    `);
+    
+    if (checkAccounts.rows.length === 0) {
+      // Add columns to accounts table
+      await pool.query(`
+        ALTER TABLE accounts 
+        ADD COLUMN reset_otp VARCHAR(10),
+        ADD COLUMN reset_otp_expiry TIMESTAMP,
+        ADD COLUMN reset_requested_at TIMESTAMP
+      `);
+      console.log("✅ Added reset columns to 'accounts' table");
+    } else {
+      console.log("✅ Reset columns already exist in 'accounts' table");
+    }
+    
+    // 2. For patient_account table (patients)
+    console.log("🔧 Checking/creating columns in 'patient_account' table...");
+    
+    const checkPatients = await pool.query(`
+      SELECT column_name 
+      FROM information_schema.columns 
+      WHERE table_name = 'patient_account' 
+        AND column_name = 'reset_otp'
+    `);
+    
+    if (checkPatients.rows.length === 0) {
+      // Add columns to patient_account table
+      await pool.query(`
+        ALTER TABLE patient_account 
+        ADD COLUMN reset_otp VARCHAR(10),
+        ADD COLUMN reset_otp_expiry TIMESTAMP,
+        ADD COLUMN reset_requested_at TIMESTAMP
+      `);
+      console.log("✅ Added reset columns to 'patient_account' table");
+    } else {
+      console.log("✅ Reset columns already exist in 'patient_account' table");
+    }
+    
+    res.json({ 
+      message: 'Reset columns created/verified successfully',
+      accounts_updated: checkAccounts.rows.length === 0,
+      patient_account_updated: checkPatients.rows.length === 0
+    });
+    
+  } catch (err) {
+    console.error("❌ Create reset columns error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add this route to check column status
+app.get('/check-columns-status', async (req, res) => {
+  console.log("🔍 Checking column status...");
+  
+  try {
+    // Check accounts table
+    const accountsColumns = await pool.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns 
+      WHERE table_name = 'accounts' 
+        AND column_name IN ('reset_otp', 'reset_otp_expiry', 'reset_requested_at')
+      ORDER BY column_name
+    `);
+    
+    // Check patient_account table
+    const patientColumns = await pool.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns 
+      WHERE table_name = 'patient_account' 
+        AND column_name IN ('reset_otp', 'reset_otp_expiry', 'reset_requested_at')
+      ORDER BY column_name
+    `);
+    
+    res.json({
+      accounts: {
+        has_columns: accountsColumns.rows.length > 0,
+        columns: accountsColumns.rows,
+        missing_count: 3 - accountsColumns.rows.length
+      },
+      patient_account: {
+        has_columns: patientColumns.rows.length > 0,
+        columns: patientColumns.rows,
+        missing_count: 3 - patientColumns.rows.length
+      }
+    });
+    
+  } catch (err) {
+    console.error("❌ Check columns status error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Email function for password reset
 async function sendPasswordResetEmail(email, otp, userType, username) {
   // Check if SendGrid is configured
@@ -296,11 +406,11 @@ Furtopia Veterinary Management System
 //  EMPLOYEE ROUTES
 // =================================================================================
 
-// Employee Registration (Auto-generates credentials)
+// =================================================================================
+//  EMPLOYEE REGISTRATION - SINGLE, FIXED ENDPOINT
+// =================================================================================
 app.post('/register', async (req, res) => {
   console.log("📥 Employee registration request received");
-  
-  // Log the received data for debugging
   console.log("📦 Request body:", req.body);
 
   const { 
@@ -308,51 +418,87 @@ app.post('/register', async (req, res) => {
     role, department, employeeid, userimage, status, datecreated 
   } = req.body;
 
-  try {
-    // Auto-generate credentials for employees
-    function generateRandomPassword(length = 12) {
-      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-      let password = '';
-      for (let i = 0; i < length; i++) {
-        password += chars.charAt(Math.floor(Math.random() * chars.length));
-      }
-      return password;
-    }
+  // --- Validate required fields ---
+  if (!fullname) {
+    console.log("❌ Missing required field: fullname");
+    return res.status(400).json({ error: 'Full name is required' });
+  }
+  if (!email) {
+    console.log("❌ Missing required field: email");
+    return res.status(400).json({ error: 'Email is required' });
+  }
+  if (!contactnumber) {
+    console.log("❌ Missing required field: contactnumber");
+    return res.status(400).json({ error: 'Contact number is required' });
+  }
+  if (!employeeid) {
+    console.log("❌ Missing required field: employeeid");
+    return res.status(400).json({ error: 'Employee ID is required' });
+  }
 
-    function generateRandomUsername(fullname) {
-      const nameParts = fullname.toLowerCase().split(' ');
-      const firstName = nameParts[0];
-      const lastName = nameParts[nameParts.length - 1];
+  // --- Helper function for username generation (defined inside for self-containment) ---
+  function generateRandomUsername(name) {
+    console.log("🔧 Generating username from:", name);
+    // Handle undefined, null, or empty string
+    if (!name || typeof name !== 'string' || name.trim() === '') {
+      console.log("⚠️ Fullname is missing, using fallback");
+      const timestamp = Date.now().toString().slice(-6);
+      const randomChars = Math.random().toString(36).substring(2, 8);
+      return `user_${timestamp}_${randomChars}`;
+    }
+    try {
+      const cleanName = name.toLowerCase().trim();
+      const nameParts = cleanName.split(' ');
+      const firstName = nameParts[0] || 'user';
+      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : firstName;
       const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      
       const options = [
         `${firstName}.${lastName}.${randomSuffix}`,
         `${firstName.charAt(0)}${lastName}.${randomSuffix}`,
         `${firstName}.${randomSuffix}`
       ];
-      
-      return options[Math.floor(Math.random() * options.length)].replace(/[^a-z0-9.]/g, '');
+      const username = options[Math.floor(Math.random() * options.length)]
+        .replace(/[^a-z0-9.]/g, '')
+        .substring(0, 30);
+      console.log("✅ Generated username:", username);
+      return username;
+    } catch (err) {
+      console.log("⚠️ Error generating username:", err.message);
+      const timestamp = Date.now().toString().slice(-6);
+      return `user_${timestamp}`;
     }
+  }
 
+  function generateRandomPassword(length = 12) {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < length; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return password;
+  }
+
+  try {
     const password = generateRandomPassword();
-    const username = generateRandomUsername(fullname); 
+    console.log("🔑 Generated password for", fullname);
+    
+    // SAFELY generate username using the fullname
+    const username = generateRandomUsername(fullname);
+    console.log("👤 Generated username:", username);
     
     const hashedPassword = await bcrypt.hash(password, 10);
     const imageBuffer = userimage ? Buffer.from(userimage, 'base64') : null;
     const userStatus = status || 'Active';
 
-    // Convert datecreated string to PostgreSQL date format
+    // Format date for PostgreSQL
     let formattedDate;
     if (datecreated && datecreated.includes('/')) {
-      // Convert "MM/DD/YYYY" to "YYYY-MM-DD" for PostgreSQL
       const [month, day, year] = datecreated.split('/');
       formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     } else {
-      // Use current date if not provided
       const today = new Date();
-      formattedDate = today.toISOString().split('T')[0]; // "YYYY-MM-DD"
+      formattedDate = today.toISOString().split('T')[0];
     }
-
     console.log(`📅 Date formatting: ${datecreated} -> ${formattedDate}`);
 
     const query = `
@@ -362,55 +508,34 @@ app.post('/register', async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, TRUE) 
       RETURNING *
     `;
-
     const values = [
       username, hashedPassword, fullname, contactnumber, email, 
       role, department, employeeid, imageBuffer, userStatus, formattedDate
     ];
 
-    console.log("📊 Inserting values:", {
-      username,
-      fullname,
-      email,
-      role,
-      department,
-      employeeid,
-      status: userStatus,
-      datecreated: formattedDate
-    });
-
+    console.log("📊 Inserting values:", { username, fullname, email, role, department, employeeid, status: userStatus, datecreated: formattedDate });
     const newAccount = await pool.query(query, values);
     
     console.log(`✅ Employee registered: ${username}`);
-    
-    // === SEND EMAIL WITH CREDENTIALS ===
+
+    // --- Send email logic (keep as is) ---
     let emailSent = false;
     if (process.env.SENDGRID_API_KEY) {
       try {
-        emailSent = await sendEmployeeCredentialsEmail(
-          email, 
-          username, 
-          password, 
-          fullname,
-          role
-        );
-        
+        emailSent = await sendEmployeeCredentialsEmail(email, username, password, fullname, role);
         if (emailSent) {
           console.log(`📧 Credentials email sent to ${email}`);
         } else {
-          console.log(`⚠️  Failed to send credentials email to ${email}`);
+          console.log(`⚠️ Failed to send credentials email to ${email}`);
         }
       } catch (emailError) {
         console.error(`❌ Email sending error:`, emailError.message);
         emailSent = false;
       }
     } else {
-      console.log(`⚠️  SendGrid not configured. Cannot send credentials email.`);
-      console.log(`🔑 Generated credentials for ${fullname}:`);
-      console.log(`   Username: ${username}`);
-      console.log(`   Password: ${password}`);
+      console.log(`⚠️ SendGrid not configured. Generated credentials for ${fullname}: Username: ${username}, Password: ${password}`);
     }
-    
+
     res.status(201).json({ 
       message: 'Employee registered successfully', 
       user: { 
@@ -437,7 +562,6 @@ app.post('/register', async (req, res) => {
         return res.status(400).json({ error: 'Employee ID already exists' });
       }
     }
-    
     res.status(500).json({ error: err.message });
   }
 });
@@ -490,7 +614,7 @@ app.post('/login', async (req, res) => {
         user: { 
           id: user.pk, 
           username: user.username,
-          fullName: user.fullName || user.fullname, 
+          fullname: user.fullName || user.fullname, 
           role: user.role,
           department: user.department, 
           userImage: imageStr,
@@ -584,9 +708,9 @@ app.put('/accounts/:id', async (req, res) => {
 //  PATIENT ROUTES (Updated - Patients choose their own credentials)
 // =================================================================================
 
-// Patient Registration (Patients choose their own username/password)
 app.post('/patient-register', async (req, res) => {
   console.log("📥 Patient registration request received");
+  console.log("📦 Request body:", req.body);
   
   const { 
     fullname, username, password, contactnumber, email,
@@ -632,10 +756,18 @@ app.post('/patient-register', async (req, res) => {
     // Hash the password before storing
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    const imageBuffer = userimage ? Buffer.from(userimage, 'base64') : null;
-    const patientStatus = status || 'Active';
+    // Safely handle userimage - if undefined or null, set to null
+    let imageBuffer = null;
+    if (userimage && typeof userimage === 'string' && userimage.trim() !== '') {
+      try {
+        imageBuffer = Buffer.from(userimage, 'base64');
+      } catch (imgErr) {
+        console.log("⚠️ Invalid image data, setting to null");
+        imageBuffer = null;
+      }
+    }
     
-    // Check if username already exists in patient_account
+    // Check if username already exists
     const usernameCheck = await pool.query(
       'SELECT pk FROM patient_account WHERE username = $1',
       [username]
@@ -645,7 +777,7 @@ app.post('/patient-register', async (req, res) => {
       return res.status(400).json({ error: 'Username already taken. Please choose another.' });
     }
     
-    // Check if email already exists in patient_account
+    // Check if email already exists
     const emailCheck = await pool.query(
       'SELECT pk FROM patient_account WHERE email = $1',
       [email]
@@ -655,23 +787,52 @@ app.post('/patient-register', async (req, res) => {
       return res.status(400).json({ error: 'Email already registered. Please use a different email.' });
     }
     
+    // FIXED: Use proper PostgreSQL bit string syntax
+    // For bit varying column, we need to use the bit string literal syntax: B'1' or B'0'
+    let statusValue;
+    if (status === 'Active') {
+      statusValue = 'B\'1\''; // Binary 1 for Active
+    } else {
+      statusValue = 'B\'0\''; // Binary 0 for Disabled/Inactive
+    }
+    
+    console.log(`🔄 Status converted: "${status}" -> ${statusValue} (bit varying)`);
+    
+    // Use parameterized query with proper casting
     const query = `
       INSERT INTO patient_account 
       (username, password, fullname, contactnumber, email, userimage, status, datecreated) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7::bit varying, $8) 
       RETURNING *
     `;
     
+    // For status, send '1' or '0' as string and let PostgreSQL cast it to bit varying
+    const statusForDb = status === 'Active' ? '1' : '0';
+    
     const values = [
-      username, hashedPassword, fullname, cleanContact, 
-      email, imageBuffer, patientStatus, datecreated
+      username, 
+      hashedPassword, 
+      fullname, 
+      cleanContact, 
+      email, 
+      imageBuffer, 
+      statusForDb, // Send '1' or '0' as string
+      datecreated
     ];
+    
+    console.log("📊 Inserting patient with values:", {
+      username,
+      fullname,
+      email,
+      contactnumber: cleanContact,
+      status: statusForDb,
+      datecreated,
+      hasImage: !!imageBuffer
+    });
     
     const newPatient = await pool.query(query, values);
     
     console.log(`✅ Patient registered: ${username}`);
-    console.log(`   Name: ${fullname}`);
-    console.log(`   Email: ${email}`);
     
     res.status(201).json({ 
       message: 'Patient registered successfully', 
@@ -679,12 +840,14 @@ app.post('/patient-register', async (req, res) => {
         pk: newPatient.rows[0].pk, 
         username: username,
         email: email,
-        fullname: fullname
+        fullname: fullname,
+        status: status // Return original status string
       }
     });
     
   } catch (err) {
     console.error("❌ Patient registration error:", err.message);
+    console.error("❌ Full error:", err);
     
     // Check for duplicate key errors
     if (err.message.includes('duplicate key')) {
@@ -1200,7 +1363,7 @@ app.post('/unified-login', async (req, res) => {
       const userResponse = {
         id: user.pk,
         username: user.username,
-        fullName: user.fullname, // Return as fullName for frontend consistency
+        fullname: user.fullname, // Return as fullName for frontend consistency
         email: user.email,
         userType: userType,
         status: user.status
@@ -1292,7 +1455,7 @@ app.put('/update-credentials', async (req, res) => {
       user: {
         pk: updatedUser.rows[0].pk,
         username: updatedUser.rows[0].username,
-        fullName: updatedUser.rows[0].fullname, // Return as fullName for frontend
+        fullname: updatedUser.rows[0].fullname, // Return as fullName for frontend
         role: updatedUser.rows[0].role,
         isInitialLogin: updatedUser.rows[0].is_initial_login || false
       }
@@ -1358,6 +1521,64 @@ app.post('/test-simple-reset', async (req, res) => {
     userType: 'employee',
     test: true
   });
+});
+
+// Add this to test SendGrid connection
+app.post('/test-sendgrid-connection', async (req, res) => {
+  console.log("🧪 Testing SendGrid connection...");
+  
+  if (!process.env.SENDGRID_API_KEY) {
+    return res.status(500).json({ 
+      error: 'SENDGRID_API_KEY not found in .env file' 
+    });
+  }
+  
+  try {
+    // Test DNS resolution
+    const dns = require('dns');
+    dns.lookup('api.sendgrid.com', (err, address, family) => {
+      if (err) {
+        console.error('❌ DNS lookup failed:', err.message);
+        return res.status(500).json({ 
+          error: `DNS resolution failed: ${err.message}`,
+          suggestion: 'Check your internet connection or DNS settings'
+        });
+      }
+      
+      console.log(`✅ DNS resolved: api.sendgrid.com -> ${address}`);
+      
+      // Test actual SendGrid API
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+      
+      const testMsg = {
+        to: 'test@example.com', // Use a real email for testing
+        from: process.env.SENDGRID_FROM_EMAIL || 'noreply@furtopia.com',
+        subject: 'Test Email from Furtopia',
+        text: 'This is a test email.',
+        html: '<strong>This is a test email.</strong>'
+      };
+      
+      sgMail.send(testMsg)
+        .then(() => {
+          console.log('✅ SendGrid API test successful');
+          res.json({ 
+            success: true, 
+            message: 'SendGrid connection working',
+            dns: { host: 'api.sendgrid.com', ip: address }
+          });
+        })
+        .catch(error => {
+          console.error('❌ SendGrid API error:', error.response?.body || error.message);
+          res.status(500).json({ 
+            error: 'SendGrid API error: ' + (error.response?.body || error.message)
+          });
+        });
+    });
+    
+  } catch (err) {
+    console.error("❌ SendGrid test error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/test-db-connection', async (req, res) => {
@@ -1911,7 +2132,7 @@ app.get('/api/appointments/table', async (req, res) => {
           a.time_slot_display
         ) as "date_time",
         CASE 
-          WHEN a.doctor_id IS NOT NULL THEN ac."fullName"
+          WHEN a.doctor_id IS NOT NULL THEN ac."fullname"
           ELSE 'Not Assigned'
         END as "doctor",
         a.doctor_id as "assignedDoctor",
@@ -2226,12 +2447,12 @@ app.put('/api/appointments/:id/assign-doctor', async (req, res) => {
     
     // Get doctor's name
     const doctorResult = await pool.query(
-      'SELECT "fullName" FROM accounts WHERE pk = $1',
+      'SELECT "fullname" FROM accounts WHERE pk = $1',
       [doctorId]
     );
     
     const doctorName = doctorResult.rows.length > 0 
-      ? doctorResult.rows[0].fullName 
+      ? doctorResult.rows[0].fullname 
       : 'Unknown Doctor';
     
     // Update appointment with doctor
