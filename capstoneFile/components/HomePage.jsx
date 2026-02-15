@@ -10,7 +10,6 @@ import { DataTable } from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';    
 import * as ImagePicker from 'expo-image-picker';
 
-// meow
 export default function HomePage() {
   const ns = useNavigation();
   const route = useRoute();
@@ -156,37 +155,28 @@ export default function HomePage() {
   //  ACTION HANDLERS
   // ==========================================
 
-// --- LOGOUT HANDLER (UPDATED) ---
+  // --- LOGOUT HANDLER (UPDATED FOR AUDIT) ---
   const handleLogoutPress = () => {
     showAlert('confirm', 'Log Out', 'Are you sure you want to log out?', async () => {
       
       try {
-        // 1. Tell Backend to audit the logout
-        // Check if we have user data to send
-        if (currentUser) {
-          console.log("Sending logout audit for:", currentUser.username);
-          
+        if (currentUser && (currentUser.id || currentUser.pk)) {
           await fetch(`${API_URL}/logout`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              userId: currentUser.id || currentUser.pk, // Handle different ID naming conventions
-              userType: 'EMPLOYEE',   // Since this is the Employee/Admin Home Page
+              userId: currentUser.id || currentUser.pk, 
+              userType: 'EMPLOYEE',
               username: currentUser.username || currentUser.fullName,
               role: currentUser.role
             })
           });
         }
       } catch (error) {
-        // If the server is down or internet is bad, we log the error 
-        // BUT we still let the user logout locally so they aren't stuck.
-        console.error("Logout audit failed:", error);
+        console.log("Logout audit failed:", error);
       }
 
-      // 2. Clear Local Data
       await AsyncStorage.removeItem('userSession'); 
-      
-      // 3. Navigate to Login
       ns.navigate('Login'); 
     }, true);
   };
@@ -299,7 +289,7 @@ export default function HomePage() {
   //  VALIDATION & CRUD LOGIC
   // ==========================================
 
-  // ✅ 1. EDIT: TRIGGER (Validate -> Length Check -> Duplicate Check -> Confirm)
+  // ✅ 1. CREATE ACCOUNT ACTION (Updated with Email Validation)
   const handleSavePress = async () => {
     // 1. Empty Fields Check
     if (!newUsername || !newFullName || !newContact || !newEmpID || !newEmail) {
@@ -307,7 +297,7 @@ export default function HomePage() {
       return;
     }
 
-    // 2. Length Validation Check (RESTORED)
+    // 2. Length Validation Check
     if (newUsername.length < 4) { 
       showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); 
       return; 
@@ -316,8 +306,9 @@ export default function HomePage() {
       showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); 
       return; 
     }
-    if (newContact.length < 7) { 
-      showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); 
+    // Update minimum length check to account for dashes
+    if (newContact.length < 13) { 
+      showAlert('error', 'Invalid Input', 'Contact Number must be valid (0000-000-0000).'); 
       return; 
     }
     if (newEmpID.length < 5) { 
@@ -329,6 +320,20 @@ export default function HomePage() {
       return; 
     }
 
+    // ============================================================
+    //  ⚡ EMAIL UNIQUENESS VALIDATION
+    // ============================================================
+    const emailExists = accounts.some(acc => 
+      (acc.email || '').toLowerCase() === newEmail.trim().toLowerCase()
+    );
+    
+    if (emailExists) {
+      showAlert('error', 'Email In Use', 'This email address is already associated with another account.');
+      return; // 🛑 STOP HERE
+    }
+    // ============================================================
+
+    // 3. Duplicate Check (Username & Employee ID)
     const isDuplicate = accounts.some(acc => {
       const accUsername = acc.username || '';
       const accEmployeeID = String(acc.employeeID || acc.employeeid || '');
@@ -344,40 +349,50 @@ export default function HomePage() {
       return;
     }
 
-    const today = new Date();
-    const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
-    const generatedPassword = generateRandomPassword();
+    // 4. Confirmation & API Call
+    showAlert('confirm', 'Create Account', 'Are you sure you want to register this new account?', async () => {
+      const today = new Date();
+      const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+      const generatedPassword = generateRandomPassword();
 
-    try {
-      const res = await fetch(`${API_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fullname: newFullName,  // lowercase 'fullname' not 'fullName'
-          contactnumber: newContact,  // lowercase 'contactnumber'
-          email: newEmail,
-          role: newRole,
-          department: newDept,
-          employeeid: newEmpID,  // lowercase 'employeeid'
-          userimage: userImageBase64,  // lowercase 'userimage'
-          status: newStatus,
-          datecreated: dateCreated  // lowercase 'datecreated'
-        }),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setAddAccountVisible(false);
-        showAlert('success', 'Success', 'Account Registered Successfully!', () => {
-          fetchAccounts();
-          resetForm();
+      try {
+        const res = await fetch(`${API_URL}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: newUsername,
+            password: generatedPassword,
+            fullname: newFullName,
+            contactnumber: newContact, // Sending with dashes, you can .replace(/-/g, '') if backend requires
+            email: newEmail,
+            role: newRole,
+            department: newDept,
+            employeeid: newEmpID,
+            userImage: userImageBase64,
+            status: newStatus,
+            dateCreated: dateCreated
+          }),
         });
-      } else {
-        showAlert('error', 'Registration Failed', data.error || 'Failed to create account.');
+
+        const data = await res.json();
+        if (res.ok) {
+          setAddAccountVisible(false);
+          showAlert('success', 'Success', 'Account Registered Successfully!', () => {
+            fetchAccounts();
+            resetForm();
+          });
+        } else {
+          // Fallback if server catches error frontend missed
+          const errorMessage = (data.error && data.error.includes('Email')) 
+            ? 'This email address is already in use.' 
+            : (data.error || 'Failed to create account.');
+          
+          showAlert('error', 'Registration Failed', errorMessage);
+        }
+      } catch (error) {
+        showAlert('error', 'Network Error', 'Could not connect to the server.');
       }
-    } catch (error) {
-      showAlert('error', 'Network Error', 'Could not connect to the server.');
-    }
+    }, true);
   };
 
   // ✅ 2. EDIT: ACTION
@@ -391,8 +406,8 @@ export default function HomePage() {
       showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); 
       return; 
     }
-    if (newContact.length < 7) { 
-      showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); 
+    if (newContact.length < 13) { 
+      showAlert('error', 'Invalid Input', 'Contact Number must be valid (0000-000-0000).'); 
       return; 
     }
     if (newEmpID.length < 5) { 
@@ -452,86 +467,9 @@ export default function HomePage() {
     }, true);
   };
 
-  // ✅ 3. CREATE: TRIGGER + ACTION
-  const handleSaveAccount = async () => {
-    // 1. Empty Fields Check
-    if (!newUsername || !newFullName || !newContact || !newEmpID || !newEmail || !newRole || !newDept) {
-      showAlert('error', 'Missing Information', 'Please fill in all required fields.');
-      return;
-    }
-
-    // 2. Length Validation Check (RESTORED)
-    if (newUsername.length < 4) { 
-      showAlert('error', 'Invalid Input', 'Username must be at least 4 characters.'); 
-      return; 
-    }
-    if (newFullName.length < 5) { 
-      showAlert('error', 'Invalid Input', 'Full Name must be at least 5 characters.'); 
-      return; 
-    }
-    if (newContact.length < 7) { 
-      showAlert('error', 'Invalid Input', 'Contact Number must be at least 7 digits.'); 
-      return; 
-    }
-    if (newEmpID.length < 3) { 
-      showAlert('error', 'Invalid Input', 'Employee ID must be at least 3 digits.'); 
-      return; 
-    }
-    if (newEmail.length < 6) { 
-      showAlert('error', 'Invalid Input', 'Email must be at least 6 characters.'); 
-      return; 
-    }
-
-    // 3. Duplicate Check
-    const isDuplicate = accounts.some(acc => 
-      acc.username.toLowerCase() === newUsername.toLowerCase() || 
-      String(acc.employeeID || acc.employeeid || '') === String(newEmpID || '')
-    );
-
-    if (isDuplicate) {
-      showAlert('error', 'Duplicate Entry', 'Username or Employee ID already exists.');
-      return;
-    }
-
-    // 4. Confirmation
-    showAlert('confirm', 'Create Account', 'Are you sure you want to register this new account?', async () => {
-      const today = new Date();
-      const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
-      const generatedPassword = generateRandomPassword();
-
-      try {
-        const res = await fetch(`${API_URL}/register`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: newUsername,
-            password: generatedPassword,
-            fullname: newFullName,
-            contactnumber: newContact,
-            email: newEmail,
-            role: newRole,
-            department: newDept,
-            employeeid: newEmpID,
-            userImage: userImageBase64,
-            status: newStatus,
-            dateCreated: dateCreated
-          }),
-        });
-
-        if (res.ok) {
-          setAddAccountVisible(false);
-          showAlert('success', 'Success', 'Account Registered Successfully!', () => {
-            fetchAccounts();
-            resetForm();
-          });
-        } else {
-          const data = await res.json();
-          showAlert('error', 'Registration Failed', data.error || 'Failed to create account.');
-        }
-      } catch (error) {
-        showAlert('error', 'Network Error', 'Could not connect to the server.');
-      }
-    }, true);
+  // ✅ 3. TRIGGER FOR CREATE BUTTON (Calls handleSavePress)
+  const handleSaveAccount = () => {
+    handleSavePress(); 
   };
 
   // ==========================================
@@ -972,17 +910,32 @@ export default function HomePage() {
                   />
                 </View>
 
+                {/* --- FORMATTED CONTACT NUMBER INPUT (CREATE) --- */}
                 <View>
                   <Text style={homeStyle.labelStyle}>Contact Number</Text>
                   <TextInput 
                     style={homeStyle.textInputStyle} 
-                    placeholder='Enter Contact Number' 
-                    maxLength={15} 
+                    placeholder='0000-000-0000' 
+                    maxLength={13} 
                     placeholderTextColor={"#a8a8a8"} 
                     value={newContact} 
                     onChangeText={(text) => {
-                      const cleaned = text.replace(/[^0-9-]/g, '');
-                      setNewContact(cleaned);
+                      // 1. Remove non-numeric characters
+                      let cleaned = text.replace(/\D/g, '');
+
+                      // 2. Limit to 11 digits (if user pastes a long string)
+                      if (cleaned.length > 11) cleaned = cleaned.substring(0, 11);
+
+                      // 3. Apply Format: XXXX-XXX-XXXX
+                      let formatted = cleaned;
+                      if (cleaned.length > 4) {
+                        formatted = `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
+                      }
+                      if (cleaned.length > 7) {
+                        formatted = `${cleaned.slice(0, 4)}-${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
+                      }
+                      
+                      setNewContact(formatted);
                     }}
                     keyboardType="numeric"
                   />
@@ -1122,17 +1075,32 @@ export default function HomePage() {
                   />
                 </View>
 
+                {/* --- FORMATTED CONTACT NUMBER INPUT (EDIT) --- */}
                 <View>
                   <Text style={homeStyle.labelStyle}>Contact Number</Text>
                   <TextInput 
                     style={homeStyle.textInputStyle} 
-                    placeholder='Enter Contact Number' 
-                    maxLength={15} 
+                    placeholder='0000-000-0000' 
+                    maxLength={13} 
                     placeholderTextColor={"#a8a8a8"} 
                     value={newContact} 
                     onChangeText={(text) => {
-                      const cleaned = text.replace(/[^0-9-]/g, '');
-                      setNewContact(cleaned);
+                      // 1. Remove non-numeric characters
+                      let cleaned = text.replace(/\D/g, '');
+
+                      // 2. Limit to 11 digits (if user pastes a long string)
+                      if (cleaned.length > 11) cleaned = cleaned.substring(0, 11);
+
+                      // 3. Apply Format: XXXX-XXX-XXXX
+                      let formatted = cleaned;
+                      if (cleaned.length > 4) {
+                        formatted = `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
+                      }
+                      if (cleaned.length > 7) {
+                        formatted = `${cleaned.slice(0, 4)}-${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
+                      }
+                      
+                      setNewContact(formatted);
                     }}
                     keyboardType="numeric"
                   />
