@@ -156,10 +156,37 @@ export default function HomePage() {
   //  ACTION HANDLERS
   // ==========================================
 
-  // --- LOGOUT HANDLER ---
+// --- LOGOUT HANDLER (UPDATED) ---
   const handleLogoutPress = () => {
     showAlert('confirm', 'Log Out', 'Are you sure you want to log out?', async () => {
+      
+      try {
+        // 1. Tell Backend to audit the logout
+        // Check if we have user data to send
+        if (currentUser) {
+          console.log("Sending logout audit for:", currentUser.username);
+          
+          await fetch(`${API_URL}/logout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: currentUser.id || currentUser.pk, // Handle different ID naming conventions
+              userType: 'EMPLOYEE',   // Since this is the Employee/Admin Home Page
+              username: currentUser.username || currentUser.fullName,
+              role: currentUser.role
+            })
+          });
+        }
+      } catch (error) {
+        // If the server is down or internet is bad, we log the error 
+        // BUT we still let the user logout locally so they aren't stuck.
+        console.error("Logout audit failed:", error);
+      }
+
+      // 2. Clear Local Data
       await AsyncStorage.removeItem('userSession'); 
+      
+      // 3. Navigate to Login
       ns.navigate('Login'); 
     }, true);
   };
