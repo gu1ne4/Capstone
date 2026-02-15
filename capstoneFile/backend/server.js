@@ -44,6 +44,58 @@ pool.connect((err, client, release) => {
 });
 
 // =================================================================================
+//  AUDIT LOGGING HELPER FUNCTION (NEW)
+// =================================================================================
+const logAccess = async ({ req, accountId, accountType, username, role, action, status }) => {
+  try {
+    // 1. Capture IP Address
+    let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '';
+    if (ip === '::1') ip = '127.0.0.1'; // Clean up localhost IPv6
+
+    // 2. Prepare Account Type (Ensure we use 'USER' instead of 'PATIENT')
+    let typeStr = accountType ? accountType.toUpperCase() : 'UNKNOWN';
+    if (typeStr === 'PATIENT') typeStr = 'USER'; // Override per request
+
+    // 3. Insert into access_logs
+    const query = `
+      INSERT INTO access_logs 
+      (account_id, account_type, username, role, action, status, ip_address)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `;
+
+    await pool.query(query, [
+      accountId || null, 
+      typeStr,
+      username || 'Unknown',
+      role || 'Unknown',
+      action,
+      status,
+      ip
+    ]);
+
+    console.log(`📝 Audit Log: [${status}] ${action} for ${username} (${typeStr})`);
+  } catch (err) {
+    console.error("❌ Audit Log Error:", err.message);
+  }
+};
+
+
+
+// =================================================================================
+//  AUDIT LOGS ROUTE (Add this to server.js)
+// =================================================================================
+app.get('/access_logs', async (req, res) => {
+  try {
+    // Select logs and order by newest first
+    const result = await pool.query('SELECT * FROM access_logs ORDER BY login_time DESC');
+    res.json(result.rows);
+  } catch (err) {
+    console.error("❌ Error fetching logs:", err.message);
+    res.status(500).json({ error: 'Server Error' });
+  }
+});
+
+// =================================================================================
 //  ADD MISSING COLUMNS ROUTES
 // =================================================================================
 
@@ -166,80 +218,8 @@ async function sendPasswordResetEmail(email, otp, userType, username) {
       to: email,
       from: process.env.SENDGRID_FROM_EMAIL || 'noreply@furtopia.com',
       subject: 'Password Reset OTP - Furtopia Veterinary',
-      text: `
-Password Reset Request
-
-Hello ${username},
-
-Your password reset OTP code is: ${otp}
-
-This code will expire in 15 minutes.
-
-If you didn't request this password reset, please ignore this email.
-
-Furtopia Veterinary Management System
-      `,
-      html: `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { color: #3d67ee; text-align: center; }
-    .otp-box { 
-      background: #f0f7ff; 
-      border-radius: 8px; 
-      padding: 20px; 
-      text-align: center; 
-      margin: 20px 0; 
-      border: 1px solid #d0e0ff;
-    }
-    .otp-code { 
-      font-size: 32px; 
-      font-weight: bold; 
-      letter-spacing: 5px; 
-      color: #3d67ee; 
-      margin: 10px 0;
-    }
-    .footer { 
-      margin-top: 30px; 
-      padding-top: 20px; 
-      border-top: 1px solid #eee; 
-      color: #666; 
-      fontSize: 12px;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h2 class="header">Password Reset Request</h2>
-    <p>Hello <strong>${username}</strong>,</p>
-    <p>We received a request to reset your password for your ${userType} account at Furtopia Veterinary.</p>
-    
-    <div class="otp-box">
-      <p>Your OTP Code:</p>
-      <div class="otp-code">${otp}</div>
-      <p><small>Valid for 15 minutes</small></p>
-    </div>
-    
-    <p><strong>Instructions:</strong></p>
-    <ol>
-      <li>Enter the OTP code in the password reset page</li>
-      <li>Create a new password</li>
-      <li>Login with your new credentials</li>
-    </ol>
-    
-    <p>If you didn't request this password reset, please ignore this email.</p>
-    
-    <div class="footer">
-      <p>Furtopia Veterinary Management System</p>
-      <p>This is an automated message, please do not reply</p>
-    </div>
-  </div>
-</body>
-</html>
-      `
+      text: `Your password reset OTP code is: ${otp}`,
+      html: `<p>Your password reset OTP code is: <strong>${otp}</strong></p>`
     };
 
     await sgMail.send(msg);
@@ -264,133 +244,8 @@ async function sendEmployeeCredentialsEmail(email, username, password, fullname,
       to: email,
       from: process.env.SENDGRID_FROM_EMAIL || 'noreply@furtopia.com',
       subject: 'Your Employee Account Credentials - Furtopia Veterinary',
-      text: `
-Welcome to Furtopia Veterinary System!
-
-Hello ${fullname},
-
-Your employee account has been created successfully.
-
-Account Details:
-- Username: ${username}
-- Password: ${password}
-- Role: ${role}
-
-Please login to the system and change your password immediately for security.
-
-Login URL: http://localhost:8081
-
-Important: This is a temporary password. Please change it on your first login.
-
-Furtopia Veterinary Management System
-      `,
-      html: `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { color: #3d67ee; text-align: center; }
-    .credentials-box { 
-      background: #f0f7ff; 
-      border-radius: 8px; 
-      padding: 20px; 
-      margin: 20px 0; 
-      border: 1px solid #d0e0ff;
-    }
-    .credential-item { 
-      margin: 10px 0; 
-      padding: 10px;
-      background: white;
-      border-radius: 4px;
-      border-left: 4px solid #3d67ee;
-    }
-    .highlight { 
-      font-weight: bold; 
-      color: #3d67ee; 
-    }
-    .warning-box {
-      background: #fff3cd;
-      border: 1px solid #ffc107;
-      border-radius: 4px;
-      padding: 15px;
-      margin: 20px 0;
-    }
-    .footer { 
-      margin-top: 30px; 
-      padding-top: 20px; 
-      border-top: 1px solid #eee; 
-      color: #666; 
-      font-size: 12px;
-    }
-    .btn {
-      display: inline-block;
-      background: #3d67ee;
-      color: white;
-      padding: 10px 20px;
-      text-decoration: none;
-      border-radius: 4px;
-      margin: 10px 0;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h2 class="header">Welcome to Furtopia Veterinary System</h2>
-    <p>Hello <strong>${fullname}</strong>,</p>
-    <p>Your employee account has been created successfully.</p>
-    
-    <div class="credentials-box">
-      <h3>Your Login Credentials</h3>
-      
-      <div class="credential-item">
-        <strong>Username:</strong>
-        <div class="highlight">${username}</div>
-      </div>
-      
-      <div class="credential-item">
-        <strong>Password:</strong>
-        <div class="highlight">${password}</div>
-      </div>
-      
-      <div class="credential-item">
-        <strong>Role:</strong>
-        <div>${role}</div>
-      </div>
-    </div>
-    
-    <div class="warning-box">
-      <p><strong>⚠️ Important Security Notice:</strong></p>
-      <p>This is a temporary password. For security reasons, you must:</p>
-      <ol>
-        <li>Login immediately using the credentials above</li>
-        <li>Change your password on first login</li>
-        <li>Do not share these credentials with anyone</li>
-      </ol>
-    </div>
-    
-    <p><strong>Login Instructions:</strong></p>
-    <ol>
-      <li>Go to the login page: <a href="http://localhost:8081">http://localhost:8081</a></li>
-      <li>Enter your username and temporary password</li>
-      <li>You will be prompted to change your password immediately</li>
-      <li>After changing password, you can access the full system</li>
-    </ol>
-    
-    <p>
-      <a href="http://localhost:8081" class="btn">Login to System</a>
-    </p>
-    
-    <div class="footer">
-      <p>Furtopia Veterinary Management System</p>
-      <p>This is an automated message, please do not reply</p>
-      <p><small>If you did not expect this email, please contact your system administrator.</small></p>
-    </div>
-  </div>
-</body>
-</html>
-      `
+      text: `Username: ${username}, Password: ${password}`,
+      html: `<p>Username: <strong>${username}</strong><br>Password: <strong>${password}</strong></p>`
     };
 
     await sgMail.send(msg);
@@ -407,99 +262,50 @@ Furtopia Veterinary Management System
 // =================================================================================
 
 // =================================================================================
-//  EMPLOYEE REGISTRATION - SINGLE, FIXED ENDPOINT
+//  EMPLOYEE REGISTRATION - SINGLE, FIXED ENDPOINT (WITH AUDIT)
 // =================================================================================
 app.post('/register', async (req, res) => {
   console.log("📥 Employee registration request received");
-  console.log("📦 Request body:", req.body);
+  const { fullname, contactnumber, email, role, department, employeeid, userimage, status, datecreated } = req.body;
 
-  const { 
-    fullname, contactnumber, email, 
-    role, department, employeeid, userimage, status, datecreated 
-  } = req.body;
+  // Validation
+  if (!fullname) return res.status(400).json({ error: 'Full name is required' });
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+  if (!contactnumber) return res.status(400).json({ error: 'Contact number is required' });
+  if (!employeeid) return res.status(400).json({ error: 'Employee ID is required' });
 
-  // --- Validate required fields ---
-  if (!fullname) {
-    console.log("❌ Missing required field: fullname");
-    return res.status(400).json({ error: 'Full name is required' });
-  }
-  if (!email) {
-    console.log("❌ Missing required field: email");
-    return res.status(400).json({ error: 'Email is required' });
-  }
-  if (!contactnumber) {
-    console.log("❌ Missing required field: contactnumber");
-    return res.status(400).json({ error: 'Contact number is required' });
-  }
-  if (!employeeid) {
-    console.log("❌ Missing required field: employeeid");
-    return res.status(400).json({ error: 'Employee ID is required' });
-  }
-
-  // --- Helper function for username generation (defined inside for self-containment) ---
+  // Helper functions
   function generateRandomUsername(name) {
-    console.log("🔧 Generating username from:", name);
-    // Handle undefined, null, or empty string
     if (!name || typeof name !== 'string' || name.trim() === '') {
-      console.log("⚠️ Fullname is missing, using fallback");
-      const timestamp = Date.now().toString().slice(-6);
-      const randomChars = Math.random().toString(36).substring(2, 8);
-      return `user_${timestamp}_${randomChars}`;
-    }
-    try {
-      const cleanName = name.toLowerCase().trim();
-      const nameParts = cleanName.split(' ');
-      const firstName = nameParts[0] || 'user';
-      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : firstName;
-      const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-      const options = [
-        `${firstName}.${lastName}.${randomSuffix}`,
-        `${firstName.charAt(0)}${lastName}.${randomSuffix}`,
-        `${firstName}.${randomSuffix}`
-      ];
-      const username = options[Math.floor(Math.random() * options.length)]
-        .replace(/[^a-z0-9.]/g, '')
-        .substring(0, 30);
-      console.log("✅ Generated username:", username);
-      return username;
-    } catch (err) {
-      console.log("⚠️ Error generating username:", err.message);
       const timestamp = Date.now().toString().slice(-6);
       return `user_${timestamp}`;
     }
+    const cleanName = name.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+    return `${cleanName.substring(0, 10)}_${Math.floor(Math.random() * 1000)}`;
   }
 
   function generateRandomPassword(length = 12) {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
     let password = '';
-    for (let i = 0; i < length; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
+    for (let i = 0; i < length; i++) password += chars.charAt(Math.floor(Math.random() * chars.length));
     return password;
   }
 
   try {
     const password = generateRandomPassword();
-    console.log("🔑 Generated password for", fullname);
-    
-    // SAFELY generate username using the fullname
     const username = generateRandomUsername(fullname);
-    console.log("👤 Generated username:", username);
-    
     const hashedPassword = await bcrypt.hash(password, 10);
     const imageBuffer = userimage ? Buffer.from(userimage, 'base64') : null;
     const userStatus = status || 'Active';
 
-    // Format date for PostgreSQL
+    // Format date
     let formattedDate;
     if (datecreated && datecreated.includes('/')) {
       const [month, day, year] = datecreated.split('/');
       formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     } else {
-      const today = new Date();
-      formattedDate = today.toISOString().split('T')[0];
+      formattedDate = new Date().toISOString().split('T')[0];
     }
-    console.log(`📅 Date formatting: ${datecreated} -> ${formattedDate}`);
 
     const query = `
       INSERT INTO accounts 
@@ -508,112 +314,94 @@ app.post('/register', async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, TRUE) 
       RETURNING *
     `;
-    const values = [
-      username, hashedPassword, fullname, contactnumber, email, 
-      role, department, employeeid, imageBuffer, userStatus, formattedDate
-    ];
+    const values = [username, hashedPassword, fullname, contactnumber, email, role, department, employeeid, imageBuffer, userStatus, formattedDate];
 
-    console.log("📊 Inserting values:", { username, fullname, email, role, department, employeeid, status: userStatus, datecreated: formattedDate });
     const newAccount = await pool.query(query, values);
-    
+    const createdUser = newAccount.rows[0];
+
     console.log(`✅ Employee registered: ${username}`);
 
-    // --- Send email logic (keep as is) ---
-    let emailSent = false;
+    // AUDIT LOG: CREATE ACCOUNT
+    await logAccess({
+      req,
+      accountId: createdUser.pk,
+      accountType: 'EMPLOYEE',
+      username: createdUser.username,
+      role: createdUser.role,
+      action: 'REGISTER',
+      status: 'SUCCESS'
+    });
+
+    // Send Email
     if (process.env.SENDGRID_API_KEY) {
-      try {
-        emailSent = await sendEmployeeCredentialsEmail(email, username, password, fullname, role);
-        if (emailSent) {
-          console.log(`📧 Credentials email sent to ${email}`);
-        } else {
-          console.log(`⚠️ Failed to send credentials email to ${email}`);
-        }
-      } catch (emailError) {
-        console.error(`❌ Email sending error:`, emailError.message);
-        emailSent = false;
-      }
-    } else {
-      console.log(`⚠️ SendGrid not configured. Generated credentials for ${fullname}: Username: ${username}, Password: ${password}`);
+      await sendEmployeeCredentialsEmail(email, username, password, fullname, role);
     }
 
     res.status(201).json({ 
       message: 'Employee registered successfully', 
       user: { 
-        pk: newAccount.rows[0].pk, 
-        username: username,
-        email: email,
-        fullname: fullname
-      }
+        pk: createdUser.pk, 
+        username: username, 
+        email: email, 
+        fullname: fullname 
+      } 
     });
 
   } catch (err) {
     console.error("❌ Employee registration error:", err.message);
-    console.error("❌ Full error stack:", err.stack);
-    
-    // Handle duplicate errors
     if (err.message.includes('duplicate key')) {
-      if (err.message.includes('username')) {
-        return res.status(400).json({ error: 'Username already exists' });
-      }
-      if (err.message.includes('email')) {
-        return res.status(400).json({ error: 'Email already registered' });
-      }
-      if (err.message.includes('employeeid')) {
-        return res.status(400).json({ error: 'Employee ID already exists' });
-      }
+      return res.status(400).json({ error: 'Username or Email already exists' });
     }
     res.status(500).json({ error: err.message });
   }
 });
 
-// ========== LOGIN ROUTE (RESOLVED) ==========
+// ========== LOGIN ROUTE (EMPLOYEE) - WITH AUDIT ==========
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   console.log(`🔐 Employee login attempt for username: ${username}`);
   
   try {
-    // 1. Search for user in both tables
     let result = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
     let user = result.rows.length > 0 ? result.rows[0] : null;
 
     if (!user) {
-        result = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
-        user = result.rows.length > 0 ? result.rows[0] : null;
+      result = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
+      user = result.rows.length > 0 ? result.rows[0] : null;
     }
 
-    // 2. If user doesn't exist anywhere
-    if (!user) return res.status(401).json({ error: 'User not found' });
+    if (!user) {
+      await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
+      return res.status(401).json({ error: 'User not found' });
+    }
 
-    // 3. Check Account Status
+    // Determine type for logging
+    const userType = result.rows[0].employeeid ? 'EMPLOYEE' : 'USER'; // Check for employee-specific field
+
     if (user.status === 'Disabled' || user.status === 'Inactive') {
+      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
       return res.status(403).json({ error: 'Account is disabled.' });
     }
 
-    // 4. Verify Password (Handles both Hashed and Plain Text)
     let passwordValid = false;
     if (user.password && user.password.startsWith('$2')) {
-      // Bcrypt hash (new users)
       passwordValid = await bcrypt.compare(password, user.password);
     } else {
-      // Plain text (old users - backward compatibility)
       passwordValid = (user.password === password);
     }
 
     if (passwordValid) {
-      console.log(`✅ Login successful for: ${username}`);
+      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'SUCCESS' });
       
-      // Process Image to Base64
       const imgBuffer = user.userImage || user.userimage;
       let imageStr = null;
-      if (imgBuffer) {
-        imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
-      }
+      if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
 
       res.json({ 
         message: 'Login successful', 
         user: { 
           id: user.pk, 
-          username: user.username,
+          username: user.username, 
           fullname: user.fullName || user.fullname, 
           role: user.role,
           department: user.department, 
@@ -622,7 +410,7 @@ app.post('/login', async (req, res) => {
         } 
       });
     } else {
-      console.log(`❌ Invalid password for: ${username}`);
+      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
       res.status(401).json({ error: 'Invalid password' });
     }
   } catch (err) {
@@ -635,19 +423,14 @@ app.post('/login', async (req, res) => {
 app.get('/accounts', async (req, res) => {
   try {
     const allAccounts = await pool.query('SELECT * FROM accounts ORDER BY pk ASC');
-    
     const formattedAccounts = allAccounts.rows.map(account => {
       const imgBuffer = account.userimage;
       let imageStr = null;
-      if (imgBuffer) {
-        imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
-      }
+      if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
       return { ...account, userimage: imageStr };
     });
-
     res.json(formattedAccounts);
   } catch (err) {
-    console.error(err.message);
     res.status(500).json({ error: 'Server Error' });
   }
 });
@@ -655,10 +438,7 @@ app.get('/accounts', async (req, res) => {
 // Update Employee Account
 app.put('/accounts/:id', async (req, res) => {
   const { id } = req.params;
-  const { 
-    username, fullname, contactnumber, email, 
-    role, department, employeeid, userimage, status 
-  } = req.body;
+  const { username, fullname, contactnumber, email, role, department, employeeid, userimage, status } = req.body;
 
   try {
     let imageBuffer = null;
@@ -671,247 +451,134 @@ app.put('/accounts/:id', async (req, res) => {
 
     let query, values;
     if (imageBuffer) {
-      query = `
-        UPDATE accounts 
-        SET username = $1, fullname = $2, contactnumber = $3, 
-            email = $4, role = $5, department = $6, 
-            employeeid = $7, status = $8, userimage = $9
-        WHERE pk = $10 RETURNING *
-      `;
+      query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8, userimage=$9 WHERE pk=$10 RETURNING *`;
       values = [username, fullname, contactnumber, email, role, department, employeeid, status, imageBuffer, id];
     } else {
-      query = `
-        UPDATE accounts 
-        SET username = $1, fullname = $2, contactnumber = $3, 
-            email = $4, role = $5, department = $6, 
-            employeeid = $7, status = $8
-        WHERE pk = $9 RETURNING *
-      `;
+      query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8 WHERE pk=$9 RETURNING *`;
       values = [username, fullname, contactnumber, email, role, department, employeeid, status, id];
     }
 
     const updatedAccount = await pool.query(query, values);
-    if (updatedAccount.rows.length === 0) {
-      return res.status(404).json({ error: "Account not found" });
-    }
+    if (updatedAccount.rows.length === 0) return res.status(404).json({ error: "Account not found" });
 
-    console.log("✅ Employee Updated:", updatedAccount.rows[0].username);
     res.json({ message: "Updated successfully", user: updatedAccount.rows[0] });
-
   } catch (err) {
-    console.error("❌ Update Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 // =================================================================================
-//  PATIENT ROUTES (Updated - Patients choose their own credentials)
+//  USER / PATIENT ROUTES (Updated to use 'USER' in logs)
 // =================================================================================
 
 app.post('/patient-register', async (req, res) => {
   console.log("📥 Patient registration request received");
-  console.log("📦 Request body:", req.body);
+  const { fullname, username, password, contactnumber, email, userimage, status, datecreated } = req.body;
   
-  const { 
-    fullname, username, password, contactnumber, email,
-    userimage, status, datecreated 
-  } = req.body;
-  
-  // Server-side validation
   if (!fullname || !username || !password || !email || !contactnumber) {
     return res.status(400).json({ error: "All fields are required." });
   }
   
-  // Full Name validation: No numbers
-  const nameRegex = /^[a-zA-Z\s.'-]+$/;
-  if (!nameRegex.test(fullname)) {
-    return res.status(400).json({ error: "Full Name should contain only letters, spaces, hyphens, apostrophes, and periods." });
-  }
-  
-  // Username validation: 4-20 characters, letters, numbers, dots, underscores
-  const usernameRegex = /^[a-zA-Z0-9._]{4,20}$/;
-  if (!usernameRegex.test(username)) {
-    return res.status(400).json({ error: "Username must be 4-20 characters and can only contain letters, numbers, dots, and underscores." });
-  }
-  
-  // Password validation: 8-30 characters
-  if (password.length < 8 || password.length > 30) {
-    return res.status(400).json({ error: "Password must be 8-30 characters long." });
-  }
-  
-  // Email validation
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(email)) {
-    return res.status(400).json({ error: "Please enter a valid email address." });
-  }
-  
-  // Contact Number validation: Only numbers, 7-15 digits
-  const contactRegex = /^\d{7,15}$/;
-  const cleanContact = contactnumber.replace(/\D/g, '');
-  if (!contactRegex.test(cleanContact)) {
-    return res.status(400).json({ error: "Contact number must be 7-15 digits and contain only numbers." });
-  }
-  
   try {
-    // Hash the password before storing
     const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Safely handle userimage - if undefined or null, set to null
     let imageBuffer = null;
     if (userimage && typeof userimage === 'string' && userimage.trim() !== '') {
-      try {
-        imageBuffer = Buffer.from(userimage, 'base64');
-      } catch (imgErr) {
-        console.log("⚠️ Invalid image data, setting to null");
-        imageBuffer = null;
-      }
+      try { imageBuffer = Buffer.from(userimage, 'base64'); } catch (imgErr) { imageBuffer = null; }
     }
     
-    // Check if username already exists
-    const usernameCheck = await pool.query(
-      'SELECT pk FROM patient_account WHERE username = $1',
-      [username]
-    );
+    // Check duplicates
+    const usernameCheck = await pool.query('SELECT pk FROM patient_account WHERE username = $1', [username]);
+    if (usernameCheck.rows.length > 0) return res.status(400).json({ error: 'Username already taken.' });
     
-    if (usernameCheck.rows.length > 0) {
-      return res.status(400).json({ error: 'Username already taken. Please choose another.' });
-    }
+    const emailCheck = await pool.query('SELECT pk FROM patient_account WHERE email = $1', [email]);
+    if (emailCheck.rows.length > 0) return res.status(400).json({ error: 'Email already registered.' });
     
-    // Check if email already exists
-    const emailCheck = await pool.query(
-      'SELECT pk FROM patient_account WHERE email = $1',
-      [email]
-    );
+    let statusValue = status === 'Active' ? '1' : '0';
     
-    if (emailCheck.rows.length > 0) {
-      return res.status(400).json({ error: 'Email already registered. Please use a different email.' });
-    }
-    
-    // FIXED: Use proper PostgreSQL bit string syntax
-    // For bit varying column, we need to use the bit string literal syntax: B'1' or B'0'
-    let statusValue;
-    if (status === 'Active') {
-      statusValue = 'B\'1\''; // Binary 1 for Active
-    } else {
-      statusValue = 'B\'0\''; // Binary 0 for Disabled/Inactive
-    }
-    
-    console.log(`🔄 Status converted: "${status}" -> ${statusValue} (bit varying)`);
-    
-    // Use parameterized query with proper casting
     const query = `
       INSERT INTO patient_account 
       (username, password, fullname, contactnumber, email, userimage, status, datecreated) 
       VALUES ($1, $2, $3, $4, $5, $6, $7::bit varying, $8) 
       RETURNING *
     `;
-    
-    // For status, send '1' or '0' as string and let PostgreSQL cast it to bit varying
-    const statusForDb = status === 'Active' ? '1' : '0';
-    
-    const values = [
-      username, 
-      hashedPassword, 
-      fullname, 
-      cleanContact, 
-      email, 
-      imageBuffer, 
-      statusForDb, // Send '1' or '0' as string
-      datecreated
-    ];
-    
-    console.log("📊 Inserting patient with values:", {
-      username,
-      fullname,
-      email,
-      contactnumber: cleanContact,
-      status: statusForDb,
-      datecreated,
-      hasImage: !!imageBuffer
-    });
+    const values = [username, hashedPassword, fullname, contactnumber.replace(/\D/g, ''), email, imageBuffer, statusValue, datecreated];
     
     const newPatient = await pool.query(query, values);
+    const createdPatient = newPatient.rows[0];
     
     console.log(`✅ Patient registered: ${username}`);
+
+    // AUDIT LOG: REGISTER (Use 'USER')
+    await logAccess({
+      req,
+      accountId: createdPatient.pk,
+      accountType: 'USER', // Changed from PATIENT to USER per request
+      username: createdPatient.username,
+      role: 'user',
+      action: 'REGISTER',
+      status: 'SUCCESS'
+    });
     
     res.status(201).json({ 
       message: 'Patient registered successfully', 
       patient: { 
-        pk: newPatient.rows[0].pk, 
-        username: username,
-        email: email,
+        pk: createdPatient.pk, 
+        username: username, 
+        email: email, 
         fullname: fullname,
-        status: status // Return original status string
-      }
+        status: status 
+      } 
     });
     
   } catch (err) {
     console.error("❌ Patient registration error:", err.message);
-    console.error("❌ Full error:", err);
-    
-    // Check for duplicate key errors
-    if (err.message.includes('duplicate key')) {
-      if (err.message.includes('username')) {
-        return res.status(400).json({ error: 'Username already exists' });
-      }
-      if (err.message.includes('email')) {
-        return res.status(400).json({ error: 'Email already registered' });
-      }
-    }
-    
     res.status(500).json({ error: err.message });
   }
 });
 
-// Patient Login
+// Patient Login - WITH AUDIT
 app.post('/patient-login', async (req, res) => {
   const { username, password } = req.body;
   console.log(`🔐 Patient login attempt for username: ${username}`);
   
   try {
-    const result = await pool.query(
-      'SELECT * FROM patient_account WHERE username = $1', 
-      [username]
-    );
+    const result = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
     
     if (result.rows.length === 0) {
+      await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
       return res.status(401).json({ error: 'Patient account not found' });
     }
 
     const patient = result.rows[0];
     
-    // Check account status
     if (patient.status === 'Disabled' || patient.status === 'Inactive') {
+      await logAccess({ req, accountId: patient.pk, accountType: 'USER', username: patient.username, role: 'user', action: 'LOGIN', status: 'FAILED' });
       return res.status(403).json({ error: 'Account is disabled. Please contact support.' });
     }
 
-    // Patient passwords are bcrypt hashed now
     const passwordValid = await bcrypt.compare(password, patient.password);
 
     if (passwordValid) {
-      console.log(`✅ Patient login successful for: ${username}`);
+      await logAccess({ req, accountId: patient.pk, accountType: 'USER', username: patient.username, role: 'user', action: 'LOGIN', status: 'SUCCESS' });
       
-      // Convert image buffer to base64 if exists
       const imgBuffer = patient.userimage;
       let imageStr = null;
-      if (imgBuffer) {
-        imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
-      }
+      if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
       
       res.json({ 
         message: 'Login successful', 
         user: { 
           id: patient.pk, 
-          username: patient.username,
-          fullname: patient.fullname,
-          email: patient.email,
+          username: patient.username, 
+          fullname: patient.fullname, 
+          email: patient.email, 
           contactnumber: patient.contactnumber,
           userimage: imageStr,
           userType: 'patient'
         } 
       });
     } else {
-      console.log(`❌ Invalid password for patient: ${username}`);
+      await logAccess({ req, accountId: patient.pk, accountType: 'USER', username: patient.username, role: 'user', action: 'LOGIN', status: 'FAILED' });
       res.status(401).json({ error: 'Invalid password' });
     }
   } catch (err) {
@@ -924,7 +591,6 @@ app.post('/patient-login', async (req, res) => {
 app.get('/patients', async (req, res) => {
   try {
     const allPatients = await pool.query('SELECT * FROM patient_account ORDER BY pk ASC');
-    
     const formattedPatients = allPatients.rows.map(patient => {
       const imgBuffer = patient.userimage;
       let imageStr = null;
@@ -952,11 +618,8 @@ app.get('/patients', async (req, res) => {
         status: statusStr // Return as string
       };
     });
-
-    console.log(`📤 Sending ${formattedPatients.length} patients to frontend`);
     res.json(formattedPatients);
   } catch (err) {
-    console.error("❌ Error fetching patients:", err);
     res.status(500).json({ error: 'Server Error fetching patients' });
   }
 });
@@ -969,7 +632,6 @@ app.put('/patients/:id', async (req, res) => {
 
   try {
     let imageBuffer = null;
-    
     if (userimage && typeof userimage === 'string') {
       const base64Data = userimage.includes(',') ? userimage.split(',')[1] : userimage;
       imageBuffer = Buffer.from(base64Data, 'base64');
@@ -986,7 +648,6 @@ app.put('/patients/:id', async (req, res) => {
     }
 
     let query, values;
-
     if (imageBuffer) {
       query = `
         UPDATE patient_account 
@@ -1004,124 +665,65 @@ app.put('/patients/:id', async (req, res) => {
     }
 
     const updated = await pool.query(query, values);
-    
-    if (updated.rows.length === 0) {
-      return res.status(404).json({ error: "Patient not found" });
-    }
+    if (updated.rows.length === 0) return res.status(404).json({ error: "Patient not found" });
 
-    console.log(`✅ Patient updated: ${updated.rows[0].username}`);
     res.json({ message: "Updated successfully", patient: updated.rows[0] });
-
   } catch (err) {
-    console.error("❌ Update Error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
 
 // =================================================================================
-//  FORGOT PASSWORD ROUTES (UPDATED - No userType required) - FIXED
+//  FORGOT PASSWORD ROUTES (UPDATED)
 // =================================================================================
 
-// 1. Request Password Reset (Generate OTP) - UPDATED WITH EMAIL
+// 1. Request Password Reset
 app.post('/request-password-reset', async (req, res) => {
-  console.log("📧 Password reset request received");
-  
   const { email } = req.body;
-  
-  if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
-  }
+  if (!email) return res.status(400).json({ error: 'Email is required' });
   
   try {
     let user = null;
     let tableName = '';
     let userType = '';
     
-    // First check employee accounts
-    const employeeResult = await pool.query(
-      'SELECT pk, username, fullname, email FROM accounts WHERE email = $1',
-      [email]
-    );
-    
+    const employeeResult = await pool.query('SELECT pk, username, fullname, email FROM accounts WHERE email = $1', [email]);
     if (employeeResult.rows.length > 0) {
       user = employeeResult.rows[0];
       tableName = 'accounts';
       userType = 'employee';
-      console.log(`✅ Found employee: ${user.username}`);
     } else {
-      // If not found in employees, check patients
-      const patientResult = await pool.query(
-        'SELECT pk, username, fullname, email FROM patient_account WHERE email = $1',
-        [email]
-      );
-      
+      const patientResult = await pool.query('SELECT pk, username, fullname, email FROM patient_account WHERE email = $1', [email]);
       if (patientResult.rows.length > 0) {
         user = patientResult.rows[0];
         tableName = 'patient_account';
         userType = 'patient';
-        console.log(`✅ Found patient: ${user.username}`);
       }
     }
     
-    if (!user) {
-      console.log(`❌ Email not found: ${email}`);
-      return res.status(404).json({ error: 'Email not found in our system' });
-    }
+    if (!user) return res.status(404).json({ error: 'Email not found in our system' });
     
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiryTime = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes from now
+    const expiryTime = new Date(Date.now() + 15 * 60 * 1000); 
     
-    console.log(`🔑 Generated OTP: ${otp}`);
-    console.log(`⏰ Expires at: ${expiryTime}`);
-    
-    // Store OTP in database
     await pool.query(
-      `UPDATE ${tableName} 
-       SET reset_otp = $1, 
-           reset_otp_expiry = $2,
-           reset_requested_at = CURRENT_TIMESTAMP
-       WHERE pk = $3`,
+      `UPDATE ${tableName} SET reset_otp = $1, reset_otp_expiry = $2, reset_requested_at = CURRENT_TIMESTAMP WHERE pk = $3`,
       [otp, expiryTime, user.pk]
     );
     
-    console.log(`💾 OTP stored in database for ${email}`);
-    
-    // FIXED: Better email sending logic
     let emailSent = false;
     if (process.env.SENDGRID_API_KEY) {
-      try {
-        emailSent = await sendPasswordResetEmail(
-          email, 
-          otp, 
-          userType, 
-          user.username
-        );
-        
-        if (emailSent) {
-          console.log(`📧 Email sent successfully to ${email}`);
-        } else {
-          console.log(`⚠️  Email failed to send for ${email}`);
-        }
-      } catch (emailError) {
-        console.error(`❌ Email sending error:`, emailError.message);
-        emailSent = false;
-      }
-    } else {
-      console.log(`⚠️  SendGrid not configured. OTP for ${email}: ${otp}`);
-      emailSent = false;
+      emailSent = await sendPasswordResetEmail(email, otp, userType, user.username);
     }
     
     res.json({
       message: emailSent ? 'OTP sent to your email' : 'OTP generated (check logs for OTP)',
       userId: user.pk,
       email: user.email,
-      userType: userType,
-      otp: otp // Keep for development/testing
+      otp: otp 
     });
     
   } catch (err) {
-    console.error("❌ Password reset request error:", err.message);
     res.status(500).json({ error: 'Failed to process reset request' });
   }
 });
@@ -1150,17 +752,14 @@ app.post('/verify-otp', async (req, res) => {
       [email]
     );
     
+    const employeeResult = await pool.query('SELECT pk, username, reset_otp, reset_otp_expiry FROM accounts WHERE email = $1', [email]);
     if (employeeResult.rows.length > 0) {
       user = employeeResult.rows[0];
       tableName = 'accounts';
       userType = 'employee';
       console.log(`✅ Found in accounts table:`, user);
     } else {
-      const patientResult = await pool.query(
-        'SELECT pk, username, reset_otp, reset_otp_expiry FROM patient_account WHERE email = $1',
-        [email]
-      );
-      
+      const patientResult = await pool.query('SELECT pk, username, reset_otp, reset_otp_expiry FROM patient_account WHERE email = $1', [email]);
       if (patientResult.rows.length > 0) {
         user = patientResult.rows[0];
         tableName = 'patient_account';
@@ -1231,238 +830,149 @@ app.post('/verify-otp', async (req, res) => {
   }
 });
 
-// 3. Reset Password with OTP - UPDATED (with debug logs)
+// 3. Reset Password with OTP
 app.post('/reset-password', async (req, res) => {
-  console.log("🔄 Password reset request");
-  console.log("📦 Request body:", req.body);
-  
-  const { email, otp, newPassword } = req.body; // No userType needed
-  
-  if (!email || !otp || !newPassword) {
-    console.log("❌ Missing fields");
-    return res.status(400).json({ error: 'All fields are required' });
-  }
-  
-  // Password validation
-  if (newPassword.length < 8 || newPassword.length > 30) {
-    console.log("❌ Password validation failed");
-    return res.status(400).json({ error: 'Password must be 8-30 characters' });
-  }
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) return res.status(400).json({ error: 'All fields are required' });
+  if (newPassword.length < 8 || newPassword.length > 30) return res.status(400).json({ error: 'Password must be 8-30 characters' });
   
   try {
     let user = null;
     let tableName = '';
     
-    console.log(`🔍 Looking for user with email: ${email}`);
-    
-    // Check both tables
-    const employeeResult = await pool.query(
-      'SELECT pk, reset_otp, reset_otp_expiry FROM accounts WHERE email = $1',
-      [email]
-    );
-    
+    const employeeResult = await pool.query('SELECT pk, reset_otp, reset_otp_expiry FROM accounts WHERE email = $1', [email]);
     if (employeeResult.rows.length > 0) {
       user = employeeResult.rows[0];
       tableName = 'accounts';
-      console.log(`✅ Found in accounts table:`, user);
     } else {
-      const patientResult = await pool.query(
-        'SELECT pk, reset_otp, reset_otp_expiry FROM patient_account WHERE email = $1',
-        [email]
-      );
-      
+      const patientResult = await pool.query('SELECT pk, reset_otp, reset_otp_expiry FROM patient_account WHERE email = $1', [email]);
       if (patientResult.rows.length > 0) {
         user = patientResult.rows[0];
         tableName = 'patient_account';
-        console.log(`✅ Found in patient_account table:`, user);
       }
     }
     
-    if (!user) {
-      console.log(`❌ Email not found in any table: ${email}`);
-      return res.status(404).json({ error: 'Email not found' });
-    }
+    if (!user) return res.status(404).json({ error: 'Email not found' });
+    if (!user.reset_otp || user.reset_otp !== otp) return res.status(400).json({ error: 'Invalid OTP' });
+    if (user.reset_otp_expiry < new Date()) return res.status(400).json({ error: 'OTP has expired' });
     
-    console.log(`🔍 User found:`, user);
-    console.log(`📊 Stored OTP: ${user.reset_otp}`);
-    console.log(`📊 Provided OTP: ${otp}`);
-    console.log(`📊 OTP expiry: ${user.reset_otp_expiry}`);
-    console.log(`📊 Current time: ${new Date()}`);
-    
-    // Verify OTP is still valid
-    if (!user.reset_otp) {
-      console.log(`❌ No OTP stored for this user`);
-      return res.status(400).json({ error: 'No OTP requested for this email' });
-    }
-    
-    if (user.reset_otp !== otp) {
-      console.log(`❌ OTP mismatch: ${user.reset_otp} != ${otp}`);
-      return res.status(400).json({ error: 'Invalid OTP' });
-    }
-    
-    if (user.reset_otp_expiry < new Date()) {
-      console.log(`❌ OTP expired at ${user.reset_otp_expiry}, current time is ${new Date()}`);
-      // Clear expired OTP
-      await pool.query(
-        `UPDATE ${tableName} SET reset_otp = NULL, reset_otp_expiry = NULL WHERE pk = $1`,
-        [user.pk]
-      );
-      return res.status(400).json({ error: 'OTP has expired' });
-    }
-    
-    console.log(`✅ OTP verified successfully`);
-    
-    // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     
-    // Update password and clear OTP
-    console.log(`🔄 Updating password for user ID: ${user.pk}`);
     await pool.query(
-      `UPDATE ${tableName} 
-       SET password = $1, 
-           reset_otp = NULL, 
-           reset_otp_expiry = NULL,
-           reset_requested_at = NULL
-       WHERE pk = $2`,
+      `UPDATE ${tableName} SET password = $1, reset_otp = NULL, reset_otp_expiry = NULL, reset_requested_at = NULL WHERE pk = $2`,
       [hashedPassword, user.pk]
     );
     
-    console.log(`✅ Password reset successful for ${email}`);
-    
-    res.json({
-      message: 'Password reset successfully',
-      success: true
-    });
+    res.json({ message: 'Password reset successfully', success: true });
     
   } catch (err) {
-    console.error("❌ Password reset error:", err.message);
-    console.error("❌ Full error:", err);
     res.status(500).json({ error: 'Failed to reset password' });
   }
 });
 
 // =================================================================================
-//  UNIFIED LOGIN ROUTE (Checks Both Tables) - FIXED
+//  UNIFIED LOGIN ROUTE (WITH AUDIT) - FIXED
 // =================================================================================
 app.post('/unified-login', async (req, res) => {
   const { username, password } = req.body;
   console.log(`🔐 Unified login attempt for: ${username}`);
-  console.log(`📦 Request body:`, req.body);
   
   try {
-    // 1. First check employee accounts
     let user = null;
     let userType = null;
-    
-    console.log(`🔍 Checking accounts table for username: ${username}`);
-    
-    // Check accounts table (employees) - UPDATED for lowercase columns
-    const employeeResult = await pool.query(
-      'SELECT pk, username, fullname, email, password, status, role, userimage, is_initial_login FROM accounts WHERE username = $1',
-      [username]
-    );
-    
-    console.log(`📊 Employee query result: ${employeeResult.rows.length} rows found`);
-    
+
+    // Check accounts (EMPLOYEE)
+    const employeeResult = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
     if (employeeResult.rows.length > 0) {
       user = employeeResult.rows[0];
-      userType = 'employee';
-      console.log(`✅ Found employee: ${user.username}, password column: ${user.password ? 'exists' : 'null'}`);
+      userType = 'EMPLOYEE';
     } else {
-      // Check patient_account table (patients) - UPDATED for lowercase columns
-      console.log(`🔍 Checking patient_account table for username: ${username}`);
-      const patientResult = await pool.query(
-        'SELECT pk, username, fullname, email, password, status, userimage FROM patient_account WHERE username = $1',
-        [username]
-      );
-      
-      console.log(`📊 Patient query result: ${patientResult.rows.length} rows found`);
-      
+      // Check patients (USER)
+      const patientResult = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
       if (patientResult.rows.length > 0) {
         user = patientResult.rows[0];
-        userType = 'patient';
-        console.log(`✅ Found patient: ${user.username}, password column: ${user.password ? 'exists' : 'null'}`);
+        userType = 'USER'; // Log as USER instead of PATIENT
       }
     }
     
     if (!user) {
-      console.log(`❌ User not found in any table: ${username}`);
+      await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
       return res.status(401).json({ error: 'Account not found' });
     }
     
-    // Check account status
-    console.log(`📊 User status: ${user.status}`);
     if (user.status === 'Disabled' || user.status === 'Inactive') {
-      return res.status(403).json({ 
-        error: 'Account is disabled. Please contact support.' 
-      });
+      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+      return res.status(403).json({ error: 'Account is disabled. Please contact support.' });
     }
     
-    // Verify password (both use bcrypt now)
     let passwordValid = false;
-    
-    console.log(`🔍 Password verification for ${userType}`);
-    console.log(`📊 Stored password (first 10 chars): ${user.password ? user.password.substring(0, 10) + '...' : 'NULL'}`);
-    
     if (user.password && user.password.startsWith('$2')) {
-      // Bcrypt hash (new users - both employees and patients)
-      console.log(`🔄 Using bcrypt comparison`);
       passwordValid = await bcrypt.compare(password, user.password);
     } else {
-      // Plain text (old employee users - backward compatibility)
-      console.log(`🔄 Using plain text comparison`);
       passwordValid = (user.password === password);
     }
     
-    console.log(`📊 Password valid: ${passwordValid}`);
-    
     if (passwordValid) {
-      console.log(`✅ ${userType} login successful for: ${username}`);
-      
-      // Prepare user response
+      // SUCCESS LOG
+      await logAccess({ 
+        req, 
+        accountId: user.pk, 
+        accountType: userType, 
+        username: user.username, 
+        role: user.role || 'user', 
+        action: 'LOGIN', 
+        status: 'SUCCESS' 
+      });
+
       const userResponse = {
         id: user.pk,
         username: user.username,
-        fullname: user.fullname, // Return as fullName for frontend consistency
+        fullname: user.fullname,
         email: user.email,
-        userType: userType,
+        userType: userType.toLowerCase() === 'user' ? 'patient' : 'employee', // Keep frontend response as 'patient' if needed
         status: user.status
       };
       
-      // Add role for employees
-      if (userType === 'employee') {
+      const imgBuffer = user.userimage;
+      if (imgBuffer) userResponse.userImage = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+
+      if (userType === 'EMPLOYEE') {
         userResponse.role = user.role;
         userResponse.isInitialLogin = user.is_initial_login || false;
-        
-        // Convert image for employees
-        const imgBuffer = user.userimage;
-        if (imgBuffer) {
-          userResponse.userImage = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
-        }
-      } else {
-        // Convert image for patients
-        const imgBuffer = user.userimage;
-        if (imgBuffer) {
-          userResponse.userImage = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
-        }
       }
       
-      res.json({ 
-        message: 'Login successful',
-        user: userResponse
-      });
+      res.json({ message: 'Login successful', user: userResponse });
     } else {
-      console.log(`❌ Invalid password for ${userType}: ${username}`);
-      console.log(`❌ Provided password: ${password}`);
-      console.log(`❌ Stored password: ${user.password}`);
+      // FAIL LOG
+      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
       res.status(401).json({ error: 'Invalid password' });
     }
     
   } catch (err) {
     console.error("❌ Unified login error:", err.message);
-    console.error("❌ Full error stack:", err.stack);
     res.status(500).json({ error: 'Database error: ' + err.message });
   }
+});
+
+// =================================================================================
+//  LOGOUT ROUTE (NEW)
+// =================================================================================
+app.post('/logout', async (req, res) => {
+  const { userId, userType, username, role } = req.body;
+  
+  if (userId) {
+    await logAccess({
+      req, 
+      accountId: userId, 
+      accountType: userType === 'patient' ? 'USER' : (userType || 'UNKNOWN'), 
+      username: username || 'Unknown', 
+      role: role || 'Unknown', 
+      action: 'LOGOUT', 
+      status: 'SUCCESS'
+    });
+  }
+
+  res.json({ message: 'Logged out successfully' });
 });
 
 // =================================================================================
@@ -1472,57 +982,20 @@ app.post('/unified-login', async (req, res) => {
 // Update Credentials (for employees)
 app.put('/update-credentials', async (req, res) => {
   console.log("📝 Update credentials request received");
-
   const { userId, newUsername, newPassword } = req.body;
 
   try {
-    // 1. Check if new username already exists (excluding current user)
-    const usernameCheck = await pool.query(
-      'SELECT pk FROM accounts WHERE username = $1 AND pk != $2',
-      [newUsername, userId]
-    );
+    const usernameCheck = await pool.query('SELECT pk FROM accounts WHERE username = $1 AND pk != $2', [newUsername, userId]);
+    if (usernameCheck.rows.length > 0) return res.status(400).json({ error: 'Username already exists' });
 
-    if (usernameCheck.rows.length > 0) {
-      return res.status(400).json({ error: 'Username already exists' });
-    }
-
-    // 2. Hash the new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const updateQuery = `UPDATE accounts SET username = $1, password = $2, is_initial_login = FALSE WHERE pk = $3 RETURNING pk, username, fullname, role, is_initial_login`;
 
-    // 3. Update user credentials and set is_initial_login to false
-    const updateQuery = `
-      UPDATE accounts 
-      SET username = $1, password = $2, is_initial_login = FALSE 
-      WHERE pk = $3 
-      RETURNING pk, username, fullname, role, is_initial_login
-    `;
+    const updatedUser = await pool.query(updateQuery, [newUsername, hashedPassword, userId]);
+    if (updatedUser.rows.length === 0) return res.status(404).json({ error: 'User not found' });
 
-    const updatedUser = await pool.query(updateQuery, [
-      newUsername, 
-      hashedPassword, 
-      userId
-    ]);
-
-    if (updatedUser.rows.length === 0) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    console.log(`✅ Credentials updated for user ID: ${userId}`);
-    console.log(`   New username: ${newUsername}`);
-
-    res.json({ 
-      message: 'Credentials updated successfully', 
-      user: {
-        pk: updatedUser.rows[0].pk,
-        username: updatedUser.rows[0].username,
-        fullname: updatedUser.rows[0].fullname, // Return as fullName for frontend
-        role: updatedUser.rows[0].role,
-        isInitialLogin: updatedUser.rows[0].is_initial_login || false
-      }
-    });
-
+    res.json({ message: 'Credentials updated successfully', user: updatedUser.rows[0] });
   } catch (err) {
-    console.error("❌ Update credentials error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1565,7 +1038,7 @@ app.get('/', (req, res) => {
 });
 
 // =================================================================================
-//  TEST ENDPOINT (FOR DEBUGGING)
+//  AVAILABILITY & APPOINTMENTS ROUTES (Existing)
 // =================================================================================
 
 app.post('/test-simple-reset', async (req, res) => {
@@ -1857,7 +1330,6 @@ app.post('/api/time-slots/:day', async (req, res) => {
         [day.toLowerCase(), startTime, endTime, slot.capacity || 1]
       );
     }
-    
     await pool.query('COMMIT');
     
     // Fetch and return updated slots
@@ -1876,7 +1348,6 @@ app.post('/api/time-slots/:day', async (req, res) => {
     
   } catch (err) {
     await pool.query('ROLLBACK');
-    console.error("❌ Save time slots error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1904,7 +1375,6 @@ function convertToTimeFormat(timeStr) {
 // DELETE time slot (soft delete)
 app.delete('/api/time-slots/:slotId', async (req, res) => {
   const { slotId } = req.params;
-  
   try {
     const result = await pool.query(
       `UPDATE time_slots 
@@ -1923,7 +1393,6 @@ app.delete('/api/time-slots/:slotId', async (req, res) => {
       slot: result.rows[0]
     });
   } catch (err) {
-    console.error("❌ Delete time slot error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2012,7 +1481,6 @@ app.post('/api/appointments', async (req, res) => {
       await pool.query('ROLLBACK');
       return res.status(400).json({ error: 'Time slot not found or inactive' });
     }
-
     const slot = slotResult.rows[0];
     const capacity = slot.capacity;
 
@@ -2031,12 +1499,7 @@ app.post('/api/appointments', async (req, res) => {
     // 3. Check if there's available capacity
     if (currentBookings >= capacity) {
       await pool.query('ROLLBACK');
-      return res.status(400).json({ 
-        error: 'Time slot is fully booked',
-        capacity,
-        currentBookings,
-        availableSlots: 0
-      });
+      return res.status(400).json({ error: 'Time slot is fully booked' });
     }
 
     // 4. Create the appointment with reason_for_visit
@@ -2077,7 +1540,6 @@ app.post('/api/appointments', async (req, res) => {
 
   } catch (err) {
     await pool.query('ROLLBACK');
-    console.error("❌ Create appointment error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2115,20 +1577,10 @@ app.put('/api/appointments/:id/cancel', async (req, res) => {
 // GET appointments for a specific date
 app.get('/api/appointments/date/:date', async (req, res) => {
   const { date } = req.params;
-  
   try {
-    const appointments = await pool.query(
-      `SELECT * FROM appointments 
-       WHERE appointment_date = $1 
-       ORDER BY time_slot_display`,
-      [date]
-    );
-    
-    res.json({ 
-      appointments: appointments.rows 
-    });
+    const appointments = await pool.query(`SELECT * FROM appointments WHERE appointment_date = $1 ORDER BY time_slot_display`, [date]);
+    res.json({ appointments: appointments.rows });
   } catch (err) {
-    console.error("❌ Get appointments by date error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -2150,7 +1602,6 @@ app.get('/api/appointments', async (req, res) => {
     
     res.json({ appointments: appointments.rows });
   } catch (err) {
-    console.error("❌ Get appointments error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
