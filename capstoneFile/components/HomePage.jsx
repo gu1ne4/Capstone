@@ -15,26 +15,18 @@ export default function HomePage() {
   const route = useRoute();
   const isActive = route.name === 'Accounts';
 
-  // ==========================================
-  //  LOGGED IN USER STATE
-  // ==========================================
   const [currentUser, setCurrentUser] = useState({
     fullName: 'Loading...',
     role: '',
     userImage: null
   });
 
-  // ==========================================
-  //  BACKEND STATE & API CONFIGURATION
-  // ==========================================
+
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   
   const API_URL = 'http://localhost:3000';
 
-  // ==========================================
-  //  UI STATE
-  // ==========================================
   const [searchVisible, setSearchVisible] = useState(false);
   const [filterVisible, setFilterVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -542,7 +534,6 @@ export default function HomePage() {
 
           <Text style={{ color: 'rgba(255, 255, 255, 0.83)', fontSize: 11, fontStyle: 'italic', marginLeft: 5, marginTop: 20 }}>Overview</Text>
 
-          {/* NAVIGATION MENU */}
           <View style={[homeStyle.glassContainer, {}]}>
             <View style={{marginTop: 8}} >
               <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Home')}}>
@@ -552,7 +543,6 @@ export default function HomePage() {
             </View> 
 
             <View>
-              {/* Parent Button */}
               <View style={[isActive ? homeStyle.selectedGlass : null]}> 
                 <TouchableOpacity 
                   style={homeStyle.navBtn} 
@@ -569,7 +559,6 @@ export default function HomePage() {
                 </TouchableOpacity>
               </View>
 
-              {/* Dropdown Subcategories */}
               {showAccountDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
                   <View style={[isActive ? homeStyle.subSelectedGlass : null, {width: '100%'}]}>
@@ -590,7 +579,6 @@ export default function HomePage() {
             </View>
 
             <View>
-              {/* Parent Button */}
               <TouchableOpacity 
                 style={homeStyle.navBtn} 
                 onPress={() => setShowAppointmentsDropdown(!showAppointmentsDropdown)}
@@ -605,7 +593,6 @@ export default function HomePage() {
                 />
               </TouchableOpacity>
 
-              {/* Dropdown Subcategories */}
               {showAppointmentsDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
                   <View>
@@ -645,7 +632,10 @@ export default function HomePage() {
                 <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Settings</Text>
               </TouchableOpacity>
             </View>
+
           </View>
+
+          
 
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View style={[homeStyle.glassContainer, {paddingTop: 12, paddingBottom: 3}]}>
@@ -734,10 +724,11 @@ export default function HomePage() {
 
                   <Picker selectedValue={department} style={[homeStyle.pickerStyle, { marginLeft: 10, width: 150 }]} onValueChange={(val) => {setDepartment(val); setPage(0);}}>
                     <Picker.Item label="Department" value="defaultDept" color="#a8a8a8" />
-                    <Picker.Item label="Human Resources" value="Human Resources" />
-                    <Picker.Item label="Marketing" value="Marketing" />
-                    <Picker.Item label="Sales" value="Sales" />
-                    <Picker.Item label="IT" value="IT" />
+                    <Picker.Item label="General Practice" value="General Practice" />
+                    <Picker.Item label="Surgery" value="Surgery" />
+                    <Picker.Item label="Internal Medicine" value="Internal Medicine" />
+                    <Picker.Item label="Dentistry " value="Dentistry" />
+                    <Picker.Item label="Administrative Services " value="Administrative Services" />
                   </Picker>
 
                   <TouchableOpacity
@@ -988,10 +979,11 @@ export default function HomePage() {
                 <View>
                   <Text style={homeStyle.labelStyle}>Department</Text>
                   <Picker selectedValue={newDept} onValueChange={setNewDept} style={homeStyle.createPickerStyle}>
-                    <Picker.Item label="Marketing" value="Marketing" />
-                    <Picker.Item label="Sales" value="Sales" />
-                    <Picker.Item label="IT" value="IT" />
-                    <Picker.Item label="Human Resources" value="Human Resources" />
+                    <Picker.Item label="General Practice" value="General Practice" />
+                    <Picker.Item label="Surgery" value="Surgery" />
+                    <Picker.Item label="Internal Medicine" value="Internal Medicine" />
+                    <Picker.Item label="Dentistry " value="Dentistry" />
+                    <Picker.Item label="Administrative Services " value="Administrative Services" />
                   </Picker>
                 </View>
 
@@ -1153,10 +1145,11 @@ export default function HomePage() {
 
                 <Text style={homeStyle.labelStyle}>Department</Text>
                 <Picker style={homeStyle.createPickerStyle} selectedValue={newDept} onValueChange={setNewDept}>
-                  <Picker.Item label="Marketing" value="Marketing" />
-                  <Picker.Item label="Sales" value="Sales" />
-                  <Picker.Item label="IT" value="IT" />
-                  <Picker.Item label="Human Resources" value="Human Resources" />
+                  <Picker.Item label="General Practice" value="General Practice" />
+                    <Picker.Item label="Surgery" value="Surgery" />
+                    <Picker.Item label="Internal Medicine" value="Internal Medicine" />
+                    <Picker.Item label="Dentistry " value="Dentistry" />
+                    <Picker.Item label="Administrative Services " value="Administrative Services" />
                 </Picker>
 
                 <View style={{marginBottom: 18}}>

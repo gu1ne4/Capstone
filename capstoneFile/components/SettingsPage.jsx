@@ -24,8 +24,6 @@ export default function SettingsPage() {
 
   return (
       <View style={homeStyle.biContainer}>
-
-      {/* NAVBAR */}
         
       <View style={homeStyle.navbarContainer}>
         <LinearGradient
@@ -34,7 +32,7 @@ export default function SettingsPage() {
           end={{ x: 1, y: 1 }}
           style={homeStyle.navBody}
         >
-          {/* LOGO AND BRAND NAME */}
+
           <View style={[homeStyle.navTitle, {gap: 10}]}>
             <Image 
               source={require('../assets/AgsikapLogo-Temp.png')} 
@@ -43,8 +41,6 @@ export default function SettingsPage() {
             />
             <Text style={[homeStyle.brandFont]}>Agsikap</Text>
           </View>
-
-          {/* ACCOUNT LOGGED IN */}
 
           <View style={[homeStyle.glassContainer, {paddingLeft: 8}]}>
             <View style={[homeStyle.navAccount, {gap: 8}]}>
@@ -71,7 +67,6 @@ export default function SettingsPage() {
             </View>
 
             <View>
-              {/* Parent Button */}
               <TouchableOpacity 
                 style={homeStyle.navBtn} 
                 onPress={() => setShowAccountDropdown(!showAccountDropdown)}
@@ -86,7 +81,6 @@ export default function SettingsPage() {
                 />
               </TouchableOpacity>
 
-              {/* Dropdown Subcategories */}
                 {showAccountDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
                     <View>
@@ -107,7 +101,6 @@ export default function SettingsPage() {
             </View>
 
             <View>
-              {/* Parent Button */}
               <TouchableOpacity 
                 style={homeStyle.navBtn} 
                 onPress={() => setShowAppointmentsDropdown(!showAppointmentsDropdown)}
@@ -122,7 +115,6 @@ export default function SettingsPage() {
                 />
               </TouchableOpacity>
 
-              {/* Dropdown Subcategories */}
                 {showAppointmentsDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
                     <View>
@@ -191,7 +183,6 @@ export default function SettingsPage() {
           </View>
         </View>
 
-        {/* TABLE CONTAINER */}
 
         <View style={homeStyle.tableContainer}>
           

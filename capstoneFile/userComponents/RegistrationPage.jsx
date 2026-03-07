@@ -279,7 +279,19 @@ export default function RegistrationPage() {
         setTouched({});
         
       } else {
-        Alert.alert("Registration Failed", data.error || "Registration failed. Please try again.");
+        // ============================================================
+        //  UNIQUE EMAIL / DUPLICATE HANDLING
+        // ============================================================
+        // If backend returns a duplicate email error, show specific message
+        let errorMessage = data.error || "Registration failed. Please try again.";
+
+        if (errorMessage.toLowerCase().includes('email')) {
+          errorMessage = "This email is already in use.";
+        } else if (errorMessage.toLowerCase().includes('username')) {
+          errorMessage = "This username is already taken.";
+        }
+
+        alert("Email is Already in Use", errorMessage);
       }
     } catch (err) {
       console.error('Fetch error:', err);
@@ -374,6 +386,7 @@ export default function RegistrationPage() {
             </View>
           </View>
 
+
           {/* Email */}
           <View style={styles.inputGroup}>
             <Ionicons name="mail-outline" size={20} color="#888" style={styles.inputIcon} />
@@ -408,7 +421,6 @@ export default function RegistrationPage() {
             </View>
           </View>
 
-          {/* Contact Number */}
           <View style={styles.inputGroup}>
             <Ionicons name="call-outline" size={20} color="#888" style={styles.inputIcon} />
             <TextInput
@@ -417,13 +429,30 @@ export default function RegistrationPage() {
                 getFieldStatus('contactNumber') === 'invalid' && styles.inputError,
                 getFieldStatus('contactNumber') === 'valid' && styles.inputValid
               ]}
-              placeholder="Contact (7-15 digits) *"
+              placeholder="0917-123-4567"
               placeholderTextColor="#aaa"
               keyboardType="phone-pad"
               value={contactNumber}
-              onChangeText={(text) => handleFieldChange('contactNumber', text)}
+              onChangeText={(text) => {
+                // 1. Remove non-numeric characters
+                let cleaned = text.replace(/\D/g, '');
+
+                // 2. Limit to 11 digits (if user pastes a long string)
+                if (cleaned.length > 11) cleaned = cleaned.substring(0, 11);
+
+                // 3. Apply Format: XXXX-XXX-XXXX
+                let formatted = cleaned;
+                if (cleaned.length > 4) {
+                  formatted = `${cleaned.slice(0, 4)}-${cleaned.slice(4)}`;
+                }
+                if (cleaned.length > 7) {
+                  formatted = `${cleaned.slice(0, 4)}-${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
+                }
+                
+                handleFieldChange('contactNumber', formatted);
+              }}
               onBlur={() => handleBlur('contactNumber')}
-              maxLength={15}
+              maxLength={13} 
             />
             <View style={styles.fieldFeedbackContainer}>
               <View style={styles.errorContainer}>
@@ -436,13 +465,12 @@ export default function RegistrationPage() {
                 getFieldStatus('contactNumber') === 'invalid' && styles.charCountError,
                 getFieldStatus('contactNumber') === 'valid' && styles.charCountValid
               ]}>
-                {contactNumber.length}/15
+                {contactNumber.replace(/\D/g, '').length}/11
               </Text>
             </View>
-
-            
           </View>
 
+          
           {/* Username */}
           <View style={styles.inputGroup}>
             <Ionicons name="at-outline" size={20} color="#888" style={styles.inputIcon} />
@@ -541,7 +569,6 @@ export default function RegistrationPage() {
               </Text>
             </View>
           </View>
-
 
           {/* Information Text */}
           <View style={{ marginTop: 10, marginBottom: 20 }}>

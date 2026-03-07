@@ -4,7 +4,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { NavigationContainer } from '@react-navigation/native';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 
-// --- EXISTING IMPORTS ---
 import HomePage from './components/HomePage';
 import LoginPage from './components/LoginPage';
 import DashboardPage from './components/DashboardPage';
@@ -25,6 +24,10 @@ import EmpAccessHomepage from './components/EmployeeInterface/EmpAccessHomepage'
 import UserHomePage from './components/UserInterface/UserHomePage';
 import UpdateAccPage from './components/UpdateAccPage';
 import ForgetPassPage from './components/ForgetPassPage';
+import doctorHome from './components/DoctorInterface/doctorHome';
+import DoctorSchedule from './components/DoctorInterface/DoctorSchedule';
+import DoctorAvailability from './components/DoctorInterface/DoctorAvailability';
+import DoctorHistory from './components/DoctorInterface/DoctorHistory';
 
 
 export default function App() {
@@ -42,8 +45,8 @@ export default function App() {
   return (
     <PaperProvider theme={theme}>
       <NavigationContainer>
-        {/* Set initialRouteName to 'Login' so the first-time logic we just fixed can run */}
-        <CScreen.Navigator initialRouteName='UserHome'>
+
+        <CScreen.Navigator initialRouteName='DoctorHomePage'>
           <CScreen.Screen name="Home" component={DashboardPage} options={{headerShown: false}} />
           <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
           <CScreen.Screen name="Accounts" component={HomePage} options={{headerShown: false}} />
@@ -61,13 +64,17 @@ export default function App() {
           <CScreen.Screen name="Schedule" component={Schedule} options={{headerShown: false}} />
           <CScreen.Screen name="History" component={History} options={{headerShown: false}} />
           
-          {/* New Interfaces */}
           <CScreen.Screen name="UpdateAcc" component={UpdateAccPage} options={{headerShown: false}} />
           <CScreen.Screen name="EmpAccessHomepage" component={EmpAccessHomepage} options={{headerShown: false}} />
           <CScreen.Screen name="UserHomePage" component={UserHomePage} options={{headerShown: false}} />
  
         <CScreen.Screen name="ForgetPass" component={ForgetPassPage} options={{ headerShown: false }} />
-        
+
+        {/* Doctor Screens */}
+        <CScreen.Screen name="DoctorHomePage" component={doctorHome} options={{headerShown: false}} />
+        <CScreen.Screen name="DoctorSchedule" component={DoctorSchedule} options={{headerShown: false}} />
+        <CScreen.Screen name="DoctorHistory" component={DoctorHistory} options={{headerShown: false}} />
+        <CScreen.Screen name="DoctorAvailability" component={DoctorAvailability} options={{headerShown: false}} />
 
         </CScreen.Navigator>
       </NavigationContainer>
