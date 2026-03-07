@@ -1,14 +1,14 @@
 import { View, Text, TouchableOpacity, Image, TextInput, Modal, Switch, ScrollView, Alert } from 'react-native';
 import React, { useState, useEffect } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import homeStyle from '../styles/HomeStyle';
+import homeStyle from '../../styles/HomeStyle';
 
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { DataTable } from 'react-native-paper';
 import { Calendar } from 'react-native-calendars';
-import apStyle from '../styles/AppointmentStyles';
-import { availabilityService } from './availabilityService';
+import apStyle from '../../styles/AppointmentStyles';
+import { availabilityService } from '../../AppointmentModule/availabilityService';
 
 const TimeSelector = ({ label, value, onChange }) => {
   // Parse the initial value
@@ -186,10 +186,10 @@ const TimeSelector = ({ label, value, onChange }) => {
   );
 };
 
-export default function AvailSettings() {
+export default function DoctorAvailability() {
   const ns = useNavigation();
   const route = useRoute();
-  const isActive = route.name === 'AvailSettings';
+  const isActive = route.name === 'DoctorAvailability';
 
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [showAppointmentsDropdown, setShowAppointmentsDropdown] = useState(false);
@@ -668,29 +668,28 @@ const saveTimeSlotsToDatabase = async () => {
 
   return (
     <View style={homeStyle.biContainer}>
-      {/* NAVBAR */}
+
       <View style={homeStyle.navbarContainer}>
         <LinearGradient
-          colors={['#3d67ee', '#0738D9', '#041E76']}
+          colors={['#3db6ee', '#3d67ee', '#0738D9', '#0f3bca']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={homeStyle.navBody}
         >
-          {/* LOGO AND BRAND NAME */}
+
           <View style={[homeStyle.navTitle, {gap: 10}]}>
             <Image 
-              source={require('../assets/AgsikapLogo-Temp.png')} 
+              source={require('../../assets/AgsikapLogo-Temp.png')} 
               style={{width: 25, height: 25, marginTop: 1}} 
               resizeMode="contain"
             />
-            <Text style={[homeStyle.brandFont]}>Agsikap</Text>
+            <Text style={[homeStyle.brandFont]}>PawRang</Text>
           </View>
 
-          {/* ACCOUNT LOGGED IN */}
           <View style={[homeStyle.glassContainer, {paddingLeft: 8}]}>
             <View style={[homeStyle.navAccount, {gap: 8}]}>
               <Image 
-                source={require('../assets/userImg.jpg')} 
+                source={require('../../assets/userImg.jpg')} 
                 style={{ width: 35, height: 35, borderRadius: 25, marginTop: 2 }}
               />
               <View>
@@ -703,114 +702,91 @@ const saveTimeSlotsToDatabase = async () => {
           <Text style={{ color: 'rgba(255, 255, 255, 0.83)', fontSize: 11, fontStyle: 'italic', marginLeft: 5, marginTop: 20 }}>Overview</Text>
 
           {/* NAVIGATION MENU */}
-          <View style={[homeStyle.glassContainer]} >
-            <View style={{marginTop: 8}}>
-              <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Home')}}>
+          <View style={[homeStyle.glassContainer]}>
+            <View>
+              <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('DoctorHomePage')}}>
                 <Ionicons name="home-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
                 <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Home</Text>
               </TouchableOpacity>
             </View>
 
+
             <View>
-              <TouchableOpacity 
+              <View style={[isActive ? homeStyle.selectedGlass : null]}>
+                <TouchableOpacity 
                 style={homeStyle.navBtn} 
-                onPress={() => setShowAccountDropdown(!showAccountDropdown)}
+                onPress={() => setShowAppointmentsDropdown(!showAppointmentsDropdown)}
               >
-                <Ionicons name={"people-outline"} size={15} color={"#fffefe"} style={{marginTop: 2}}/>
-                <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Account Overview</Text>
+                <Ionicons name={"calendar-clear-outline"} size={15} color={"#fffefe"} style={{marginTop: 2}}/>
+                <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Appointments</Text>
                 <Ionicons 
-                  name={showAccountDropdown ? "chevron-up-outline" : "chevron-down-outline"} 
+                  name={showAppointmentsDropdown ? "chevron-up-outline" : "chevron-down-outline"} 
                   size={14} 
                   color={"#fffefe"} 
                   style={{marginLeft: 5, marginTop: 2}} 
                 />
               </TouchableOpacity>
-
-              {showAccountDropdown && (
-                <View style={{ marginLeft: 25, marginTop: 5 }}>
-                  <View>
-                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Accounts')}}>
-                      <Ionicons name="person-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
-                      <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Employees</Text>
-                    </TouchableOpacity>
-                  </View>
-
-                  <View>
-                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('UserAccounts')}}>
-                      <Ionicons name="medkit-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
-                      <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Users / Patients</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-            </View>
-
-            <View>
-              <View style={[isActive ? homeStyle.selectedGlass : null]}>
-                <TouchableOpacity 
-                  style={homeStyle.navBtn} 
-                  onPress={() => setShowAppointmentsDropdown(!showAppointmentsDropdown)}
-                >
-                  <Ionicons name={"calendar-clear-outline"} size={15} color={"#fffefe"} style={{marginTop: 2}}/>
-                  <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Appointments</Text>
-                  <Ionicons 
-                    name={showAppointmentsDropdown ? "chevron-up-outline" : "chevron-down-outline"} 
-                    size={14} 
-                    color={"#fffefe"} 
-                    style={{marginLeft: 5, marginTop: 2}} 
-                  />
-                </TouchableOpacity>
               </View>
 
-              {showAppointmentsDropdown && (
+                {showAppointmentsDropdown && (
                 <View style={{ marginLeft: 25, marginTop: 5 }}>
-                  <View>
-                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Schedule')}}>
-                      <Ionicons name="calendar-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
-                      <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Schedule</Text>
+                    <View >
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('DoctorSchedule')}}>
+                        <Ionicons name="calendar-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Schedule</Text>
                     </TouchableOpacity>
-                  </View>
+                    </View>
 
-                  <View style={[isActive ? homeStyle.subSelectedGlass : null, {width: '100%'}]}>
-                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('AvailSettings')}}>
-                      <Ionicons name="today-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
-                      <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Availability</Text>
+                    <View style={[isActive ? homeStyle.subSelectedGlass : null, {width: '100%'}]}>
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('DoctorAvailability')}}>
+                        <Ionicons name="today-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>Availability</Text>
                     </TouchableOpacity>
-                  </View>
+                    </View>
 
-                  <View>
-                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('History')}}>
-                      <Ionicons name="time-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
-                      <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>History</Text>
+                    <View >
+                    <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('DoctorHistory')}}>
+                        <Ionicons name="time-outline" size={14} color={"#fffefe"} style={{marginTop: 2}}/>
+                        <Text style={[homeStyle.navFont, {fontWeight: '400', fontSize: 12}]}>History</Text>
                     </TouchableOpacity>
-                  </View>
+                    </View>
                 </View>
-              )}
+                )}
             </View>
 
-            <View>
-              <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Audit')}}>
-                <Ionicons name="document-text-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
-                <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>System Audit</Text>
+            <View> 
+              <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate()}}>
+                <Ionicons name="file-tray-full-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
+                <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Patient Records</Text>
               </TouchableOpacity>
             </View>
 
-            <View>
+            <View> 
+              <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate()}}>
+                <Ionicons name="layers-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
+                <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Inventory</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View> 
               <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Settings')}}>
                 <Ionicons name="settings-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
                 <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Settings</Text>
               </TouchableOpacity>
             </View>
+            
           </View>
 
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-            <View style={[homeStyle.glassContainer, {paddingTop: 12, paddingBottom: 3}]}>
-              <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Login')}}>
-                <Ionicons name="log-out-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
-                <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Log Out</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={[homeStyle.glassContainer, {paddingTop: 12, paddingBottom: 3}]}>
+            <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Login')}}>
+              <Ionicons name="log-out-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
+              <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Log Out</Text>
+            </TouchableOpacity>
           </View>
+        </View>
+
+
         </LinearGradient>
       </View>
 
@@ -830,72 +806,110 @@ const saveTimeSlotsToDatabase = async () => {
         {/* TABLE CONTAINER */}
         <View style={[apStyle.tableContainer, {flexDirection: 'row'}]}>
           <View style={apStyle.sideContainer}>
-            <View style={[apStyle.whiteContainer, {padding: 10, overflow: 'hidden', flex: 2}]}>
-                                          <Calendar 
-                monthFormat={'MMMM yyyy'}
-                current={new Date().toISOString().split('T')[0]}
-                onDayPress={(day) => {
-                  console.log('selected day', day);
-                  setSelectedCalendarDate(day.dateString);
-                }}
-                markedDates={{
-                  ...bookedDates,
-                  ...(selectedCalendarDate ? {
-                    [selectedCalendarDate]: {
-                      selected: true,
-                      selectedColor: '#3d67ee',
-                      selectedTextColor: 'white'
-                    }
-                  } : {})
-                }}
-                // Custom styling for marked dates
-                theme={{
-                  'stylesheet.day.basic': {
-                    base: {
-                      width: 32,
-                      height: 32,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    },
-                    today: {
-                      backgroundColor: '#f0f7ff',
-                      borderRadius: 16,
-                    },
-                    todayText: {
-                      color: '#3d67ee',
-                      fontWeight: '600',
-                    },
-                  },
-                  // Make the dots bigger and more visible
-                  dotStyle: {
-                    width: 8,
-                    height: 8,
-                    borderRadius: 4,
-                    marginTop: 2,
-                  },
-                  // Style for the selected day
-                  selectedDayBackgroundColor: '#3d67ee',
-                  selectedDayTextColor: 'white',
-                  todayTextColor: '#3d67ee',
-                  arrowColor: '#3d67ee',
-                  monthTextColor: '#000',
-                  textMonthFontWeight: '700',
-                  textMonthFontFamily: 'Segoe UI',
-                  textMonthFontSize: 20,
-                  textDayFontFamily: 'Segoe UI',
-                  textDayFontSize: 14,
-                  textDisabledColor: '#ccc',
-                  dayTextColor: '#2d4150',
-                }}
-                style={{
-                  borderRadius: 8,
-                  padding: 10,
-                  width: '100%',  
-                  height: 200, 
-                  alignSelf: 'center'
-                }}
-              />
-            </View>
+                        <View style={[apStyle.whiteContainer, {padding: 0, flex: 2}]}>
+                        <LinearGradient
+                            colors={['#3db6ee', '#3d67ee', '#0738D9', '#0f3bca', '#3db6ee']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
+                            style={{
+                                borderRadius: 16,
+                                padding: 20,
+                                marginBottom: 0,
+                                height: '100%',
+                            }}
+                        >
+                            <Calendar 
+                                monthFormat={'MMMM yyyy'}
+                                current={new Date().toISOString().split('T')[0]}
+                                onDayPress={(day) => {
+                                    console.log('selected day', day);
+                                    setSelectedCalendarDate(day.dateString);
+                                }}
+                                markedDates={{
+                                    ...bookedDates,
+                                    ...(selectedCalendarDate ? {
+                                        [selectedCalendarDate]: {
+                                            selected: true,
+                                            selectedColor: '#ffffff',
+                                            selectedTextColor: '#3d67ee'
+                                        }
+                                    } : {})
+                                }}
+                                
+                                theme={{
+                                    calendarBackground: 'transparent',
+                                    textSectionTitleColor: 'rgba(255,255,255,0.7)',
+                                    selectedDayBackgroundColor: '#ffffff',
+                                    selectedDayTextColor: '#3d67ee',
+                                    todayTextColor: '#ffffff',
+                                    todayBackgroundColor: 'rgba(255,255,255,0.2)',
+                                    dayTextColor: '#ffffff',
+                                    textDisabledColor: 'rgba(255,255,255,0.3)',
+                                    monthTextColor: '#ffffff',
+                                    arrowColor: '#ffffff',
+                                    textDayFontFamily: 'Segoe UI',
+                                    textMonthFontFamily: 'Segoe UI',
+                                    textDayHeaderFontFamily: 'Segoe UI',
+                                    textDayFontWeight: '400',
+                                    textMonthFontWeight: '700',
+                                    textDayHeaderFontWeight: '500',
+                                    textDayFontSize: 14,
+                                    textMonthFontSize: 20,
+                                    textDayHeaderFontSize: 13,
+                                    dotStyle: {
+                                        width: 6,
+                                        height: 6,
+                                        borderRadius: 3,
+                                        backgroundColor: '#ffffff',
+                                    },
+                                    'stylesheet.calendar.header': {
+                                        week: {
+                                            marginTop: 10,
+                                            flexDirection: 'row',
+                                            justifyContent: 'space-around',
+                                        },
+                                        monthText: {
+                                            color: '#ffffff',
+                                            fontSize: 20,
+                                            fontWeight: '700',
+                                        },
+                                        arrow: {
+                                            padding: 10,
+                                        },
+                                        header: {
+                                            flexDirection: 'row',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            paddingHorizontal: 10,
+                                        },
+                                    },
+                                    'stylesheet.day.basic': {
+                                        base: {
+                                            width: 32,
+                                            height: 32,
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            borderRadius: 16,
+                                        },
+                                        today: {
+                                            backgroundColor: 'rgba(255,255,255,0.2)',
+                                            borderRadius: 16,
+                                        },
+                                        todayText: {
+                                            color: '#ffffff',
+                                            fontWeight: '600',
+                                        },
+                                    },
+                                }}
+                                style={{
+                                    borderRadius: 8,
+                                    width: '100%',
+                                    height: 250,
+                                    alignSelf: 'center',
+                                }}
+                            />
+                        </LinearGradient>
+                    </View>
             
             <View style={[apStyle.whiteContainer, {flex: 1}]}>
               <Text style={{fontFamily: 'Segoe UI', fontSize: 18, fontWeight: '700'}}>Special Dates</Text>
