@@ -236,16 +236,16 @@ export default function RegistrationPage() {
       const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
 
       // Backend expects lowercase keys mostly
-      const requestData = { 
-        fullname: fullName, 
-        username: username,
-        password: password,
-        contactnumber: contactNumber, // Sending formatted (e.g. 0912-345-6789)
-        email: email,
-        datecreated: dateCreated,  
-        userimage: null, 
-        status: 'Active' 
-      };
+        const requestData = { 
+          fullname: fullName,        // Fixed: was fullname
+          username: username,        
+          password: password,        
+          contactnumber: contactNumber, // Fixed: was contactnumber
+          email: email,              
+          datecreated: dateCreated,  
+          userimage: null, 
+          status: 'Active' 
+        };
       
       console.log('Sending to backend:', requestData);
 

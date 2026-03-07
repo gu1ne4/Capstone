@@ -468,9 +468,8 @@ app.put('/accounts/:id', async (req, res) => {
 });
 
 // =================================================================================
-//  USER / PATIENT ROUTES (Updated to use 'USER' in logs)
+//  USER / PATIENT REGISTRATION (Updated Role to 'User')
 // =================================================================================
-
 app.post('/patient-register', async (req, res) => {
   console.log("📥 Patient registration request received");
   const { fullname, username, password, contactnumber, email, userimage, status, datecreated } = req.body;
@@ -481,6 +480,8 @@ app.post('/patient-register', async (req, res) => {
   
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Handle Image
     let imageBuffer = null;
     if (userimage && typeof userimage === 'string' && userimage.trim() !== '') {
       try { imageBuffer = Buffer.from(userimage, 'base64'); } catch (imgErr) { imageBuffer = null; }
@@ -493,34 +494,43 @@ app.post('/patient-register', async (req, res) => {
     const emailCheck = await pool.query('SELECT pk FROM patient_account WHERE email = $1', [email]);
     if (emailCheck.rows.length > 0) return res.status(400).json({ error: 'Email already registered.' });
     
-    let statusValue = status === 'Active' ? '1' : '0';
-    
+    // FIXED: Role is now inserted as 'User'
     const query = `
       INSERT INTO patient_account 
-      (username, password, fullname, contactnumber, email, userimage, status, datecreated) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7::bit varying, $8) 
+      (username, password, fullname, contactnumber, email, userimage, status, datecreated, role) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'User') 
       RETURNING *
     `;
-    const values = [username, hashedPassword, fullname, contactnumber.replace(/\D/g, ''), email, imageBuffer, statusValue, datecreated];
+
+    const values = [
+      username, 
+      hashedPassword, 
+      fullname, 
+      contactnumber, 
+      email, 
+      imageBuffer, 
+      status || 'Active', 
+      datecreated
+    ];
     
     const newPatient = await pool.query(query, values);
     const createdPatient = newPatient.rows[0];
     
-    console.log(`✅ Patient registered: ${username}`);
+    console.log(`✅ User registered: ${username}`);
 
-    // AUDIT LOG: REGISTER (Use 'USER')
+    // AUDIT LOG
     await logAccess({
       req,
       accountId: createdPatient.pk,
-      accountType: 'USER', // Changed from PATIENT to USER per request
+      accountType: 'USER',
       username: createdPatient.username,
-      role: 'user',
+      role: 'User', // Log role as User
       action: 'REGISTER',
       status: 'SUCCESS'
     });
     
     res.status(201).json({ 
-      message: 'Patient registered successfully', 
+      message: 'User registered successfully', 
       patient: { 
         pk: createdPatient.pk, 
         username: username, 
@@ -531,7 +541,7 @@ app.post('/patient-register', async (req, res) => {
     });
     
   } catch (err) {
-    console.error("❌ Patient registration error:", err.message);
+    console.error("❌ Registration error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
