@@ -1,0 +1,331 @@
+[1mdiff --git a/PG Hospi.session.sql b/PG Hospi.session.sql[m
+[1mindex e69de29..61bef4f 100644[m
+[1m--- a/PG Hospi.session.sql[m	
+[1m+++ b/PG Hospi.session.sql[m	
+[36m@@ -0,0 +1 @@[m
+[32m+[m[32mSELECT * FROM patient_account[m
+\ No newline at end of file[m
+[1mdiff --git a/capstoneFile/backend/patient-account.js b/capstoneFile/backend/patient-account.js[m
+[1mindex 9734f1c..08a14ad 100644[m
+[1m--- a/capstoneFile/backend/patient-account.js[m
+[1m+++ b/capstoneFile/backend/patient-account.js[m
+[36m@@ -46,10 +46,10 @@[m [mfunction generateRandomPassword(length = 10) {[m
+   return password;[m
+ }[m
+ [m
+[31m-function generateRandomUsername(fullName) {[m
+[31m-  if (!fullName) return 'user' + Math.floor(1000 + Math.random() * 9000); [m
+[32m+[m[32mfunction generateRandomUsername(fullname) {[m
+[32m+[m[32m  if (!fullname) return 'user' + Math.floor(1000 + Math.random() * 9000);[m[41m [m
+   [m
+[31m-  const nameParts = fullName.toLowerCase().split(' ');[m
+[32m+[m[32m  const nameParts = fullname.toLowerCase().split(' ');[m
+   const firstName = nameParts[0];[m
+   const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : firstName;[m
+   const randomSuffix = Math.floor(1000 + Math.random() * 9000);[m
+[36m@@ -95,16 +95,16 @@[m [mapp.get('/patients', async (req, res) => {[m
+ [m
+ // 2. REGISTER PATIENT[m
+ app.post('/patients/register', async (req, res) => {[m
+[31m-  const { fullName, contactNumber, email, userImage, status, dateCreated } = req.body;[m
+[32m+[m[32m  const { fullname, contactnumber, email, userImage, status, datecreated } = req.body;[m
+ [m
+[31m-  if (!fullName || !email) {[m
+[32m+[m[32m  if (!fullname || !email) {[m
+       return res.status(400).json({ error: "Full Name and Email are required." });[m
+   }[m
+ [m
+   try {[m
+     // Generate Credentials[m
+     const password = generateRandomPassword(10);[m
+[31m-    const username = generateRandomUsername(fullName);[m
+[32m+[m[32m    const username = generateRandomUsername(fullname);[m
+     [m
+     // Process Image[m
+     const imageBuffer = userImage ? Buffer.from(userImage, 'base64') : null;[m
+[36m@@ -113,11 +113,11 @@[m [mapp.post('/patients/register', async (req, res) => {[m
+     // Insert into DB[m
+     const query = `[m
+       INSERT INTO patient_account [m
+[31m-      ("username", "password", "fullName", "contactNumber", "email", "userImage", "status", "dateCreated") [m
+[32m+[m[32m      ("username", "password", "fullname", "contactnumber", "email", "userImage", "status", "datecreated")[m[41m [m
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) [m
+       RETURNING *[m
+     `;[m
+[31m-    const values = [username, password, fullName, contactNumber, email, imageBuffer, patientStatus, dateCreated];[m
+[32m+[m[32m    const values = [username, password, fullname, contactnumber, email, imageBuffer, patientStatus, datecreated];[m
+ [m
+     const newPatient = await pool.query(query, values);[m
+ [m
+[36m@@ -128,7 +128,7 @@[m [mapp.post('/patients/register', async (req, res) => {[m
+       subject: 'Welcome to Agsikap - Patient Portal',[m
+       html: `[m
+         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">[m
+[31m-          <h2 style="color: #2c3e50;">Welcome, ${fullName}!</h2>[m
+[32m+[m[32m          <h2 style="color: #2c3e50;">Welcome, ${fullname}!</h2>[m
+           <p>Your patient account has been successfully created.</p>[m
+           <div style="background-color: #f8f9fa; padding: 20px; border-radius: 5px; margin: 20px 0;">[m
+             <h3 style="color: #27ae60; margin-top: 0;">Your Login Credentials:</h3>[m
+[36m@@ -158,7 +158,7 @@[m [mapp.post('/patients/register', async (req, res) => {[m
+ // 3. UPDATE PATIENT[m
+ app.put('/patients/:id', async (req, res) => {[m
+   const { id } = req.params;[m
+[31m-  const { username, fullName, contactNumber, email, userImage, status } = req.body;[m
+[32m+[m[32m  const { username, fullname, contactnumber, email, userImage, status } = req.body;[m
+ [m
+   try {[m
+     let imageBuffer = null;[m
+[36m@@ -176,18 +176,18 @@[m [mapp.put('/patients/:id', async (req, res) => {[m
+       // Update WITH image[m
+       query = `[m
+         UPDATE patient_account [m
+[31m-        SET "username"=$1, "fullName"=$2, "contactNumber"=$3, "email"=$4, "status"=$5, "userImage"=$6 [m
+[32m+[m[32m        SET "username"=$1, "fullname"=$2, "contactnumber"=$3, "email"=$4, "status"=$5, "userImage"=$6[m[41m [m
+         WHERE pk=$7 RETURNING *[m
+       `;[m
+[31m-      values = [username, fullName, contactNumber, email, status, imageBuffer, id];[m
+[32m+[m[32m      values = [username, fullname, contactnumber, email, status, imageBuffer, id];[m
+     } else {[m
+       // Update WITHOUT image (keep existing)[m
+       query = `[m
+         UPDATE patient_account [m
+[31m-        SET "username"=$1, "fullName"=$2, "contactNumber"=$3, "email"=$4, "status"=$5 [m
+[32m+[m[32m        SET "username"=$1, "fullname"=$2, "contactnumber"=$3, "email"=$4, "status"=$5[m[41m [m
+         WHERE pk=$6 RETURNING *[m
+       `;[m
+[31m-      values = [username, fullName, contactNumber, email, status, id];[m
+[32m+[m[32m      values = [username, fullname, contactnumber, email, status, id];[m
+     }[m
+ [m
+     const updated = await pool.query(query, values);[m
+[1mdiff --git a/capstoneFile/backend/server.js b/capstoneFile/backend/server.js[m
+[1mindex 4250319..2645439 100644[m
+[1m--- a/capstoneFile/backend/server.js[m
+[1m+++ b/capstoneFile/backend/server.js[m
+[36m@@ -716,7 +716,7 @@[m [mapp.post('/patient-register', async (req, res) => {[m
+     fullname, username, password, contactnumber, email,[m
+     userimage, status, datecreated [m
+   } = req.body;[m
+[31m-  [m
+[32m+[m
+   // Server-side validation[m
+   if (!fullname || !username || !password || !email || !contactnumber) {[m
+     return res.status(400).json({ error: "All fields are required." });[m
+[36m@@ -756,7 +756,6 @@[m [mapp.post('/patient-register', async (req, res) => {[m
+     // Hash the password before storing[m
+     const hashedPassword = await bcrypt.hash(password, 10);[m
+     [m
+[31m-    // Safely handle userimage - if undefined or null, set to null[m
+     let imageBuffer = null;[m
+     if (userimage && typeof userimage === 'string' && userimage.trim() !== '') {[m
+       try {[m
+[36m@@ -787,28 +786,16 @@[m [mapp.post('/patient-register', async (req, res) => {[m
+       return res.status(400).json({ error: 'Email already registered. Please use a different email.' });[m
+     }[m
+     [m
+[31m-    // FIXED: Use proper PostgreSQL bit string syntax[m
+[31m-    // For bit varying column, we need to use the bit string literal syntax: B'1' or B'0'[m
+[31m-    let statusValue;[m
+[31m-    if (status === 'Active') {[m
+[31m-      statusValue = 'B\'1\''; // Binary 1 for Active[m
+[31m-    } else {[m
+[31m-      statusValue = 'B\'0\''; // Binary 0 for Disabled/Inactive[m
+[31m-    }[m
+[31m-    [m
+[31m-    console.log(`🔄 Status converted: "${status}" -> ${statusValue} (bit varying)`);[m
+[32m+[m[32m    // SIMPLIFIED: No need for binary conversion anymore[m
+[32m+[m[32m    const patientStatus = status || 'Active';[m
+     [m
+[31m-    // Use parameterized query with proper casting[m
+     const query = `[m
+       INSERT INTO patient_account [m
+       (username, password, fullname, contactnumber, email, userimage, status, datecreated) [m
+[31m-      VALUES ($1, $2, $3, $4, $5, $6, $7::bit varying, $8) [m
+[32m+[m[32m      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)[m[41m [m
+       RETURNING *[m
+     `;[m
+     [m
+[31m-    // For status, send '1' or '0' as string and let PostgreSQL cast it to bit varying[m
+[31m-    const statusForDb = status === 'Active' ? '1' : '0';[m
+[31m-    [m
+     const values = [[m
+       username, [m
+       hashedPassword, [m
+[36m@@ -816,20 +803,10 @@[m [mapp.post('/patient-register', async (req, res) => {[m
+       cleanContact, [m
+       email, [m
+       imageBuffer, [m
+[31m-      statusForDb, // Send '1' or '0' as string[m
+[32m+[m[32m      patientStatus, // Now sending 'Active' or 'Disabled' directly[m
+       datecreated[m
+     ];[m
+[31m-    [m
+[31m-    console.log("📊 Inserting patient with values:", {[m
+[31m-      username,[m
+[31m-      fullname,[m
+[31m-      email,[m
+[31m-      contactnumber: cleanContact,[m
+[31m-      status: statusForDb,[m
+[31m-      datecreated,[m
+[31m-      hasImage: !!imageBuffer[m
+[31m-    });[m
+[31m-    [m
+[32m+[m
+     const newPatient = await pool.query(query, values);[m
+     [m
+     console.log(`✅ Patient registered: ${username}`);[m
+[36m@@ -841,20 +818,18 @@[m [mapp.post('/patient-register', async (req, res) => {[m
+         username: username,[m
+         email: email,[m
+         fullname: fullname,[m
+[31m-        status: status // Return original status string[m
+[32m+[m[32m        status: patientStatus[m
+       }[m
+     });[m
+     [m
+   } catch (err) {[m
+     console.error("❌ Patient registration error:", err.message);[m
+[31m-    console.error("❌ Full error:", err);[m
+     [m
+[31m-    // Check for duplicate key errors[m
+[31m-    if (err.message.includes('duplicate key')) {[m
+[31m-      if (err.message.includes('username')) {[m
+[32m+[m[32m    if (err.message.includes('duplicate key') || err.code === '23505') {[m
+[32m+[m[32m      if (err.message.includes('username') || err.detail?.includes('username')) {[m
+         return res.status(400).json({ error: 'Username already exists' });[m
+       }[m
+[31m-      if (err.message.includes('email')) {[m
+[32m+[m[32m      if (err.message.includes('email') || err.detail?.includes('email')) {[m
+         return res.status(400).json({ error: 'Email already registered' });[m
+       }[m
+     }[m
+[36m@@ -880,18 +855,16 @@[m [mapp.post('/patient-login', async (req, res) => {[m
+ [m
+     const patient = result.rows[0];[m
+     [m
+[31m-    // Check account status[m
+[32m+[m[32m    // SIMPLIFIED: Status is now a string[m
+     if (patient.status === 'Disabled' || patient.status === 'Inactive') {[m
+       return res.status(403).json({ error: 'Account is disabled. Please contact support.' });[m
+     }[m
+ [m
+[31m-    // Patient passwords are bcrypt hashed now[m
+     const passwordValid = await bcrypt.compare(password, patient.password);[m
+ [m
+     if (passwordValid) {[m
+       console.log(`✅ Patient login successful for: ${username}`);[m
+       [m
+[31m-      // Convert image buffer to base64 if exists[m
+       const imgBuffer = patient.userimage;[m
+       let imageStr = null;[m
+       if (imgBuffer) {[m
+[36m@@ -907,7 +880,8 @@[m [mapp.post('/patient-login', async (req, res) => {[m
+           email: patient.email,[m
+           contactnumber: patient.contactnumber,[m
+           userimage: imageStr,[m
+[31m-          userType: 'patient'[m
+[32m+[m[32m          userType: 'patient',[m
+[32m+[m[32m          status: patient.status // Already a string[m
+         } [m
+       });[m
+     } else {[m
+[36m@@ -920,18 +894,34 @@[m [mapp.post('/patient-login', async (req, res) => {[m
+   }[m
+ });[m
+ [m
+[31m-// Get All Patients[m
+[32m+[m[32m// Get All Patients - FIXED to return camelCase for frontend[m
+ app.get('/patients', async (req, res) => {[m
+   try {[m
+[31m-    const allPatients = await pool.query('SELECT * FROM patient_account ORDER BY pk ASC');[m
+[32m+[m[32m    const allPatients = await pool.query('SELECT * FROM patient_account ORDER BY "pk" ASC');[m
+     [m
+     const formattedPatients = allPatients.rows.map(patient => {[m
+[31m-      const imgBuffer = patient.userimage;[m
+[32m+[m[32m      const imgBuffer = patient.userImage;[m
+       let imageStr = null;[m
+       if (imgBuffer) {[m
+         imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;[m
+       }[m
+[31m-      return { ...patient, userimage: imageStr };[m
+[32m+[m[41m      [m
+[32m+[m[32m      // Return with field names that match what your frontend expects[m
+[32m+[m[32m      return {[m
+[32m+[m[32m        pk: patient.pk,[m
+[32m+[m[32m        id: patient.pk, // Add id as alias for pk[m
+[32m+[m[32m        username: patient.username,[m
+[32m+[m[32m        fullName: patient.fullName,  // camelCase for frontend[m
+[32m+[m[32m        fullname: patient.fullName,  // lowercase as fallback[m
+[32m+[m[32m        contactNumber: patient.contactNumber, // camelCase for frontend[m
+[32m+[m[32m        contactnumber: patient.contactNumber, // lowercase as fallback[m
+[32m+[m[32m        email: patient.email,[m
+[32m+[m[32m        userImage: imageStr, // camelCase for frontend[m
+[32m+[m[32m        userimage: imageStr, // lowercase as fallback[m
+[32m+[m[32m        status: patient.status,[m
+[32m+[m[32m        dateCreated: patient.dateCreated,[m
+[32m+[m[32m        datecreated: patient.dateCreated // lowercase as fallback[m
+[32m+[m[32m      };[m
+     });[m
+ [m
+     console.log(`📤 Sending ${formattedPatients.length} patients to frontend`);[m
+[36m@@ -942,52 +932,96 @@[m [mapp.get('/patients', async (req, res) => {[m
+   }[m
+ });[m
+ [m
+[31m-// Update Patient[m
+[32m+[m[32m// Update Patient - FIXED to accept camelCase from frontend[m
+ app.put('/patients/:id', async (req, res) => {[m
+   const { id } = req.params;[m
+[31m-  const { username, fullname, contactnumber, email, userimage, status } = req.body;[m
+[32m+[m[32m  // Accept both fullname and fullName, contactnumber and contactNumber[m
+[32m+[m[32m  const { username, fullName, fullname, contactNumber, contactnumber, email, userimage, status } = req.body;[m
+[32m+[m[41m  [m
+[32m+[m[32m  console.log("=".repeat(50));[m
+[32m+[m[32m  console.log("📝 PATIENT UPDATE REQUEST RECEIVED");[m
+[32m+[m[32m  console.log(`🆔 Patient ID: ${id}`);[m
+[32m+[m[32m  console.log("📦 Request body:", JSON.stringify(req.body, null, 2));[m
+[32m+[m[32m  console.log("=".repeat(50));[m
+[32m+[m
+[32m+[m[32m  // Use the value that exists (prioritize camelCase from frontend)[m
+[32m+[m[32m  const finalFullName = fullName || fullname;[m
+[32m+[m[32m  const finalContactNumber = contactNumber || contactnumber;[m
+[32m+[m
+[32m+[m[32m  console.log(`📊 Using fullName: "${finalFullName}"`);[m
+[32m+[m[32m  console.log(`📊 Using contactNumber: "${finalContactNumber}"`);[m
+ [m
+   try {[m
+     let imageBuffer = null;[m
+     [m
+     if (userimage && typeof userimage === 'string') {[m
+[31m-      const base64Data = userimage.includes(',') ? userimage.split(',')[1] : userimage;[m
+[31m-      imageBuffer = Buffer.from(base64Data, 'base64');[m
+[32m+[m[32m      try {[m
+[32m+[m[32m        const base64Data = userimage.includes(',') ? userimage.split(',')[1] : userimage;[m
+[32m+[m[32m        imageBuffer = Buffer.from(base64Data, 'base64');[m
+[32m+[m[32m        console.log(`✅ Image processed, buffer size: ${imageBuffer.length} bytes`);[m
+[32m+[m[32m      } catch (imgErr) {[m
+[32m+[m[32m        console.error("❌ Error processing image:", imgErr.message);[m
+[32m+[m[32m      }[m
+     }[m
+ [m
+[32m+[m[32m    // IMPORTANT: Use the exact column names with quotes![m
+     let query, values;[m
+[32m+[m[32m    let result;[m
+ [m
+     if (imageBuffer) {[m
+       query = `[m
+         UPDATE patient_account [m
+[31m-        SET username=$1, fullname=$2, contactnumber=$3, email=$4, status=$5, userimage=$6 [m
+[31m-        WHERE pk=$7 RETURNING *[m
+[32m+[m[32m        SET "username" = $1, "fullname" = $2, "contactnumber" = $3,[m[41m [m
+[32m+[m[32m            "email" = $4, "status" = $5, "userImage" = $6[m
+[32m+[m[32m        WHERE "pk" = $7 RETURNING *[m
+       `;[m
+[31m-      values = [username, fullname, contactnumber, email, status, imageBuffer, id];[m
+[32m+[m[32m      values = [username, finalFullName, finalContactNumber, email, status, imageBuffer, id];[m
+[32m+[m[32m      console.log("🔄 Updating WITH image using quoted column names");[m
+     } else {[m
+       query = `[m
+         UPDATE patient_account [m
+[31m-        SET username=$1, fullname=$2, contactnumber=$3, email=$4, status=$5 [m
+[31m-        WHERE pk=$6 RETU
