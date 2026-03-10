@@ -696,7 +696,7 @@ const saveTimeSlotsToDatabase = async () => {
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
                   disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.sunday ? '#000' : '#666'}}>Sunday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.sunday ? '#19c928' : '#666'}}>Sunday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.sunday && openTimeSlotModalForDay('sunday')} 
@@ -735,7 +735,7 @@ const saveTimeSlotsToDatabase = async () => {
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
                   disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.monday ? '#000' : '#666'}}>Monday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.monday ? '#19c928' : '#666'}}>Monday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.monday && openTimeSlotModalForDay('monday')} 
@@ -774,7 +774,7 @@ const saveTimeSlotsToDatabase = async () => {
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
                   disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.tuesday ? '#000' : '#666'}}>Tuesday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.tuesday ? '#19c928' : '#666'}}>Tuesday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.tuesday && openTimeSlotModalForDay('tuesday')} 
@@ -813,7 +813,7 @@ const saveTimeSlotsToDatabase = async () => {
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
                   disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.wednesday ? '#000' : '#666'}}>Wednesday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.wednesday ? '#19c928' : '#666'}}>Wednesday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.wednesday && openTimeSlotModalForDay('wednesday')} 
@@ -852,7 +852,7 @@ const saveTimeSlotsToDatabase = async () => {
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
                   disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.thursday ? '#000' : '#666'}}>Thursday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.thursday ? '#19c928' : '#666'}}>Thursday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.thursday && openTimeSlotModalForDay('thursday')} 
@@ -891,7 +891,7 @@ const saveTimeSlotsToDatabase = async () => {
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
                   disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.friday ? '#000' : '#666'}}>Friday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.friday ? '#19c928' : '#666'}}>Friday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.friday && openTimeSlotModalForDay('friday')} 
@@ -930,7 +930,7 @@ const saveTimeSlotsToDatabase = async () => {
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
                   disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.saturday ? '#000' : '#666'}}>Saturday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.saturday ? '#19c928' : '#666'}}>Saturday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.saturday && openTimeSlotModalForDay('saturday')} 
@@ -968,7 +968,7 @@ const saveTimeSlotsToDatabase = async () => {
                 onRequestClose={() => cancelTimeSlotEditing()}
               >
                 <View style={apStyle.overlay}>
-                  <View style={apStyle.modalContainer}>
+                  <View style={[apStyle.modalContainer, {width: '40%', padding: 30}]}>
                     <Text style={apStyle.title}>
                       {currentEditingDay 
                         ? `Time Slots for ${currentEditingDay.charAt(0).toUpperCase() + currentEditingDay.slice(1)}`
@@ -981,7 +981,7 @@ const saveTimeSlotsToDatabase = async () => {
                       </View>
                     ) : (
                       <>
-                        {/* Only the table view - no input fields or buttons */}
+                        
                         <View style={{ marginTop: 20 }}>
                           {currentEditingDay && timeSlotsByDay[currentEditingDay] && (
                             <DataTable>
@@ -995,7 +995,7 @@ const saveTimeSlotsToDatabase = async () => {
                                 <DataTable.Row>
                                   <DataTable.Cell colSpan={3}>
                                     <Text style={{ textAlign: 'center', fontStyle: 'italic', color: '#999' }}>
-                                      No time slots configured for this day
+                                      No time slots for this day
                                     </Text>
                                   </DataTable.Cell>
                                 </DataTable.Row>
@@ -1019,7 +1019,7 @@ const saveTimeSlotsToDatabase = async () => {
                           
                           {currentEditingDay && timeSlotsByDay[currentEditingDay] && (
                             <Text style={{ marginTop: 20, fontSize: 12, color: '#666', textAlign: 'center' }}>
-                              {timeSlotsByDay[currentEditingDay].length} time slot(s) configured
+                              {timeSlotsByDay[currentEditingDay].length} time slot(s) available for {currentEditingDay.charAt(0).toUpperCase() + currentEditingDay.slice(1)}
                             </Text>
                           )}
                         </View>
