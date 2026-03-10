@@ -6,8 +6,7 @@ import { useNavigation } from '@react-navigation/native'
 
 export default function RegistrationPage() {
   const navigation = useNavigation();
-  
-  // State variables - using camelCase for internal state
+
   const [fullName, setFullName] = useState('')
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -16,7 +15,6 @@ export default function RegistrationPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   
-  // Validation states - match the field names in state
   const [errors, setErrors] = useState({
     fullName: '',
     username: '',
@@ -35,7 +33,7 @@ export default function RegistrationPage() {
     email: false
   });
 
-  // Validation rules
+ 
   const validationRules = {
     fullName: { 
       regex: /^[a-zA-Z\s.'-]+$/, 
