@@ -35,7 +35,7 @@ export default function RegistrationPage() {
     email: false
   });
 
-  // Validation rules
+ 
   const validationRules = {
     fullName: { 
       regex: /^[a-zA-Z\s.'-]+$/, 

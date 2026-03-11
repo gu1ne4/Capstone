@@ -218,7 +218,6 @@ export default function DoctorAvailability() {
   const [currentEditingDay, setCurrentEditingDay] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  // REMOVED capacity state - now default to 1
 
   // Day availability state
   const [dayAvailability, setDayAvailability] = useState({
@@ -307,30 +306,10 @@ useEffect(() => {
   loadAppointmentsForCalendar(); // Add this line
 }, []);
 
-  // Handle day switch toggle
+  // Handle day switch toggle - DISABLED (can't switch on/off)
   const handleDayToggle = async (dayName) => {
-    const dayKey = dayName.toLowerCase();
-    const newValue = !dayAvailability[dayKey];
-    
-    // Update local state immediately for responsive UI
-    setDayAvailability(prev => ({
-      ...prev,
-      [dayKey]: newValue
-    }));
-    
-    try {
-      // Save to database using the service
-      await availabilityService.saveDayAvailability(dayKey, newValue);
-    } catch (error) {
-      // Revert local state on error
-      setDayAvailability(prev => ({
-        ...prev,
-        [dayKey]: !newValue
-      }));
-      
-      console.error('Failed to save day availability:', error);
-      Alert.alert('Error', 'Failed to update availability. Please try again.');
-    }
+    // Do nothing - switches are now read-only
+    return;
   };
 
   // Open time slot modal for a day
@@ -342,11 +321,7 @@ useEffect(() => {
     setCurrentEditingDay(dayKey);
     setModalVisible(true);
     
-    // Reset inputs
-    setStartTime('');
-    setEndTime('');
-    
-    // Then load data
+    // Load data
     setLoadingTimeSlots(true);
     
     try {
@@ -375,112 +350,10 @@ useEffect(() => {
     }
   };
 
-const addSlot = () => {
-  console.log('=== ADD SLOT CALLED ===');
-  console.log('currentEditingDay:', currentEditingDay);
-  console.log('startTime:', startTime);
-  console.log('endTime:', endTime);
-  
-  // Validate inputs
-  if (!currentEditingDay) {
-    Alert.alert('Error', 'No day selected');
+  const addSlot = () => {
+    // This function is no longer used but kept to avoid breaking references
     return;
-  }
-  
-  if (!startTime || !startTime.trim()) {
-    Alert.alert('Error', 'Please select a start time');
-    return;
-  }
-  
-  if (!endTime || !endTime.trim()) {
-    Alert.alert('Error', 'Please select an end time');
-    return;
-  }
-  
-  // Validate that start time is before end time
-  const convertToMinutes = (timeStr) => {
-    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (match) {
-      let hours = parseInt(match[1]);
-      const minutes = parseInt(match[2]);
-      const ampm = match[3].toUpperCase();
-      
-      // Convert to 24-hour format
-      if (ampm === 'PM' && hours < 12) hours += 12;
-      if (ampm === 'AM' && hours === 12) hours = 0;
-      
-      return hours * 60 + minutes;
-    }
-    return 0;
   };
-
-  const startMinutes = convertToMinutes(startTime);
-  const endMinutes = convertToMinutes(endTime);
-
-  console.log('Start minutes:', startMinutes);
-  console.log('End minutes:', endMinutes);
-
-  // Allow slots that end at the same time? Probably not, but at least allow exact hours
-  if (startMinutes >= endMinutes) {
-    Alert.alert('Error', 'End time must be after start time');
-    return;
-  }
-  
-  // Check for overlapping slots
-  const currentSlots = timeSlotsByDay[currentEditingDay] || [];
-  const hasOverlap = currentSlots.some(slot => {
-    const slotStart = convertToMinutes(slot.startTime);
-    const slotEnd = convertToMinutes(slot.endTime);
-    
-    // Check if new slot overlaps with existing slot
-    return (startMinutes < slotEnd && endMinutes > slotStart);
-  });
-
-  if (hasOverlap) {
-    Alert.alert('Error', 'This time slot overlaps with an existing slot');
-    return;
-  }
-  
-  // Create new slot with a truly unique ID
-  const newSlot = {
-    id: `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-    startTime: startTime,
-    endTime: endTime,
-    capacity: 1
-  };
-  
-  console.log('✅ New slot created:', newSlot);
-  
-  // Update state
-  setTimeSlotsByDay(prev => {
-    const currentSlots = prev[currentEditingDay] || [];
-    // Check if this slot already exists to prevent duplicates
-    const slotExists = currentSlots.some(slot => 
-      slot.startTime === startTime && slot.endTime === endTime
-    );
-    
-    if (slotExists) {
-      console.log('⚠️ Slot with same time already exists');
-      Alert.alert('Error', 'A slot with these times already exists');
-      return prev;
-    }
-    
-    const updatedSlots = [...currentSlots, newSlot].sort((a, b) => {
-      const aMinutes = convertToMinutes(a.startTime);
-      const bMinutes = convertToMinutes(b.startTime);
-      return aMinutes - bMinutes;
-    });
-    
-    return {
-      ...prev,
-      [currentEditingDay]: updatedSlots
-    };
-  });
-  
-  // Clear input fields
-  setStartTime('');
-  setEndTime('');
-};
 
   const addEvent = async () => {
     if (eventName && eventDate) {
@@ -516,154 +389,23 @@ const addSlot = () => {
   };
 
 const deleteSlot = (slotId) => {
-  console.log('=== DELETE SLOT CALLED ===');
-  console.log('Slot ID to delete:', slotId);
-  
-  if (!currentEditingDay) {
-    console.log('❌ No day selected');
-    return;
-  }
-  
-  // Find the slot to display in confirmation
-  const slot = timeSlotsByDay[currentEditingDay].find(s => s.id === slotId);
-  console.log('Found slot:', slot);
-  
-  if (!slot) {
-    console.log('❌ Slot not found in state');
-    return;
-  }
-  
-  // Store the slot to delete and show confirmation modal
-  setSlotToDelete(slot);
-  setDeleteConfirmationVisible(true);
+  // This function is no longer used but kept to avoid breaking references
+  return;
 };
 
 // Add this new function to handle actual deletion
 const confirmDeleteSlot = async () => {
-  if (!slotToDelete) return;
-  
-  const slotId = slotToDelete.id;
-  console.log('Delete confirmed for slot:', slotId);
-  
-  try {
-    if (slotId.toString().startsWith('temp-')) {
-      console.log('Deleting temporary slot');
-      
-      setTimeSlotsByDay(prev => {
-        const updatedSlots = prev[currentEditingDay].filter(s => s.id !== slotId);
-        return {
-          ...prev,
-          [currentEditingDay]: updatedSlots
-        };
-      });
-    } else {
-      console.log('Deleting database slot via API');
-      
-      const result = await availabilityService.deleteTimeSlot(slotId);
-      console.log('Delete API result:', result);
-      
-      setTimeSlotsByDay(prev => {
-        const updatedSlots = prev[currentEditingDay].filter(s => s.id !== slotId);
-        return {
-          ...prev,
-          [currentEditingDay]: updatedSlots
-        };
-      });
-    }
-    
-    setDeleteConfirmationVisible(false);
-    setSlotToDelete(null);
-    Alert.alert('Success', 'Time slot deleted successfully');
-  } catch (error) {
-    console.error('Failed to delete slot:', error);
-    Alert.alert('Error', 'Failed to delete time slot: ' + error.message);
-  }
+  // This function is no longer used but kept to avoid breaking references
+  return;
 };
 
 const saveTimeSlotsToDatabase = async () => {
-  if (!currentEditingDay) {
-    setModalVisible(false);
-    return;
-  }
-  
-  try {
-    const currentSlots = timeSlotsByDay[currentEditingDay] || [];
-    console.log('Saving slots for day:', currentEditingDay);
-    console.log('Current slots to save:', currentSlots);
-    
-    // CRITICAL FIX: Remove IDs from slots before saving
-    // This ensures we don't send database IDs to the server
-    const slotsToSave = currentSlots.map(slot => {
-      // Extract only the data we need, NOT the ID
-      return {
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        capacity: slot.capacity || 1
-      };
-    });
-    
-    console.log('Slots to save (without IDs):', slotsToSave);
-    
-    // Save to database (this will REPLACE all slots for this day)
-    await availabilityService.saveTimeSlots(currentEditingDay, slotsToSave);
-    
-    setModalVisible(false);
-    setStartTime('');
-    setEndTime('');
-    
-    // IMPORTANT: Reload the slots from database to get the new IDs
-    const updatedSlots = await availabilityService.getTimeSlotsForDay(currentEditingDay);
-    console.log('Updated slots from DB:', updatedSlots);
-    
-    const formattedSlots = updatedSlots.map(slot => ({
-      id: slot.id, // Use the NEW database IDs
-      startTime: slot.start_time,
-      endTime: slot.end_time,
-      capacity: slot.capacity
-    }));
-    
-    // Update state with the REAL slots from database
-    setTimeSlotsByDay(prev => ({
-      ...prev,
-      [currentEditingDay]: formattedSlots
-    }));
-    
-    Alert.alert('Success', `Time slots saved for ${currentEditingDay.charAt(0).toUpperCase() + currentEditingDay.slice(1)}`);
-  } catch (error) {
-    console.error('Failed to save time slots:', error);
-    Alert.alert('Error', 'Failed to save time slots. Please try again.');
-  }
+  // This function is no longer used but kept to avoid breaking references
+  return;
 };
 
   const cancelTimeSlotEditing = () => {
-    // Reload from database to discard changes
-    if (currentEditingDay) {
-      availabilityService.getTimeSlotsForDay(currentEditingDay)
-        .then(existingSlots => {
-          const formattedSlots = existingSlots.map(slot => ({
-            id: slot.id,
-            startTime: slot.start_time,
-            endTime: slot.end_time,
-            capacity: slot.capacity
-          }));
-          
-          setTimeSlotsByDay(prev => ({
-            ...prev,
-            [currentEditingDay]: formattedSlots
-          }));
-        })
-        .catch(error => {
-          console.error('Failed to reload time slots:', error);
-          setTimeSlotsByDay(prev => ({
-            ...prev,
-            [currentEditingDay]: []
-          }));
-        });
-    }
-    
     setModalVisible(false);
-    setStartTime('');
-    setEndTime('');
   };
 
   return (
@@ -952,8 +694,9 @@ const saveTimeSlotsToDatabase = async () => {
                   value={dayAvailability.sunday}
                   onValueChange={() => handleDayToggle('sunday')}
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
+                  disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.sunday ? '#000' : '#666'}}>Sunday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.sunday ? '#19c928' : '#666'}}>Sunday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.sunday && openTimeSlotModalForDay('sunday')} 
@@ -990,8 +733,9 @@ const saveTimeSlotsToDatabase = async () => {
                   value={dayAvailability.monday}
                   onValueChange={() => handleDayToggle('monday')}
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
+                  disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.monday ? '#000' : '#666'}}>Monday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.monday ? '#19c928' : '#666'}}>Monday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.monday && openTimeSlotModalForDay('monday')} 
@@ -1028,8 +772,9 @@ const saveTimeSlotsToDatabase = async () => {
                   value={dayAvailability.tuesday}
                   onValueChange={() => handleDayToggle('tuesday')}
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
+                  disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.tuesday ? '#000' : '#666'}}>Tuesday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.tuesday ? '#19c928' : '#666'}}>Tuesday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.tuesday && openTimeSlotModalForDay('tuesday')} 
@@ -1066,8 +811,9 @@ const saveTimeSlotsToDatabase = async () => {
                   value={dayAvailability.wednesday}
                   onValueChange={() => handleDayToggle('wednesday')}
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
+                  disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.wednesday ? '#000' : '#666'}}>Wednesday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.wednesday ? '#19c928' : '#666'}}>Wednesday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.wednesday && openTimeSlotModalForDay('wednesday')} 
@@ -1104,8 +850,9 @@ const saveTimeSlotsToDatabase = async () => {
                   value={dayAvailability.thursday}
                   onValueChange={() => handleDayToggle('thursday')}
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
+                  disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.thursday ? '#000' : '#666'}}>Thursday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.thursday ? '#19c928' : '#666'}}>Thursday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.thursday && openTimeSlotModalForDay('thursday')} 
@@ -1142,8 +889,9 @@ const saveTimeSlotsToDatabase = async () => {
                   value={dayAvailability.friday}
                   onValueChange={() => handleDayToggle('friday')}
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
+                  disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.friday ? '#000' : '#666'}}>Friday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.friday ? '#19c928' : '#666'}}>Friday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.friday && openTimeSlotModalForDay('friday')} 
@@ -1180,8 +928,9 @@ const saveTimeSlotsToDatabase = async () => {
                   value={dayAvailability.saturday}
                   onValueChange={() => handleDayToggle('saturday')}
                   style={{marginLeft: 10, marginRight: 20, marginTop: 2, transform: [{ scaleX: 1 }, { scaleY: 1 }]}}
+                  disabled={true}  // DISABLED - cannot toggle
                 />
-                <Text style={{fontSize: 16, color: dayAvailability.saturday ? '#000' : '#666'}}>Saturday</Text>
+                <Text style={{fontSize: 16, color: dayAvailability.saturday ? '#19c928' : '#666'}}>Saturday</Text>
 
                 <TouchableOpacity 
                   onPress={() => dayAvailability.saturday && openTimeSlotModalForDay('saturday')} 
@@ -1211,7 +960,7 @@ const saveTimeSlotsToDatabase = async () => {
               </View>
 
           
-              {/* TIME SLOTS MODAL */}
+              {/* TIME SLOTS MODAL - READ-ONLY VIEW */}
               <Modal
                 animationType="fade"
                 transparent={true}
@@ -1219,7 +968,7 @@ const saveTimeSlotsToDatabase = async () => {
                 onRequestClose={() => cancelTimeSlotEditing()}
               >
                 <View style={apStyle.overlay}>
-                  <View style={apStyle.modalContainer}>
+                  <View style={[apStyle.modalContainer, {width: '40%', padding: 30}]}>
                     <Text style={apStyle.title}>
                       {currentEditingDay 
                         ? `Time Slots for ${currentEditingDay.charAt(0).toUpperCase() + currentEditingDay.slice(1)}`
@@ -1232,93 +981,53 @@ const saveTimeSlotsToDatabase = async () => {
                       </View>
                     ) : (
                       <>
-                        <View style={{ flexDirection: 'row', marginTop: 20 }}>
-                          {/* Left Section: Input Fields */}
-                          <View style={{ flex: 1, marginRight: 10 }}>
-                            <TimeSelector 
-                              label="Start Time"
-                              value={startTime}
-                              onChange={setStartTime}
-                            />
-                            
-                            <TimeSelector 
-                              label="End Time"
-                              value={endTime}
-                              onChange={setEndTime}
-                            />
-                            
-                            {/* REMOVED Capacity TextInput */}
-                            
-                            <TouchableOpacity onPress={addSlot} style={apStyle.addBtn}>
-                              <Text style={{ color: '#fff', fontWeight: '600' }}>+ Add Slot</Text>
-                            </TouchableOpacity>
-                          </View>
+                        
+                        <View style={{ marginTop: 20 }}>
+                          {currentEditingDay && timeSlotsByDay[currentEditingDay] && (
+                            <DataTable>
+                              <DataTable.Header>
+                                <DataTable.Title>Start Time</DataTable.Title>
+                                <DataTable.Title>End Time</DataTable.Title>
+                                <DataTable.Title numeric>Capacity</DataTable.Title>
+                              </DataTable.Header>
 
-                          {/* Right Section: Table */}
-                          <View style={{ flex: 1, marginLeft: 10 }}>
-                            {currentEditingDay && timeSlotsByDay[currentEditingDay] && (
-                              <DataTable>
-                                <DataTable.Header>
-                                  <DataTable.Title>Start</DataTable.Title>
-                                  <DataTable.Title>End</DataTable.Title>
-                                  <DataTable.Title numeric>Capacity</DataTable.Title>
-                                  <DataTable.Title numeric>Action</DataTable.Title>
-                                </DataTable.Header>
-
-                                {timeSlotsByDay[currentEditingDay].length === 0 ? (
-                                  <DataTable.Row>
-                                    <DataTable.Cell colSpan={4}>
-                                      <Text style={{ textAlign: 'center', fontStyle: 'italic', color: '#999' }}>
-                                        No time slots configured
-                                      </Text>
+                              {timeSlotsByDay[currentEditingDay].length === 0 ? (
+                                <DataTable.Row>
+                                  <DataTable.Cell colSpan={3}>
+                                    <Text style={{ textAlign: 'center', fontStyle: 'italic', color: '#999' }}>
+                                      No time slots for this day
+                                    </Text>
+                                  </DataTable.Cell>
+                                </DataTable.Row>
+                              ) : (
+                                timeSlotsByDay[currentEditingDay].map((item, index) => (
+                                  <DataTable.Row key={item.id || index}>
+                                    <DataTable.Cell>
+                                      <Text>{item.startTime || ''}</Text>
+                                    </DataTable.Cell>
+                                    <DataTable.Cell>
+                                      <Text>{item.endTime || ''}</Text>
+                                    </DataTable.Cell>
+                                    <DataTable.Cell numeric>
+                                      <Text>{item.capacity || 1}</Text>
                                     </DataTable.Cell>
                                   </DataTable.Row>
-                                ) : (
-                                  timeSlotsByDay[currentEditingDay].map((item, index) => (
-                                    <DataTable.Row key={item.id || index}>
-                                      <DataTable.Cell>
-                                        <Text>{item.startTime || ''}</Text>
-                                      </DataTable.Cell>
-                                      <DataTable.Cell>
-                                        <Text>{item.endTime || ''}</Text>
-                                      </DataTable.Cell>
-                                      <DataTable.Cell numeric>
-                                        <Text>{item.capacity || 1}</Text>
-                                      </DataTable.Cell>
-                                      <DataTable.Cell numeric>
-                                        <TouchableOpacity 
-                                          onPress={() => {
-                                            console.log('🗑️ Delete icon pressed for slot:', item.id);
-                                            console.log('Slot data:', item);
-                                            deleteSlot(item.id);
-                                          }}
-                                          onPressIn={() => console.log('Touch started')}
-                                          activeOpacity={0.5}
-                                        >
-                                          <Ionicons name="trash-outline" size={20} color="red" />
-                                        </TouchableOpacity>
-                                      </DataTable.Cell>
-                                    </DataTable.Row>
-                                  ))
-                                )}
-                              </DataTable>
-                            )}
-                            
-                            {currentEditingDay && timeSlotsByDay[currentEditingDay] && (
-                              <Text style={{ marginTop: 10, fontSize: 12, color: '#666', textAlign: 'center' }}>
-                                {timeSlotsByDay[currentEditingDay].length} time slot(s) configured
-                              </Text>
-                            )}
-                          </View>
+                                ))
+                              )}
+                            </DataTable>
+                          )}
+                          
+                          {currentEditingDay && timeSlotsByDay[currentEditingDay] && (
+                            <Text style={{ marginTop: 20, fontSize: 12, color: '#666', textAlign: 'center' }}>
+                              {timeSlotsByDay[currentEditingDay].length} time slot(s) available for {currentEditingDay.charAt(0).toUpperCase() + currentEditingDay.slice(1)}
+                            </Text>
+                          )}
                         </View>
 
-                        {/* Footer Buttons */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
+                        {/* Footer - Only Cancel/Close button */}
+                        <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 20 }}>
                           <TouchableOpacity onPress={cancelTimeSlotEditing}>
-                            <Text style={{ color: 'red', fontWeight: '600' }}>Cancel</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity onPress={saveTimeSlotsToDatabase}>
-                            <Text style={{ color: '#3d67ee', fontWeight: '600' }}>Save Changes</Text>
+                            <Text style={{ color: '#3d67ee', fontWeight: '600', fontSize: 16 }}>Close</Text>
                           </TouchableOpacity>
                         </View>
                       </>
@@ -1364,7 +1073,7 @@ const saveTimeSlotsToDatabase = async () => {
                 </View>
               </Modal>
 
-                            {/* Custom Delete Confirmation Modal */}
+                            {/* Custom Delete Confirmation Modal - No longer used but kept for reference */}
               <Modal
                 animationType="fade"
                 transparent={true}

@@ -28,6 +28,7 @@ import doctorHome from './components/DoctorInterface/doctorHome';
 import DoctorSchedule from './components/DoctorInterface/DoctorSchedule';
 import DoctorAvailability from './components/DoctorInterface/DoctorAvailability';
 import DoctorHistory from './components/DoctorInterface/DoctorHistory';
+import UserAppointment from './userComponents/UserAppointment';
 
 
 export default function App() {
@@ -75,6 +76,9 @@ export default function App() {
         <CScreen.Screen name="DoctorSchedule" component={DoctorSchedule} options={{headerShown: false}} />
         <CScreen.Screen name="DoctorHistory" component={DoctorHistory} options={{headerShown: false}} />
         <CScreen.Screen name="DoctorAvailability" component={DoctorAvailability} options={{headerShown: false}} />
+
+        {/* User Screens */}
+        <CScreen.Screen name="UserAppointment" component={UserAppointment} options={{headerShown: false}} />
 
         </CScreen.Navigator>
       </NavigationContainer>

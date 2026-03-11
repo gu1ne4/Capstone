@@ -13,51 +13,51 @@ export default function UserHome() {
   
   return (
     <View style={{backgroundColor: '#fff', height: '100%', padding: 10}}>
-      <View style={userStyle.navbar}>
-        {/* Logo */}
-        <View style={userStyle.navSections}>
-          <Text style={[homeStyle.brandFont, {color: '#0032f9'}]}>Agsikap</Text>
-        </View>
-
-        {/* Profile */}
-        <TouchableOpacity onPress={()=>{ns.navigate('Login')}}>
-          <View style={[userStyle.navSections, {paddingHorizontal: 20, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 12}]}>
-            <Ionicons name="person-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
-            <View style={{flexDirection: 'column', marginRight: 5}}>
-              <Text style={[userStyle.smallText, {fontSize: 16, color: "#3d67ee", fontWeight: 600}]}>Login or Sign-up</Text>
+      {/* Sticky Navigation Bar */}
+      <View style={{
+        zIndex: 1000,
+      }}>
+        <View style={userStyle.navbar}>
+          {/* Profile */}
+          <TouchableOpacity onPress={()=>{ns.navigate('Login')}}>
+            <View style={[userStyle.navSections, {paddingHorizontal: 20, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 12}]}>
+              <Ionicons name="person-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
+              <View style={{flexDirection: 'column', marginRight: 5}}>
+                <Text style={[userStyle.smallText, {fontSize: 16, color: "#3d67ee", fontWeight: 600}]}>Login or Sign-up</Text>
+              </View>
             </View>
-          </View>
-        </TouchableOpacity>
+          </TouchableOpacity>
 
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <View style={[userStyle.navSections, { flexDirection: 'row', alignItems: 'center', gap: 60 }]}>
-              <TouchableOpacity style={[userStyle.glassContainer]}>
+            <View style={[userStyle.navSections, { flexDirection: 'row',  alignItems: 'center', gap: 60, width: '70%'}]}>
+              <TouchableOpacity style={[userStyle.glassContainer]} onPress={()=>{ns.navigate('UserHome')}}>
                 <Text style={[userStyle.navText, {color: '#3d67ee', fontWeight: '600'}]}>Home</Text>
               </TouchableOpacity>
-              <TouchableOpacity >
+              <TouchableOpacity>
                 <Text style={userStyle.navText}>About Us</Text>
               </TouchableOpacity>
               <TouchableOpacity>
                 <Text style={userStyle.navText}>Our Services</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={userStyle.appointmentBtn}>
-                <Text style={userStyle.appointmentText}>Book an Appointment</Text>
+              <TouchableOpacity onPress={()=>{ns.navigate('UserAppointment')}}>
+                <Text style={userStyle.navText}>Book an Appointment</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-        {/* Right-side icons */}
-        <View style={{ flexDirection: 'row', gap: 10 }}>
-          <TouchableOpacity>
-            <View style={userStyle.navSections}>
-              <Ionicons name="calendar-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity>
-            <View style={userStyle.navSections}>
-              <Ionicons name="notifications-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
-            </View>
-          </TouchableOpacity>
+          {/* Right-side icons */}
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <TouchableOpacity>
+              <View style={userStyle.navSections}>
+                <Ionicons name="calendar-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity>
+              <View style={userStyle.navSections}>
+                <Ionicons name="notifications-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
+              </View>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
