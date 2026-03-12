@@ -173,22 +173,22 @@ export default function AuditPage() {
           </View>
 
           {/* ACCOUNT LOGGED IN */}
-          <View style={[homeStyle.glassContainer, {paddingLeft: 8}]}>
-            <View style={[homeStyle.navAccount, {gap: 8}]}>
+          <View style={[homeStyle.navAccount, {gap: 8}]}>
               <Image 
-                source={require('../assets/userImg.jpg')} 
+                source={(currentUser && currentUser.userImage) 
+                  ? { uri: currentUser.userImage } 
+                  : require('../assets/userImg.jpg')} 
                 style={{ width: 35, height: 35, borderRadius: 25, marginTop: 2 }}
               />
               <View>
                 <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
-                    {currentUser ? (currentUser.fullName || currentUser.username) : 'Loading...'}
+                    {currentUser ? currentUser.username : 'Loading...'}
                 </Text>
                 <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 10 }}>
                     {currentUser ? currentUser.role : '...'}
                 </Text>
               </View>
             </View>
-          </View>
 
           <Text style={{ color: 'rgba(255, 255, 255, 0.83)', fontSize: 11, fontStyle: 'italic', marginLeft: 5, marginTop: 20 }}>Overview</Text>
 

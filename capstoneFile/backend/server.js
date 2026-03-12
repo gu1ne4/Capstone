@@ -687,7 +687,6 @@ app.post('/login', async (req, res) => {
 // =================================================================================
 //  UPDATED PATIENT REGISTRATION (with email verification) 
 // =================================================================================
-
 app.post('/patient-register', async (req, res) => {
   console.log("📥 Patient registration request received");
   const { fullname, username, password, contactnumber, email, userimage, datecreated } = req.body;
@@ -698,6 +697,8 @@ app.post('/patient-register', async (req, res) => {
   
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Handle Image
     let imageBuffer = null;
     if (userimage && typeof userimage === 'string' && userimage.trim() !== '') {
       try { imageBuffer = Buffer.from(userimage, 'base64'); } catch (imgErr) { imageBuffer = null; }
@@ -742,7 +743,7 @@ app.post('/patient-register', async (req, res) => {
       accountId: createdPatient.pk,
       accountType: 'USER',
       username: createdPatient.username,
-      role: 'user',
+      role: 'User', // Log role as User
       action: 'REGISTER',
       status: 'SUCCESS'
     });
@@ -762,7 +763,7 @@ app.post('/patient-register', async (req, res) => {
     });
     
   } catch (err) {
-    console.error("❌ Patient registration error:", err.message);
+    console.error("❌ Registration error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });

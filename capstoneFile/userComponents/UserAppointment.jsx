@@ -1,13 +1,15 @@
 import { View, Text, TouchableOpacity, Image, ScrollView, ImageBackground, FlatList, Modal, Animated, TextInput } from 'react-native'
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { Calendar } from 'react-native-calendars'
 import userStyle from '../styles/UserStyle'
 import { Ionicons } from '@expo/vector-icons'
 import homeStyle from '../styles/HomeStyle'
 import { LinearGradient } from 'expo-linear-gradient'
-import { useNavigation } from '@react-navigation/native'
+import { useNavigation, useFocusEffect } from '@react-navigation/native'
 import docStyle from '../styles/DoctorStyles'
 import * as ImagePicker from 'expo-image-picker'
+// Added AsyncStorage import
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
 
 // Default clinic hours (Monday to Friday)
 const clinicHours = {
@@ -69,14 +71,6 @@ const userPets = [
     image: require('../assets/samplePet.jpg')
   }
 ];
-
-const userAccount = {
-  fullName: 'John Michael Santos',
-  email: 'john.santos@email.com',
-  phone: '+63 912 345 6789',
-  address: '123 Main Street, Barangay San Antonio, Makati City, Metro Manila',
-  profileImage: null
-};
 
 const getTodayDate = () => {
   const today = new Date();
@@ -161,6 +155,18 @@ export default function UserAppointment() {
   const [selectedPet, setSelectedPet] = useState(null);
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [isChecked, setIsChecked] = useState(false);
+  
+  // Custom Alert Modal State
+  const [customAlertVisible, setCustomAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    type: 'info', 
+    title: '',
+    message: '', 
+    onConfirm: null, 
+    showCancel: false,
+    confirmText: 'OK'
+  });
+
   const [modalVisible, setModalVisible] = useState(false);
   const [currentCardIndex, setCurrentCardIndex] = useState(1);
   const [expandedService, setExpandedService] = useState(null);
@@ -169,33 +175,56 @@ export default function UserAppointment() {
 
   const [dropdownVisible, setDropdownVisible] = useState(false);
 
-    const [isLoggedIn, setIsLoggedIn] = useState(true); 
-    const user = {
-      name: 'John Michael Santos',
-      email: 'john.santos@email.com',
-      profileImage: null
-    };
+  // Dynamic user state
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // Session loading effect
+  useFocusEffect(
+    useCallback(() => {
+      const loadUser = async () => {
+        try {
+          const session = await AsyncStorage.getItem('userSession');
+          if (session) {
+            setCurrentUser(JSON.parse(session));
+          } else {
+            setCurrentUser(null);
+            // If they are not logged in, they shouldn't be on this page!
+            // Redirect them back to Home or Login
+            ns.navigate('UserHome');
+          }
+        } catch (error) {
+          console.error("Failed to load user session", error);
+        }
+      };
+      loadUser();
+    }, [])
+  );
+
+  const showAlert = (type, title, message, onConfirm = null, showCancel = false, confirmText = 'OK') => {
+    setAlertConfig({ type, title, message, onConfirm, showCancel, confirmText });
+    setCustomAlertVisible(true);
+  };
+
+  const handleLogout = () => {
+    setDropdownVisible(false);
+    showAlert('confirm', 'Log Out', 'Are you sure you want to log out?', async () => {
+      await AsyncStorage.removeItem('userSession'); 
+      setCurrentUser(null);
+      ns.navigate('Login');
+    }, true, 'Log Out');
+  };
   
-    const handleLogout = () => {
+  const handleViewProfile = () => {
+    setDropdownVisible(false);
+    ns.navigate('UserProfile');
+  };
   
-      setDropdownVisible(false);
+  const handleMyPets = () => {
+    setDropdownVisible(false);
+    ns.navigate('UserPets');
+  };
   
-      setIsLoggedIn(false);
-    };
-  
-    const handleViewProfile = () => {
-      setDropdownVisible(false);
-  
-      ns.navigate('UserProfile');
-    };
-  
-    const handleMyPets = () => {
-      setDropdownVisible(false);
-  
-      ns.navigate('UserPetProfile');
-    };
-  
-   const [medicalAnswers, setMedicalAnswers] = useState({
+  const [medicalAnswers, setMedicalAnswers] = useState({
     medications72h: null,
     fleaPrevention: null,
     catVaccinations: null,
@@ -618,8 +647,82 @@ export default function UserAppointment() {
 
   const centerService = getVisibleCards().find(card => card.position === 0)?.service;
 
+  // Helper to grab the correct name formatting
+  const displayName = currentUser ? (currentUser.fullname || currentUser.fullName || currentUser.username || "User") : "";
+
   return (
     <View style={{flex: 1, backgroundColor: '#fff'}}>
+
+      {/* CUSTOM ALERT MODAL COMPONENT */}
+      <Modal
+        transparent={true}
+        visible={customAlertVisible}
+        animationType="fade"
+        onRequestClose={() => setCustomAlertVisible(false)}
+      >
+        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
+          <View style={{backgroundColor: 'white', padding: 25, borderRadius: 12, width: '80%', maxWidth: 350, alignItems: 'center', elevation: 5}}>
+            <Ionicons 
+              name={
+                alertConfig.type === 'success' ? "checkmark-circle-outline" :
+                alertConfig.type === 'error' ? "close-circle-outline" :
+                "alert-circle-outline"
+              } 
+              size={55} 
+              color={
+                alertConfig.type === 'success' ? "#2e9e0c" :
+                alertConfig.type === 'error' ? "#d93025" :
+                "#3d67ee"
+              } 
+            />
+            
+            <Text style={{fontSize: 20, fontWeight: 'bold', marginVertical: 10, fontFamily: 'Segoe UI', color: 'black', textAlign: 'center'}}>
+              {alertConfig.title}
+            </Text>
+            
+            {typeof alertConfig.message === 'string' ? (
+              <Text style={{textAlign: 'center', color: '#666', marginBottom: 25, fontSize: 14}}>
+                {alertConfig.message}
+              </Text>
+            ) : (
+              <View style={{marginBottom: 25}}>
+                {alertConfig.message}
+              </View>
+            )}
+            
+            <View style={{flexDirection: 'row', gap: 15, width: '100%', justifyContent: 'center'}}>
+              {alertConfig.showCancel && (
+                <TouchableOpacity 
+                  onPress={() => setCustomAlertVisible(false)} 
+                  style={{paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#f0f0f0', borderRadius: 8, minWidth: 100, alignItems: 'center'}}
+                >
+                  <Text style={{color: '#333', fontWeight: '600'}}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity 
+                onPress={() => {
+                  setCustomAlertVisible(false);
+                  if (alertConfig.onConfirm) alertConfig.onConfirm();
+                }} 
+                style={{
+                  paddingVertical: 10, 
+                  paddingHorizontal: 20, 
+                  backgroundColor: alertConfig.type === 'error' ? '#d93025' : '#3d67ee', 
+                  borderRadius: 8, 
+                  minWidth: 100, 
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{color: 'white', fontWeight: '600'}}>
+                  {alertConfig.confirmText || 'OK'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Confirmation Modal */}
       <Modal
         animationType="fade"
@@ -644,7 +747,7 @@ export default function UserAppointment() {
             shadowOpacity: 0.25,
             shadowRadius: 4,
             elevation: 5,
-            position: 'relative', // Add this for absolute positioning of the X button
+            position: 'relative', 
           }}>
             
             {/* X Button in upper right corner */}
@@ -668,7 +771,7 @@ export default function UserAppointment() {
               justifyContent: 'center',
               alignItems: 'center',
               marginBottom: 20,
-              marginTop: 10, // Add some top margin to account for the X button
+              marginTop: 10, 
             }}>
               <Ionicons name="hourglass-outline" size={70} color="#3d67ee" />
             </View>
@@ -761,16 +864,16 @@ export default function UserAppointment() {
         <View style={userStyle.navbar}>
           {/* Profile Section with Dropdown */}
           <View style={{position: 'relative', zIndex: 2}}>
-            {isLoggedIn ? (
+            {currentUser ? (
               <TouchableOpacity 
                 onPress={() => setDropdownVisible(!dropdownVisible)}
                 activeOpacity={0.7}
                 style={{zIndex: 3}} 
               >
                 <View style={[userStyle.navSections, {paddingHorizontal: 20, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 12}]}>
-                  {user.profileImage ? (
+                  {currentUser.userImage || currentUser.userimage ? (
                     <Image 
-                      source={user.profileImage} 
+                      source={{uri: currentUser.userImage || currentUser.userimage}} 
                       style={{width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: '#3d67ee'}}
                     />
                   ) : (
@@ -785,13 +888,13 @@ export default function UserAppointment() {
                       borderColor: '#3d67ee'
                     }}>
                       <Text style={{color: '#3d67ee', fontWeight: 'bold', fontSize: 14}}>
-                        {user.name.split(' ').map(n => n[0]).join('')}
+                        {displayName.charAt(0).toUpperCase()}
                       </Text>
                     </View>
                   )}
                   <View style={{flexDirection: 'column', marginRight: 5}}>
                     <Text style={[userStyle.smallText, {fontSize: 14, color: "#3d67ee", fontWeight: 600}]}>
-                      {user.name}
+                      {displayName}
                     </Text>
                   </View>
                   <Ionicons 
@@ -812,7 +915,7 @@ export default function UserAppointment() {
               </TouchableOpacity>
             )}
 
-            {dropdownVisible && isLoggedIn && (
+            {dropdownVisible && currentUser && (
               <View style={{
                 position: 'absolute',
                 top: 48,
@@ -1944,15 +2047,18 @@ export default function UserAppointment() {
                   <View style={{gap: 12}}>
                     <View style={{flexDirection: 'row'}}>
                       <Text style={{width: 100, fontSize: 16, color: '#000000', fontWeight: '500'}}>Full Name</Text>
-                      <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{userAccount.fullName}</Text>
+                      {/* USE DYNAMIC NAME */}
+                      <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{displayName}</Text>
                     </View>
                     <View style={{flexDirection: 'row'}}>
                       <Text style={{width: 100, fontSize: 16, color: '#000000', fontWeight: '500'}}>Email</Text>
-                      <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{userAccount.email}</Text>
+                      {/* USE DYNAMIC EMAIL */}
+                      <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{currentUser?.email || 'N/A'}</Text>
                     </View>
                     <View style={{flexDirection: 'row'}}>
                       <Text style={{width: 100, fontSize: 16, color: '#000000', fontWeight: '500'}}>Phone</Text>
-                      <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{userAccount.phone}</Text>
+                      {/* USE DYNAMIC PHONE */}
+                      <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{currentUser?.contactnumber || currentUser?.contactNumber || 'N/A'}</Text>
                     </View>
                     <View style={{flexDirection: 'row'}}>
                       <Text style={{width: 100, fontSize: 16, color: '#000000', fontWeight: '500'}}>Address</Text>
@@ -2006,134 +2112,6 @@ export default function UserAppointment() {
                           <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{selectedPet.breed}</Text>
                         </View>
                       </View>
-                    </View>
-                  </View>
-                )}
-
-                {/* Medical Information Card */}
-                <View style={{
-                  backgroundColor: '#ffffff',
-                  borderRadius: 20,
-                  padding: 25,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.1,
-                  shadowRadius: 8,
-                  elevation: 4,
-                  borderWidth: 1,
-                  borderColor: '#3d67ee',
-                  marginBottom: 20,
-                  width: '60%',
-                  alignSelf: 'center',
-                }}>
-                  <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 20}}>
-                    <Ionicons name="medical" size={22} color="#3d67ee" style={{marginRight: 12}}/>
-                    <Text style={{fontSize: 20, fontWeight: '500', color: '#3d67ee'}}>Medical Information</Text>
-                  </View>
-                  
-                  <View style={{gap: 15, width: '100%'}}>
-                    {/* Medications */}
-                    <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
-                      <Text style={{width: 220, fontSize: 14, color: '#333', fontWeight: '500'}}>
-                        Medication in the past 72 Hours
-                      </Text>
-                      <View style={{flex: 1}}>
-                        <Text style={{fontSize: 14, color: medicalAnswers.medications72h ? '#00aa00' : '#ee3d5a', fontWeight: '600'}}>
-                          {medicalAnswers.medications72h ? 'Yes' : 'No'}
-                        </Text>
-                        {medicalAnswers.medications72h && medicationDetails && (
-                          <Text style={{fontSize: 13, color: '#666', marginTop: 5, fontStyle: 'italic'}}>
-                            Medications: {medicationDetails}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-
-                    {/* Flea & Tick Prevention */}
-                    <View style={{flexDirection: 'row'}}>
-                      <Text style={{width: 220, fontSize: 14, color: '#333', fontWeight: '500'}}>
-                        Up-to-date Flea and Tick Prevention & Not Infested
-                      </Text>
-                      <Text style={{flex: 1, fontSize: 14, color: medicalAnswers.fleaPrevention ? '#00aa00' : '#ee3d5a', fontWeight: '600'}}>
-                        {medicalAnswers.fleaPrevention ? 'Yes' : 'No'}
-                      </Text>
-                    </View>
-
-                    {/* Rabies + 4in1 */}
-                    <View style={{flexDirection: 'row'}}>
-                      <Text style={{width: 220, fontSize: 14, color: '#333', fontWeight: '500'}}>
-                        Up-to-Date Anti Rabies + 4in1
-                      </Text>
-                      <Text style={{flex: 1, fontSize: 14, color: medicalAnswers.catVaccinations ? '#00aa00' : '#ee3d5a', fontWeight: '600'}}>
-                        {medicalAnswers.catVaccinations ? 'Yes' : 'No'}
-                      </Text>
-                    </View>
-
-                    {/* Pregnant */}
-                    <View style={{flexDirection: 'row'}}>
-                      <Text style={{width: 220, fontSize: 14, color: '#333', fontWeight: '500'}}>
-                        Pregnant
-                      </Text>
-                      <Text style={{flex: 1, fontSize: 14, color: medicalAnswers.notPregnant ? '#00aa00' : '#ee3d5a', fontWeight: '600'}}>
-                        {medicalAnswers.notPregnant ? 'No' : 'Yes'}
-                      </Text>
-                    </View>
-                    
-                    {additionalNotes ? (
-                      <View style={{marginTop: 10, borderTopWidth: 1, borderTopColor: '#3d67ee20', paddingTop: 15}}>
-                        <Text style={{fontSize: 16, fontWeight: '500', color: '#3d67ee', marginBottom: 8}}>Additional Notes:</Text>
-                        <Text style={{fontSize: 14, color: '#333', lineHeight: 20}}>{additionalNotes}</Text>
-                      </View>
-                    ) : null}
-                  </View>
-                </View>
-
-                {/* Grooming Preferences Card (if applicable) */}
-                {selectedServices.some(s => s.id === 1) && selectedGroomingOptions.length > 0 && selectedHaircutStyle && (
-                  <View style={{
-                    backgroundColor: '#ffffff',
-                    borderRadius: 20,
-                    padding: 25,
-                    shadowColor: '#000',
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.1,
-                    shadowRadius: 8,
-                    elevation: 4,
-                    borderWidth: 1,
-                    borderColor: '#3d67ee',
-                    marginBottom: 20,
-                    width: '60%',
-                    alignSelf: 'center',
-                  }}>
-                    <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 20}}>
-                      <Ionicons name="cut-outline" size={25} color="#3d67ee" style={{marginRight: 12}}/>
-                      <Text style={{fontSize: 22, fontWeight: '500', color: '#3d67ee'}}>Grooming Preferences</Text>
-                    </View>
-                    
-                    <View style={{gap: 12}}>
-                      <View style={{flexDirection: 'row'}}>
-                        <Text style={{width: 120, fontSize: 16, color: '#333', fontWeight: '500'}}>Haircut Style</Text>
-                        <Text style={{flex: 1, fontSize: 16, color: '#333'}}>
-                          {haircutStyles.find(s => s.id === selectedHaircutStyle)?.name}
-                        </Text>
-                      </View>
-                      
-                      {selectedHaircutStyle === 'h6' && customHaircutDescription ? (
-                        <View style={{flexDirection: 'row'}}>
-                          <Text style={{width: 120, fontSize: 16, color: '#333', fontWeight: '500'}}>Custom Style</Text>
-                          <Text style={{flex: 1, fontSize: 16, color: '#333'}}>{customHaircutDescription}</Text>
-                        </View>
-                      ) : null}
-                      
-                      {haircutImage ? (
-                        <View style={{marginTop: 15}}>
-                          <Text style={{fontSize: 16, fontWeight: '500', color: '#333', marginBottom: 10}}>Reference Image:</Text>
-                          <Image 
-                            source={{uri: haircutImage}} 
-                            style={{width: 200, height: 200, borderRadius: 10, borderWidth: 1, borderColor: '#3d67ee'}}
-                          />
-                        </View>
-                      ) : null}
                     </View>
                   </View>
                 )}
@@ -2216,4 +2194,4 @@ export default function UserAppointment() {
       </ScrollView>
     </View>
   )
-}      
+}

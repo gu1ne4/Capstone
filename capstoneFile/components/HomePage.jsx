@@ -15,11 +15,7 @@ export default function HomePage() {
   const route = useRoute();
   const isActive = route.name === 'Accounts';
 
-  const [currentUser, setCurrentUser] = useState({
-    fullName: 'Loading...',
-    role: '',
-    userImage: null
-  });
+  const [currentUser, setCurrentUser] = useState(null);
 
 
   const [accounts, setAccounts] = useState([]);
@@ -514,19 +510,22 @@ export default function HomePage() {
             <Text style={[homeStyle.brandFont]}>Agsikap</Text>
           </View>
 
-          {/* ACCOUNT LOGGED IN */}
+{/* ACCOUNT LOGGED IN */}
           <View style={[homeStyle.glassContainer, {paddingLeft: 8}]}>
             <View style={[homeStyle.navAccount, {gap: 8}]}>
               <Image 
-                source={currentUser.userImage ? { uri: currentUser.userImage } : require('../assets/userImg.jpg')} 
+                /* Uses capital 'I' because of how server.js formats the /login response */
+                source={(currentUser && currentUser.userImage) 
+                  ? { uri: currentUser.userImage } 
+                  : require('../assets/userImg.jpg')} 
                 style={{ width: 35, height: 35, borderRadius: 25, marginTop: 2 }}
               />
               <View>
                 <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
-                  {currentUser.fullName || "User"}
+                  {currentUser ? currentUser.username : "Loading..."}
                 </Text>
                 <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 10 }}>
-                  {currentUser.role || "Role"}
+                  {currentUser ? currentUser.role : "..."}
                 </Text>
               </View>
             </View>
@@ -776,7 +775,7 @@ export default function HomePage() {
                 filteredUsers.slice(page * itemsPerPage, (page + 1) * itemsPerPage).map(user => {
                   const uStatus = user.status || 'Active';
                   const uImage = user.userImage || user.userimage;
-                  const uName = user.fullName || user.fullname || user.username;
+                  const uName = user.username;
                   const uContact = user.contactNumber || user.contactnumber;
                   const uDept = user.department || user.departmend;
 

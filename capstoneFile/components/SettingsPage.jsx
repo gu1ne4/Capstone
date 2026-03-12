@@ -1,6 +1,7 @@
-import { View, Text, TouchableOpacity, Image, TextInput, Modal, Switch, Pressable } from 'react-native';
-import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, Image, TextInput, Modal, Switch, Pressable, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react'; 
 import { useNavigation, useRoute } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import homeStyle from '../styles/HomeStyle';
 
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,16 +12,77 @@ import { BlurView } from 'expo-blur';
 
 import * as ImagePicker from 'expo-image-picker';
 
-// meow
 export default function SettingsPage() {
 
     const ns = useNavigation();
-
     const route = useRoute();
     const isActive = route.name === 'Settings';
 
+    // Added API_URL for the logout audit log
+    const API_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
+
+    const [currentUser, setCurrentUser] = useState(null);
     const [showAccountDropdown, setShowAccountDropdown] = useState(false);
     const [showAppointmentsDropdown, setShowAppointmentsDropdown] = useState(false);
+
+    // 1. ADDED MODAL STATE FOR CUSTOM ALERT
+    const [modalVisible, setModalVisible] = useState(false);
+    const [modalConfig, setModalConfig] = useState({
+      type: 'info', 
+      title: '',
+      message: '', 
+      onConfirm: null, 
+      showCancel: false 
+    });
+
+    // 2. ADDED SHOW ALERT HELPER
+    const showAlert = (type, title, message, onConfirm = null, showCancel = false) => {
+      setModalConfig({ type, title, message, onConfirm, showCancel });
+      setModalVisible(true);
+    };
+
+    // 3. UPDATED LOGOUT TO USE POPUP & AUDIT LOG
+    const handleLogoutPress = () => {
+      showAlert('confirm', 'Log Out', 'Are you sure you want to log out?', async () => {
+        try {
+          if (currentUser) {
+            console.log("Sending logout audit for:", currentUser.username);
+            await fetch(`${API_URL}/logout`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                userId: currentUser.id || currentUser.pk, 
+                userType: 'EMPLOYEE', 
+                username: currentUser.username || currentUser.fullName,
+                role: currentUser.role
+              })
+            });
+          }
+        } catch (error) {
+          console.error("Logout audit failed:", error);
+        }
+
+        // Explicitly clear session and state
+        await AsyncStorage.removeItem('userSession'); 
+        setCurrentUser(null);
+        ns.navigate('Login'); 
+      }, true); 
+    };
+
+    // Load the session data when the page opens
+    useEffect(() => {
+      const loadUser = async () => {
+        try {
+          const session = await AsyncStorage.getItem('userSession');
+          if (session) {
+            setCurrentUser(JSON.parse(session));
+          }
+        } catch (error) {
+          console.error("Failed to load user session", error);
+        }
+      };
+      loadUser();
+    }, []);
 
   return (
       <View style={homeStyle.biContainer}>
@@ -45,12 +107,18 @@ export default function SettingsPage() {
           <View style={[homeStyle.glassContainer, {paddingLeft: 8}]}>
             <View style={[homeStyle.navAccount, {gap: 8}]}>
               <Image 
-                source={require('../assets/userImg.jpg')} 
+                source={(currentUser && currentUser.userImage) 
+                  ? { uri: currentUser.userImage } 
+                  : require('../assets/userImg.jpg')} 
                 style={{ width: 35, height: 35, borderRadius: 25, marginTop: 2 }}
               />
               <View>
-                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Queen Elsa</Text>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 10 }}>Project Manager (Admin)</Text>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
+                  {currentUser ? currentUser.username : "Loading..."}
+                </Text>
+                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 10 }}>
+                  {currentUser ? currentUser.role : "..."}
+                </Text>
               </View>
             </View>
           </View>
@@ -159,13 +227,12 @@ export default function SettingsPage() {
 
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
           <View style={[homeStyle.glassContainer, {paddingTop: 12, paddingBottom: 3}]}>
-            <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Login')}}>
+            <TouchableOpacity style={homeStyle.navBtn} onPress={handleLogoutPress}>
               <Ionicons name="log-out-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
               <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Log Out</Text>
             </TouchableOpacity>
           </View>
         </View>
-
 
         </LinearGradient>
       </View>
@@ -183,12 +250,82 @@ export default function SettingsPage() {
           </View>
         </View>
 
-
         <View style={homeStyle.tableContainer}>
           
 
         </View>
       </View>
+
+      {/* 4. CUSTOM ALERT MODAL COMPONENT */}
+      <Modal
+        transparent={true}
+        visible={modalVisible}
+        animationType="fade"
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
+          <View style={{backgroundColor: 'white', padding: 25, borderRadius: 12, width: '80%', maxWidth: 350, alignItems: 'center', elevation: 5}}>
+            <Ionicons 
+              name={
+                modalConfig.type === 'success' ? "checkmark-circle-outline" :
+                modalConfig.type === 'error' ? "close-circle-outline" :
+                "alert-circle-outline"
+              } 
+              size={55} 
+              color={
+                modalConfig.type === 'success' ? "#2e9e0c" :
+                modalConfig.type === 'error' ? "#d93025" :
+                "#3d67ee"
+              } 
+            />
+            
+            <Text style={{fontSize: 20, fontWeight: 'bold', marginVertical: 10, fontFamily: 'Segoe UI', color: 'black'}}>
+              {modalConfig.title}
+            </Text>
+            
+            {typeof modalConfig.message === 'string' ? (
+              <Text style={{textAlign: 'center', color: '#666', marginBottom: 25, fontSize: 14}}>
+                {modalConfig.message}
+              </Text>
+            ) : (
+              <View style={{marginBottom: 25}}>
+                {modalConfig.message}
+              </View>
+            )}
+            
+            <View style={{flexDirection: 'row', gap: 15, width: '100%', justifyContent: 'center'}}>
+              {modalConfig.showCancel && (
+                <TouchableOpacity 
+                  onPress={() => setModalVisible(false)} 
+                  style={{paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#f0f0f0', borderRadius: 8, minWidth: 100, alignItems: 'center'}}
+                >
+                  <Text style={{color: '#333', fontWeight: '600'}}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity 
+                onPress={() => {
+                  setModalVisible(false);
+                  if (modalConfig.onConfirm) modalConfig.onConfirm();
+                }} 
+                style={{
+                  paddingVertical: 10, 
+                  paddingHorizontal: 20, 
+                  backgroundColor: modalConfig.type === 'error' ? '#d93025' : '#3d67ee', 
+                  borderRadius: 8, 
+                  minWidth: 100, 
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{color: 'white', fontWeight: '600'}}>
+                  {modalConfig.type === 'confirm' ? 'Confirm' : 'OK'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </View>
   )
 }

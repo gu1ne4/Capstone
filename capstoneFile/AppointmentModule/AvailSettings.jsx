@@ -1,6 +1,7 @@
-import { View, Text, TouchableOpacity, Image, TextInput, Modal, Switch, ScrollView, Alert } from 'react-native';
-import React, { useState, useEffect } from 'react';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { View, Text, TouchableOpacity, Image, TextInput, Modal, Switch, ScrollView, Alert, Platform } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native'; // Added useFocusEffect
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import homeStyle from '../styles/HomeStyle';
 
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,8 +38,6 @@ const TimeSelector = ({ label, value, onChange }) => {
   const [hours, setHours] = useState(initialTime.hours);
   const [minutes, setMinutes] = useState(initialTime.minutes);
   const [isAM, setIsAM] = useState(initialTime.isAM);
-
-
 
   // Update internal state when external value changes
   useEffect(() => {
@@ -191,10 +190,17 @@ export default function AvailSettings() {
   const route = useRoute();
   const isActive = route.name === 'AvailSettings';
 
+  const API_URL = Platform.OS === 'web' ? 'http://localhost:3000' : 'http://10.0.2.2:3000';
+
+  const [currentUser, setCurrentUser] = useState(null);
+
   const [showAccountDropdown, setShowAccountDropdown] = useState(false);
   const [showAppointmentsDropdown, setShowAppointmentsDropdown] = useState(false);
 
-    // Add this with your other useState declarations
+  // LOGOUT POPUP STATE
+  const [logoutModalVisible, setLogoutModalVisible] = useState(false);
+  const [modalConfig, setModalConfig] = useState({ type: 'info', title: '', message: '', onConfirm: null, showCancel: false });
+
   const [deleteConfirmationVisible, setDeleteConfirmationVisible] = useState(false);
   const [slotToDelete, setSlotToDelete] = useState(null);
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
@@ -214,13 +220,10 @@ export default function AvailSettings() {
     saturday: []
   });
 
-  // Current modal state
   const [currentEditingDay, setCurrentEditingDay] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  // REMOVED capacity state - now default to 1
 
-  // Day availability state
   const [dayAvailability, setDayAvailability] = useState({
     sunday: false,
     monday: false,
@@ -237,18 +240,68 @@ export default function AvailSettings() {
 
   const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
 
-  // Load data on component mount
+  // SHOW ALERT HELPER
+  const showAlert = (type, title, message, onConfirm = null, showCancel = false) => {
+    setModalConfig({ type, title, message, onConfirm, showCancel });
+    setLogoutModalVisible(true);
+  };
+
+  // LOGOUT FUNCTION WITH AUDIT
+  const handleLogoutPress = () => {
+    showAlert('confirm', 'Log Out', 'Are you sure you want to log out?', async () => {
+      try {
+        if (currentUser) {
+          console.log("Sending logout audit for:", currentUser.username);
+          await fetch(`${API_URL}/logout`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: currentUser.id || currentUser.pk, 
+              userType: 'EMPLOYEE', 
+              username: currentUser.username || currentUser.fullName,
+              role: currentUser.role
+            })
+          });
+        }
+      } catch (error) {
+        console.error("Logout audit failed:", error);
+      }
+
+      await AsyncStorage.removeItem('userSession'); 
+      setCurrentUser(null);
+      ns.navigate('Login'); 
+    }, true); 
+  };
+
+  // SESSION LOADING EFFECT
+  useFocusEffect(
+    useCallback(() => {
+      const loadUser = async () => {
+        try {
+          const session = await AsyncStorage.getItem('userSession');
+          if (session) {
+            setCurrentUser(JSON.parse(session));
+          } else {
+            setCurrentUser(null);
+          }
+        } catch (error) {
+          console.error("Failed to load user session", error);
+        }
+      };
+      loadUser();
+    }, [])
+  );
+
   useEffect(() => {
     loadInitialData();
+    loadAppointmentsForCalendar(); 
   }, []);
 
   const loadInitialData = async () => {
     try {
-      // Load day availability using the service
       const dayData = await availabilityService.getDayAvailability();
       setDayAvailability(dayData);
       
-      // Load time slots for all days
       const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
       const slotsByDay = { ...timeSlotsByDay };
       
@@ -266,94 +319,66 @@ export default function AvailSettings() {
       
     } catch (error) {
       console.error('Failed to load initial data:', error);
-      Alert.alert('Error', 'Failed to load availability data');
     }
   };
 
-  // Add this function to load appointments for the calendar
-const loadAppointmentsForCalendar = async () => {
-  try {
-    const appointments = await availabilityService.getAppointmentsForTable();
-    
-    // Process booked dates for calendar
-    const booked = {};
-    appointments.forEach(app => {
-      // Extract date from date_time string (format: "Mon DD, YYYY - HH:MM AM/PM")
-      const dateTimeParts = app.date_time.split(' - ');
-      if (dateTimeParts.length > 0) {
-        const dateStr = dateTimeParts[0];
-        const date = new Date(dateStr);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        const formattedDate = `${year}-${month}-${day}`;
-        
-        booked[formattedDate] = {
-          marked: true,
-          dotColor: '#3d67ee',
-        };
-      }
-    });
-    
-    setBookedDates(booked);
-  } catch (error) {
-    console.error('Failed to load appointments for calendar:', error);
-  }
-};
+  const loadAppointmentsForCalendar = async () => {
+    try {
+      const appointments = await availabilityService.getAppointmentsForTable();
+      const booked = {};
+      appointments.forEach(app => {
+        const dateTimeParts = app.date_time.split(' - ');
+        if (dateTimeParts.length > 0) {
+          const dateStr = dateTimeParts[0];
+          const date = new Date(dateStr);
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          const formattedDate = `${year}-${month}-${day}`;
+          
+          booked[formattedDate] = {
+            marked: true,
+            dotColor: '#3d67ee',
+          };
+        }
+      });
+      
+      setBookedDates(booked);
+    } catch (error) {
+      console.error('Failed to load appointments for calendar:', error);
+    }
+  };
 
-// Add this to your existing useEffect
-useEffect(() => {
-  loadInitialData();
-  loadAppointmentsForCalendar(); // Add this line
-}, []);
-
-  // Handle day switch toggle
   const handleDayToggle = async (dayName) => {
     const dayKey = dayName.toLowerCase();
     const newValue = !dayAvailability[dayKey];
     
-    // Update local state immediately for responsive UI
     setDayAvailability(prev => ({
       ...prev,
       [dayKey]: newValue
     }));
     
     try {
-      // Save to database using the service
       await availabilityService.saveDayAvailability(dayKey, newValue);
     } catch (error) {
-      // Revert local state on error
       setDayAvailability(prev => ({
         ...prev,
         [dayKey]: !newValue
       }));
-      
       console.error('Failed to save day availability:', error);
-      Alert.alert('Error', 'Failed to update availability. Please try again.');
     }
   };
 
-  // Open time slot modal for a day
   const openTimeSlotModalForDay = async (dayName) => {
-    console.log('=== Opening modal for:', dayName);
     const dayKey = dayName.toLowerCase();
-    
-    // IMMEDIATELY open the modal with the day name
     setCurrentEditingDay(dayKey);
     setModalVisible(true);
-    
-    // Reset inputs
     setStartTime('');
     setEndTime('');
-    
-    // Then load data
     setLoadingTimeSlots(true);
     
     try {
-      // Load time slots for this day using the service
       const existingSlots = await availabilityService.getTimeSlotsForDay(dayKey);
-      console.log('Loaded slots:', existingSlots);
-      
       const formattedSlots = existingSlots.map(slot => ({
         id: slot.id,
         startTime: slot.start_time,
@@ -361,7 +386,6 @@ useEffect(() => {
         capacity: slot.capacity
       }));
       
-      // Update state
       setTimeSlotsByDay(prev => ({
         ...prev,
         [dayKey]: formattedSlots
@@ -369,274 +393,174 @@ useEffect(() => {
       
     } catch (error) {
       console.error('Error loading slots:', error);
-      Alert.alert('Error', 'Failed to load time slots');
     } finally {
       setLoadingTimeSlots(false);
     }
   };
 
-const addSlot = () => {
-  console.log('=== ADD SLOT CALLED ===');
-  console.log('currentEditingDay:', currentEditingDay);
-  console.log('startTime:', startTime);
-  console.log('endTime:', endTime);
-  
-  // Validate inputs
-  if (!currentEditingDay) {
-    Alert.alert('Error', 'No day selected');
-    return;
-  }
-  
-  if (!startTime || !startTime.trim()) {
-    Alert.alert('Error', 'Please select a start time');
-    return;
-  }
-  
-  if (!endTime || !endTime.trim()) {
-    Alert.alert('Error', 'Please select an end time');
-    return;
-  }
-  
-  // Validate that start time is before end time
-  const convertToMinutes = (timeStr) => {
-    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-    if (match) {
-      let hours = parseInt(match[1]);
-      const minutes = parseInt(match[2]);
-      const ampm = match[3].toUpperCase();
-      
-      // Convert to 24-hour format
-      if (ampm === 'PM' && hours < 12) hours += 12;
-      if (ampm === 'AM' && hours === 12) hours = 0;
-      
-      return hours * 60 + minutes;
-    }
-    return 0;
-  };
-
-  const startMinutes = convertToMinutes(startTime);
-  const endMinutes = convertToMinutes(endTime);
-
-  console.log('Start minutes:', startMinutes);
-  console.log('End minutes:', endMinutes);
-
-  // Allow slots that end at the same time? Probably not, but at least allow exact hours
-  if (startMinutes >= endMinutes) {
-    Alert.alert('Error', 'End time must be after start time');
-    return;
-  }
-  
-  // Check for overlapping slots
-  const currentSlots = timeSlotsByDay[currentEditingDay] || [];
-  const hasOverlap = currentSlots.some(slot => {
-    const slotStart = convertToMinutes(slot.startTime);
-    const slotEnd = convertToMinutes(slot.endTime);
-    
-    // Check if new slot overlaps with existing slot
-    return (startMinutes < slotEnd && endMinutes > slotStart);
-  });
-
-  if (hasOverlap) {
-    Alert.alert('Error', 'This time slot overlaps with an existing slot');
-    return;
-  }
-  
-  // Create new slot with a truly unique ID
-  const newSlot = {
-    id: `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
-    startTime: startTime,
-    endTime: endTime,
-    capacity: 1
-  };
-  
-  console.log('✅ New slot created:', newSlot);
-  
-  // Update state
-  setTimeSlotsByDay(prev => {
-    const currentSlots = prev[currentEditingDay] || [];
-    // Check if this slot already exists to prevent duplicates
-    const slotExists = currentSlots.some(slot => 
-      slot.startTime === startTime && slot.endTime === endTime
-    );
-    
-    if (slotExists) {
-      console.log('⚠️ Slot with same time already exists');
-      Alert.alert('Error', 'A slot with these times already exists');
-      return prev;
+  const addSlot = () => {
+    if (!currentEditingDay || !startTime.trim() || !endTime.trim()) {
+      return;
     }
     
-    const updatedSlots = [...currentSlots, newSlot].sort((a, b) => {
-      const aMinutes = convertToMinutes(a.startTime);
-      const bMinutes = convertToMinutes(b.startTime);
-      return aMinutes - bMinutes;
+    const convertToMinutes = (timeStr) => {
+      const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+      if (match) {
+        let hours = parseInt(match[1]);
+        const minutes = parseInt(match[2]);
+        const ampm = match[3].toUpperCase();
+        
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+        
+        return hours * 60 + minutes;
+      }
+      return 0;
+    };
+
+    const startMinutes = convertToMinutes(startTime);
+    const endMinutes = convertToMinutes(endTime);
+
+    if (startMinutes >= endMinutes) {
+      return;
+    }
+    
+    const currentSlots = timeSlotsByDay[currentEditingDay] || [];
+    const hasOverlap = currentSlots.some(slot => {
+      const slotStart = convertToMinutes(slot.startTime);
+      const slotEnd = convertToMinutes(slot.endTime);
+      return (startMinutes < slotEnd && endMinutes > slotStart);
+    });
+
+    if (hasOverlap) {
+      return;
+    }
+    
+    const newSlot = {
+      id: `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+      startTime: startTime,
+      endTime: endTime,
+      capacity: 1
+    };
+    
+    setTimeSlotsByDay(prev => {
+      const currentSlots = prev[currentEditingDay] || [];
+      const slotExists = currentSlots.some(slot => 
+        slot.startTime === startTime && slot.endTime === endTime
+      );
+      
+      if (slotExists) return prev;
+      
+      const updatedSlots = [...currentSlots, newSlot].sort((a, b) => {
+        const aMinutes = convertToMinutes(a.startTime);
+        const bMinutes = convertToMinutes(b.startTime);
+        return aMinutes - bMinutes;
+      });
+      
+      return {
+        ...prev,
+        [currentEditingDay]: updatedSlots
+      };
     });
     
-    return {
-      ...prev,
-      [currentEditingDay]: updatedSlots
-    };
-  });
-  
-  // Clear input fields
-  setStartTime('');
-  setEndTime('');
-};
+    setStartTime('');
+    setEndTime('');
+  };
 
   const addEvent = async () => {
     if (eventName && eventDate) {
       try {
-        // Save to database (you'll need to add this method to the service)
-        // await availabilityService.saveSpecialDate(eventName, eventDate);
-        
-        // Then update local state
         const newEvent = { name: eventName, date: eventDate };
         setSpecialDates([...specialDates, newEvent]);
         setEventName('');
         setEventDate('');
         setModalVisible2(false);
-        
-        Alert.alert('Success', 'Special date added successfully');
       } catch (error) {
         console.error('Failed to save special date:', error);
-        Alert.alert('Error', 'Failed to add special date. Please try again.');
       }
-    } else {
-      Alert.alert('Error', 'Please fill in all fields');
     }
   };
 
-  const deleteEvent = async (eventDate) => {
+  const deleteSlot = (slotId) => {
+    if (!currentEditingDay) return;
+    
+    const slot = timeSlotsByDay[currentEditingDay].find(s => s.id === slotId);
+    if (!slot) return;
+    
+    setSlotToDelete(slot);
+    setDeleteConfirmationVisible(true);
+  };
+
+  const confirmDeleteSlot = async () => {
+    if (!slotToDelete) return;
+    const slotId = slotToDelete.id;
+    
     try {
-      setSpecialDates(prev => prev.filter(event => event.date !== eventDate));
-      Alert.alert('Success', 'Special date removed');
+      if (slotId.toString().startsWith('temp-')) {
+        setTimeSlotsByDay(prev => {
+          const updatedSlots = prev[currentEditingDay].filter(s => s.id !== slotId);
+          return {
+            ...prev,
+            [currentEditingDay]: updatedSlots
+          };
+        });
+      } else {
+        await availabilityService.deleteTimeSlot(slotId);
+        setTimeSlotsByDay(prev => {
+          const updatedSlots = prev[currentEditingDay].filter(s => s.id !== slotId);
+          return {
+            ...prev,
+            [currentEditingDay]: updatedSlots
+          };
+        });
+      }
+      setDeleteConfirmationVisible(false);
+      setSlotToDelete(null);
     } catch (error) {
-      console.error('Failed to delete special date:', error);
-      Alert.alert('Error', 'Failed to remove special date. Please try again.');
+      console.error('Failed to delete slot:', error);
     }
   };
 
-const deleteSlot = (slotId) => {
-  console.log('=== DELETE SLOT CALLED ===');
-  console.log('Slot ID to delete:', slotId);
-  
-  if (!currentEditingDay) {
-    console.log('❌ No day selected');
-    return;
-  }
-  
-  // Find the slot to display in confirmation
-  const slot = timeSlotsByDay[currentEditingDay].find(s => s.id === slotId);
-  console.log('Found slot:', slot);
-  
-  if (!slot) {
-    console.log('❌ Slot not found in state');
-    return;
-  }
-  
-  // Store the slot to delete and show confirmation modal
-  setSlotToDelete(slot);
-  setDeleteConfirmationVisible(true);
-};
-
-// Add this new function to handle actual deletion
-const confirmDeleteSlot = async () => {
-  if (!slotToDelete) return;
-  
-  const slotId = slotToDelete.id;
-  console.log('Delete confirmed for slot:', slotId);
-  
-  try {
-    if (slotId.toString().startsWith('temp-')) {
-      console.log('Deleting temporary slot');
-      
-      setTimeSlotsByDay(prev => {
-        const updatedSlots = prev[currentEditingDay].filter(s => s.id !== slotId);
-        return {
-          ...prev,
-          [currentEditingDay]: updatedSlots
-        };
-      });
-    } else {
-      console.log('Deleting database slot via API');
-      
-      const result = await availabilityService.deleteTimeSlot(slotId);
-      console.log('Delete API result:', result);
-      
-      setTimeSlotsByDay(prev => {
-        const updatedSlots = prev[currentEditingDay].filter(s => s.id !== slotId);
-        return {
-          ...prev,
-          [currentEditingDay]: updatedSlots
-        };
-      });
+  const saveTimeSlotsToDatabase = async () => {
+    if (!currentEditingDay) {
+      setModalVisible(false);
+      return;
     }
     
-    setDeleteConfirmationVisible(false);
-    setSlotToDelete(null);
-    Alert.alert('Success', 'Time slot deleted successfully');
-  } catch (error) {
-    console.error('Failed to delete slot:', error);
-    Alert.alert('Error', 'Failed to delete time slot: ' + error.message);
-  }
-};
-
-const saveTimeSlotsToDatabase = async () => {
-  if (!currentEditingDay) {
-    setModalVisible(false);
-    return;
-  }
-  
-  try {
-    const currentSlots = timeSlotsByDay[currentEditingDay] || [];
-    console.log('Saving slots for day:', currentEditingDay);
-    console.log('Current slots to save:', currentSlots);
-    
-    // CRITICAL FIX: Remove IDs from slots before saving
-    // This ensures we don't send database IDs to the server
-    const slotsToSave = currentSlots.map(slot => {
-      // Extract only the data we need, NOT the ID
-      return {
-        startTime: slot.startTime,
-        endTime: slot.endTime,
-        capacity: slot.capacity || 1  // Make sure capacity is included
-      };
-    });
-    
-    console.log('Slots to save (without IDs):', slotsToSave);
-    
-    // Save to database (this will REPLACE all slots for this day)
-    await availabilityService.saveTimeSlots(currentEditingDay, slotsToSave);
-    
-    setModalVisible(false);
-    setStartTime('');
-    setEndTime('');
-    
-    // IMPORTANT: Reload the slots from database to get the new IDs
-    const updatedSlots = await availabilityService.getTimeSlotsForDay(currentEditingDay);
-    console.log('Updated slots from DB:', updatedSlots);
-    
-    const formattedSlots = updatedSlots.map(slot => ({
-      id: slot.id, // Use the NEW database IDs
-      startTime: slot.start_time,
-      endTime: slot.end_time,
-      capacity: slot.capacity || 1
-    }));
-    
-    // Update state with the REAL slots from database
-    setTimeSlotsByDay(prev => ({
-      ...prev,
-      [currentEditingDay]: formattedSlots
-    }));
-    
-    Alert.alert('Success', `Time slots saved for ${currentEditingDay.charAt(0).toUpperCase() + currentEditingDay.slice(1)}`);
-  } catch (error) {
-    console.error('Failed to save time slots:', error);
-    Alert.alert('Error', 'Failed to save time slots. Please try again.');
-  }
-};
+    try {
+      const currentSlots = timeSlotsByDay[currentEditingDay] || [];
+      const slotsToSave = currentSlots.map(slot => {
+        return {
+          startTime: slot.startTime,
+          endTime: slot.endTime,
+          capacity: slot.capacity || 1
+        };
+      });
+      
+      await availabilityService.saveTimeSlots(currentEditingDay, slotsToSave);
+      
+      setModalVisible(false);
+      setStartTime('');
+      setEndTime('');
+      
+      const updatedSlots = await availabilityService.getTimeSlotsForDay(currentEditingDay);
+      const formattedSlots = updatedSlots.map(slot => ({
+        id: slot.id, 
+        startTime: slot.start_time,
+        endTime: slot.end_time,
+        capacity: slot.capacity
+      }));
+      
+      setTimeSlotsByDay(prev => ({
+        ...prev,
+        [currentEditingDay]: formattedSlots
+      }));
+    } catch (error) {
+      console.error('Failed to save time slots:', error);
+    }
+  };
 
   const cancelTimeSlotEditing = () => {
-    // Reload from database to discard changes
     if (currentEditingDay) {
       availabilityService.getTimeSlotsForDay(currentEditingDay)
         .then(existingSlots => {
@@ -653,7 +577,6 @@ const saveTimeSlotsToDatabase = async () => {
           }));
         })
         .catch(error => {
-          console.error('Failed to reload time slots:', error);
           setTimeSlotsByDay(prev => ({
             ...prev,
             [currentEditingDay]: []
@@ -686,16 +609,21 @@ const saveTimeSlotsToDatabase = async () => {
             <Text style={[homeStyle.brandFont]}>Agsikap</Text>
           </View>
 
-          {/* ACCOUNT LOGGED IN */}
           <View style={[homeStyle.glassContainer, {paddingLeft: 8}]}>
             <View style={[homeStyle.navAccount, {gap: 8}]}>
               <Image 
-                source={require('../assets/userImg.jpg')} 
+                source={(currentUser && currentUser.userImage) 
+                  ? { uri: currentUser.userImage } 
+                  : require('../assets/userImg.jpg')} 
                 style={{ width: 35, height: 35, borderRadius: 25, marginTop: 2 }}
               />
               <View>
-                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>Queen Elsa</Text>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 10 }}>Project Manager (Admin)</Text>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
+                  {currentUser ? currentUser.username : "Loading..."}
+                </Text>
+                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 10 }}>
+                  {currentUser ? currentUser.role : "..."}
+                </Text>
               </View>
             </View>
           </View>
@@ -788,7 +716,7 @@ const saveTimeSlotsToDatabase = async () => {
               )}
             </View>
 
-            <View>
+            <View >
               <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Audit')}}>
                 <Ionicons name="document-text-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
                 <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>System Audit</Text>
@@ -805,7 +733,7 @@ const saveTimeSlotsToDatabase = async () => {
 
           <View style={{ flex: 1, justifyContent: 'flex-end' }}>
             <View style={[homeStyle.glassContainer, {paddingTop: 12, paddingBottom: 3}]}>
-              <TouchableOpacity style={homeStyle.navBtn} onPress={()=>{ns.navigate('Login')}}>
+              <TouchableOpacity style={homeStyle.navBtn} onPress={handleLogoutPress}>
                 <Ionicons name="log-out-outline" size={15} color={"#fffefe"} style={{marginTop: 2}}/>
                 <Text style={[homeStyle.navFont, {fontWeight: '400'}]}>Log Out</Text>
               </TouchableOpacity>
@@ -831,7 +759,7 @@ const saveTimeSlotsToDatabase = async () => {
         <View style={[apStyle.tableContainer, {flexDirection: 'row'}]}>
           <View style={apStyle.sideContainer}>
             <View style={[apStyle.whiteContainer, {padding: 10, overflow: 'hidden', flex: 2}]}>
-                                          <Calendar 
+                <Calendar 
                 monthFormat={'MMMM yyyy'}
                 current={new Date().toISOString().split('T')[0]}
                 onDayPress={(day) => {
@@ -848,7 +776,6 @@ const saveTimeSlotsToDatabase = async () => {
                     }
                   } : {})
                 }}
-                // Custom styling for marked dates
                 theme={{
                   'stylesheet.day.basic': {
                     base: {
@@ -866,14 +793,12 @@ const saveTimeSlotsToDatabase = async () => {
                       fontWeight: '600',
                     },
                   },
-                  // Make the dots bigger and more visible
                   dotStyle: {
                     width: 8,
                     height: 8,
                     borderRadius: 4,
                     marginTop: 2,
                   },
-                  // Style for the selected day
                   selectedDayBackgroundColor: '#3d67ee',
                   selectedDayTextColor: 'white',
                   todayTextColor: '#3d67ee',
@@ -1233,7 +1158,6 @@ const saveTimeSlotsToDatabase = async () => {
                               onChange={setEndTime}
                             />
                             
-                            {/* REMOVED Capacity TextInput */}
                             
                             <TouchableOpacity onPress={addSlot} style={apStyle.addBtn}>
                               <Text style={{ color: '#fff', fontWeight: '600' }}>+ Add Slot</Text>
@@ -1414,6 +1338,77 @@ const saveTimeSlotsToDatabase = async () => {
                   </View>
                 </View>
               </Modal>
+
+              {/* CUSTOM ALERT MODAL COMPONENT */}
+              <Modal
+                transparent={true}
+                visible={logoutModalVisible}
+                animationType="fade"
+                onRequestClose={() => setLogoutModalVisible(false)}
+              >
+                <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
+                  <View style={{backgroundColor: 'white', padding: 25, borderRadius: 12, width: '80%', maxWidth: 350, alignItems: 'center', elevation: 5}}>
+                    <Ionicons 
+                      name={
+                        modalConfig.type === 'success' ? "checkmark-circle-outline" :
+                        modalConfig.type === 'error' ? "close-circle-outline" :
+                        "alert-circle-outline"
+                      } 
+                      size={55} 
+                      color={
+                        modalConfig.type === 'success' ? "#2e9e0c" :
+                        modalConfig.type === 'error' ? "#d93025" :
+                        "#3d67ee"
+                      } 
+                    />
+                    
+                    <Text style={{fontSize: 20, fontWeight: 'bold', marginVertical: 10, fontFamily: 'Segoe UI', color: 'black'}}>
+                      {modalConfig.title}
+                    </Text>
+                    
+                    {typeof modalConfig.message === 'string' ? (
+                      <Text style={{textAlign: 'center', color: '#666', marginBottom: 25, fontSize: 14}}>
+                        {modalConfig.message}
+                      </Text>
+                    ) : (
+                      <View style={{marginBottom: 25}}>
+                        {modalConfig.message}
+                      </View>
+                    )}
+                    
+                    <View style={{flexDirection: 'row', gap: 15, width: '100%', justifyContent: 'center'}}>
+                      {modalConfig.showCancel && (
+                        <TouchableOpacity 
+                          onPress={() => setLogoutModalVisible(false)} 
+                          style={{paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#f0f0f0', borderRadius: 8, minWidth: 100, alignItems: 'center'}}
+                        >
+                          <Text style={{color: '#333', fontWeight: '600'}}>Cancel</Text>
+                        </TouchableOpacity>
+                      )}
+                      
+                      <TouchableOpacity 
+                        onPress={() => {
+                          setLogoutModalVisible(false);
+                          if (modalConfig.onConfirm) modalConfig.onConfirm();
+                        }} 
+                        style={{
+                          paddingVertical: 10, 
+                          paddingHorizontal: 20, 
+                          backgroundColor: modalConfig.type === 'error' ? '#d93025' : '#3d67ee', 
+                          borderRadius: 8, 
+                          minWidth: 100, 
+                          alignItems: 'center'
+                        }}
+                      >
+                        <Text style={{color: 'white', fontWeight: '600'}}>
+                          {modalConfig.type === 'confirm' ? 'Confirm' : 'OK'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              </Modal>
+
             </View> 
           </View>  
         </View>  
