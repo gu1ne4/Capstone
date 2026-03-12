@@ -29,8 +29,9 @@ const userStyle = StyleSheet.create({
     glassContainer: {
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 10,
-    paddingVertical: 20,
-    paddingHorizontal: 50,
+    paddingHorizontal: 20,
+    height: 60,
+    justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.5)',
@@ -81,7 +82,99 @@ const userStyle = StyleSheet.create({
 
   btnStyle: {
     backgroundColor: '#3d67ee', padding: 12, borderRadius: 18, paddingHorizontal: 50, color: '#fffff'
-  }
+  },
+
+  tableHeader: {
+    fontWeight: '500',
+    fontSize: 13,
+  },
+  tableCell: {
+    fontSize: 13,
+    color: '#333',
+    textAlign: 'left',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    width: '30%',
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 30,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    position: 'relative',
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 15,
+    right: 15,
+    zIndex: 10,
+    padding: 5,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+    marginTop: 15,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  modalText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    marginVertical: 15,
+    lineHeight: 24,
+  },
+  modalButtonContainer: {
+    flexDirection: 'row',
+    gap: 15,
+    marginTop: 10,
+  },
+  modalButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 25,
+    borderRadius: 10,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+
+  rightPanelDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
+  rightPanelDetailLabel: {
+    width: 50,
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '500',
+  },
+  rightPanelDetailValue: {
+    flex: 1,
+    fontSize: 14,
+    color: '#333',
+  },
+  rightPanelDetailLabelSmall: {
+    width: 100,
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '500',
+  },
+  rightPanelDetailValueSmall: {
+    flex: 1,
+    fontSize: 13,
+    color: '#333',
+  },
   
 });
 
