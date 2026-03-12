@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // Service to manage vet availability data
 const API_URL = 'http://localhost:3000';
 const VET_ID = 1;
@@ -233,3 +234,10 @@ async saveDayAvailability(dayName, isAvailable, pkId = null) {
     return formattedSlots;
   }
 };
+=======
+adawdawda
+
+hello
+
+e
+>>>>>>> 42a0f86bf09c98e0631be2f5f5e21f335269d335

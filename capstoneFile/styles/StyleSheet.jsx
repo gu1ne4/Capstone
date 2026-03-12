@@ -128,63 +128,7 @@ const styles = StyleSheet.create({
     width: '100%',
   }, 
 
-  // VALIDATION STYLES
-  inputError: {
-    borderColor: '#ff4444',
-    borderWidth: 2,
-    backgroundColor: '#fff8f8',
-  },
   
-  inputValid: {
-    borderColor: '#4CAF50',
-    borderWidth: 2,
-  },
-  
-  // UPDATED: Field feedback container - Very compact
-  fieldFeedbackContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    width: '100%',
-    marginTop: 3, // Minimal space
-    height: 18, // Very compact height
-    paddingHorizontal: 2,
-  },
-
-  // UPDATED: Error container for left side
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'flex-start',
-    maxHeight: 16,
-  },
-
-  // UPDATED: Error text - Small and compact
-  errorText: {
-    color: '#ff4444',
-    fontSize: 11, // Smaller
-    textAlign: 'left',
-    lineHeight: 12, // Tight
-  },
-
-  // UPDATED: Char count - Fixed position on right
-  charCount: {
-    color: '#999',
-    fontSize: 11, // Match error size
-    textAlign: 'right',
-    width: 50, // Fixed width
-    lineHeight: 12,
-  },
-
-  charCountError: {
-    color: '#ff4444',
-    fontWeight: 'bold',
-  },
-
-  charCountValid: {
-    color: '#4CAF50',
-    fontWeight: 'bold',
-  },
-
   loginButton: { 
     backgroundColor: '#000', 
     paddingVertical: 12, 
@@ -201,11 +145,78 @@ const styles = StyleSheet.create({
     fontWeight: '600', 
   },
 
+  //-------------------FOR LOGIN VALIDATIONS-------------------//
+  
+  inputField: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    paddingVertical: 15, 
+    paddingHorizontal: 15, 
+    fontSize: 16,
+    width: '100%', 
+    minHeight: 50, 
+  },
+
+  inputError: {
+    borderColor: '#ff4444',
+    borderWidth: 2,
+    backgroundColor: '#fff8f8',
+  },
+
+  inputValid: {
+    borderColor: '#4CAF50',
+    borderWidth: 2,
+  },
+
+  inputGroup: {
+    marginBottom: 10, 
+    width: '100%', 
+  },
+
+  fieldFeedbackContainer: {
+  flexDirection: 'row',
+  justifyContent: 'flex-end', 
+  alignItems: 'center',
+  width: '100%',
+  marginTop: 4,
+  position: 'relative', 
+  },
+
+  errorText: {
+    color: '#ff4444',
+    fontSize: 12,
+    position: 'absolute', 
+    left: 0, 
+    top: 0, 
+    right: 60, 
+    textAlign: 'left',
+  },
+
+  charCount: {
+    color: '#999',
+    fontSize: 12,
+    textAlign: 'right',
+    width: 50, 
+  },
+
+
+  charCountError: {
+    color: '#ff4444',
+    fontWeight: 'bold',
+  },
+
+  charCountValid: {
+    color: '#4CAF50',
+    fontWeight: 'bold',
+  },
+
   loginButtonDisabled: {
-    backgroundColor: '#cccccc',
-  }
+  backgroundColor: '#cccccc', 
+  opacity: 0.7,
+}
 
-
+ 
 
 });
 

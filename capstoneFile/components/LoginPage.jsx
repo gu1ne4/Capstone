@@ -1,83 +1,122 @@
-import { View, Text, TouchableOpacity, Image, TextInput, Platform, ImageBackground, ActivityIndicator, Modal, StyleSheet } from 'react-native'
-import React, { useState, useEffect } from 'react'
-import { useNavigation, useRoute } from '@react-navigation/native'
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Ionicons } from '@expo/vector-icons';
-
-// meow
-import styles from '../styles/StyleSheet';
+import { View, Text, TouchableOpacity, Image, TextInput } from 'react-native'
+import styles from '../styles/StyleSheet'
+import { useNavigation } from '@react-navigation/native'
+import { useState, useEffect } from 'react'
 
 export default function LoginPage() {
   const navigation = useNavigation();
-  const route = useRoute();
   
-  // Get the fromPasswordReset flag from navigation params
-  const { fromPasswordReset, resetMessage } = route.params || {};
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   
-  // Custom Modal State
-  const [modalVisible, setModalVisible] = useState(false);
-  const [modalConfig, setModalConfig] = useState({
-    title: '',
-    message: '',
-    type: 'error', 
-    onDismiss: null 
+  
+  const [errors, setErrors] = useState({
+    username: '',
+    password: ''
+  });
+  
+  
+  const [touched, setTouched] = useState({
+    username: false,
+    password: false
   });
 
-  // Validation states
-  const [errors, setErrors] = useState({ username: '', password: '' });
-  const [touched, setTouched] = useState({ username: false, password: false });
-
-  // Validation rules
+  
   const validationRules = {
-    username: { minLength: 3, maxLength: 20, required: true },
-    password: { minLength: 6, maxLength: 30, required: true }
-  };
-
-  // Helper function to trigger the Custom Popup
-  const showPopup = (title, message, type = 'error', onDismiss = null) => {
-    setModalConfig({ title, message, type, onDismiss });
-    setModalVisible(true);
-  };
-
-  const handleClosePopup = () => {
-    setModalVisible(false);
-    if (modalConfig.onDismiss) {
-      modalConfig.onDismiss();
+    username: {
+      minLength: 3,
+      maxLength: 20,
+      required: true
+    },
+    password: {
+      minLength: 6,
+      maxLength: 30,
+      required: true
     }
   };
 
+  
   const validateField = (fieldName, value) => {
     const rules = validationRules[fieldName];
-    if (rules.required && !value.trim()) return `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} is required`;
-    else if (value.length > 0 && value.length < rules.minLength) return `At least ${rules.minLength} characters`;
-    else if (value.length > rules.maxLength) return `Max ${rules.maxLength} characters`;
+    
+    if (rules.required && !value.trim()) {
+      return `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)} is required`;
+    } else if (value.length > 0 && value.length < rules.minLength) {
+      return `Minimum of ${rules.minLength} characters`;
+    } else if (value.length > rules.maxLength) {
+      return `Max ${rules.maxLength} characters`;
+    }
+    
     return '';
   };
 
+  // Real-time validation effect
   useEffect(() => {
     if (touched.username) {
-      setErrors(prev => ({...prev, username: validateField('username', username)}));
+      const error = validateField('username', username);
+      setErrors(prev => ({...prev, username: error}));
     }
   }, [username, touched.username]);
 
   useEffect(() => {
     if (touched.password) {
-      setErrors(prev => ({...prev, password: validateField('password', password)}));
+      const error = validateField('password', password);
+      setErrors(prev => ({...prev, password: error}));
     }
   }, [password, touched.password]);
 
-  // NEW: Show reset message when coming from password reset
-  useEffect(() => {
-    if (fromPasswordReset && resetMessage) {
-      // Show the reset success message when arriving from password reset
-      showPopup('Success', resetMessage, 'success');
+  
+  const handleUsernameChange = (text) => {
+    setUsername(text);
+    if (!touched.username) {
+      setTouched(prev => ({...prev, username: true}));
     }
-  }, [fromPasswordReset, resetMessage]);
+  };
 
+  const handlePasswordChange = (text) => {
+    setPassword(text);
+    if (!touched.password) {
+      setTouched(prev => ({...prev, password: true}));
+    }
+  };
+
+  // Handle blur
+  const handleBlur = (fieldName) => {
+    setTouched(prev => ({...prev, [fieldName]: true}));
+    const value = fieldName === 'username' ? username : password;
+    const error = validateField(fieldName, value);
+    setErrors(prev => ({...prev, [fieldName]: error}));
+  };
+
+  
+  const handleLogin = () => {
+    setTouched({
+      username: true,
+      password: true
+    });
+    
+    const usernameError = validateField('username', username);
+    const passwordError = validateField('password', password);
+    
+    setErrors({
+      username: usernameError,
+      password: passwordError
+    });
+    
+    if (!usernameError && !passwordError) {
+      navigation.replace("Accounts");
+    }
+  };
+
+  
+  const isFormValid = () => {
+    const usernameError = validateField('username', username);
+    const passwordError = validateField('password', password);
+    return !usernameError && !passwordError;
+  };
+
+  // Helper to get field status
   const getFieldStatus = (fieldName, value) => {
     if (!touched[fieldName]) return 'neutral';
     const error = validateField(fieldName, value);
@@ -88,308 +127,103 @@ export default function LoginPage() {
   const usernameStatus = getFieldStatus('username', username);
   const passwordStatus = getFieldStatus('password', password);
 
-  const isFormValid = () => {
-    return !validateField('username', username) && !validateField('password', password);
-  };
-
-  const handleUsernameChange = (text) => {
-    setUsername(text);
-    if (!touched.username) setTouched(prev => ({...prev, username: true}));
-  };
-
-  const handlePasswordChange = (text) => {
-    setPassword(text);
-    if (!touched.password) setTouched(prev => ({...prev, password: true}));
-  };
-
-  const handleBlur = (fieldName) => {
-    setTouched(prev => ({...prev, [fieldName]: true}));
-    setErrors(prev => ({...prev, [fieldName]: validateField(fieldName, fieldName === 'username' ? username : password)}));
-  };
-
-  // ========== MERGED HANDLELOGIN FUNCTION ==========
-  const handleLogin = async () => {
-    setTouched({ username: true, password: true });
-    
-    const usernameError = validateField('username', username);
-    const passwordError = validateField('password', password);
-    
-    if (usernameError || passwordError) {
-      setErrors({ username: usernameError, password: passwordError });
-      const firstError = usernameError || passwordError;
-      showPopup('Validation Error', firstError, 'error');
-      return;
-    }
-
-    setLoading(true);
-    
-    // Determine API URL based on platform
-    const baseUrl = Platform.OS === 'web' 
-      ? 'http://localhost:3000' 
-      : 'http://10.0.2.2:3000';
-
-    try {
-      // Try the unified login endpoint first (from second version)
-      const res = await fetch(`${baseUrl}/unified-login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        // Save Session
-        await AsyncStorage.setItem('userSession', JSON.stringify(data.user));
-        
-        // Unified login response handling (from second version)
-        if (data.user.userType === 'employee') {
-          // Employee login
-          if (data.user.isInitialLogin && !fromPasswordReset) {
-            // FIRST-TIME LOGIN (after admin creation)
-            showPopup('First Login', 'Please update your credentials to continue.', 'info', () => {
-              navigation.replace("UpdateAcc", { userId: data.user.id });
-            });
-          } else {
-            // REGULAR LOGIN OR PASSWORD RESET LOGIN
-            const message = fromPasswordReset 
-              ? `Password updated successfully! Welcome back ${data.user.fullname}!`
-              : `Welcome back ${data.user.fullname}!`;
-            
-            showPopup('Success', message, 'success', () => {
-              navigation.replace("Accounts");
-            });
-          }
-        } else {
-          // Patient login
-          const message = fromPasswordReset 
-            ? `Password updated successfully! Welcome ${data.user.fullname}!`
-            : `Welcome ${data.user.fullname}!`;
-          
-          showPopup('Success', message, 'success', () => {
-            navigation.replace("UserHome");
-          });
-        }
-      } else {
-        // If unified login fails, fall back to original endpoint
-        try {
-          const fallbackRes = await fetch(`${baseUrl}/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, password }),
-          });
-
-          const fallbackData = await fallbackRes.json();
-
-          if (fallbackRes.ok) {
-            // 1. Save Session
-            await AsyncStorage.setItem('userSession', JSON.stringify(fallbackData.user));
-            
-            // 2. Check if first-time login
-            if (fallbackData.user.isInitialLogin) {
-              showPopup('First Login', 'Please update your credentials to continue.', 'success', () => {
-                navigation.replace("UpdateAcc", { userId: fallbackData.user.id });
-              });
-            } 
-            // 3. Normal login - Role-Based Redirection (from first version)
-            else {
-              showPopup('Success', `Welcome back, ${fallbackData.user.username}!`, 'success', () => {
-                const userRole = fallbackData.user.role; 
-
-                if (userRole === 'Admin') {
-                    navigation.replace("Accounts"); 
-                } 
-                else if (userRole === 'Veterinarian' || userRole === 'Receptionist') {
-                    navigation.replace("DashboardPage"); 
-                } 
-                else if (userRole === 'User') {
-                    navigation.replace("UserHome"); 
-                }
-                else {
-                    navigation.replace("Login"); 
-                }
-              });
-            }
-          } else {
-            handleLoginError(fallbackData.error || '');
-          }
-        } catch (fallbackError) {
-          handleLoginError(data.error || '');
-        }
-      }
-    } catch (error) {
-      console.error(error);
-      const msg = 'Network Error: Make sure server.js is running!';
-      showPopup('Connection Error', msg, 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleLoginError = (serverError) => {
-    const errorLower = serverError.toLowerCase();
-    
-    if (errorLower.includes('found') || errorLower.includes('exist')) {
-      showPopup('Login Failed', "Account not found.", 'error');
-    } else if (errorLower.includes('disabled') || errorLower.includes('inactive')) {
-      showPopup('Account Disabled', "Your account has been disabled. Please contact support.", 'error');
-    } else {
-      showPopup('Login Failed', 'Invalid Username or Password', 'error');
-    }
-  };
-  // ========== END MERGED HANDLELOGIN ==========
-
   return (
-    <View style={styles.container}>
-      <View style={styles.loginContainer}>
+    <View style={styles.loginContainer}>
+      <View style={styles.gifContainer}>
+        <Image source={require('../assets/AgsikapBG-Gif.gif')} style={{width: '100%', height: '100%'}} />
         
-        {/* LEFT SIDE */}
-        <View style={styles.gifContainer}>
-            <ImageBackground 
-                source={require('../assets/AgsikapBG-Gif.gif')} 
-                style={{width: '100%', height: '100%', borderRadius: 30}}
-                resizeMode="cover"
-            >
-                <View style={styles.gifOverlay}>
-                    <Image 
-                        source={require('../assets/AgsikapLogo-Temp.png')} 
-                        style={{width: 80, height: 80, marginBottom: 20}} 
-                        resizeMode="contain"
-                    />
-                    <View style={{marginTop: 50}}>
-                      <Text style={styles.whiteFont}>Hello,</Text>
-                      <Text style={[styles.whiteFont, {fontStyle: "italic", fontWeight: '600'}]}>welcome!</Text>
-                      <Text style={{color: '#e0e0e0', marginTop: 30, fontSize: 14, lineHeight: 22, maxWidth: 400}}>
-                          Lorem ipsum dolor sit amet, consectetur adipiscing elit.
-                      </Text>
-                    </View>
-                </View>
-            </ImageBackground>
+        <View style={styles.gifOverlay}>
+          <Image source={require('../assets/AgsikapLogo-Temp.png')} style={{width: '18%', height: '18%', right: 15, marginTop: 40}} resizeMode="contain"/>
+          
+          <View style={{marginTop: 50}}>
+            <Text style={styles.whiteFont}>Hello,</Text>
+            <Text style={[styles.whiteFont, {fontStyle: "italic", fontWeight: '600'}]}>welcome!</Text>
+            <Text style={[styles.whiteFont, {fontSize: 18, lineHeight: 25, marginTop: 60, paddingRight: 30}]}>Lorem ipsum dolor sit amesdasast, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.loginSection}>
+        <Text style={styles.agsikapTitle}>Agsikap</Text>
+        <Text style={styles.loginHeader}>Log in to your Account</Text>
+        <Text style={styles.loginSubtext}>
+          Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut
+        </Text>
+
+        {/* Username Field */}
+        <View style={styles.inputGroup}>
+          <TextInput 
+            style={[
+              styles.inputField, 
+              {paddingHorizontal: 15}, // More horizontal padding
+              usernameStatus === 'invalid' && styles.inputError,
+              usernameStatus === 'valid' && styles.inputValid
+            ]} 
+            placeholder="Username" 
+            placeholderTextColor="#999" 
+            value={username}
+            onChangeText={handleUsernameChange}
+            onBlur={() => handleBlur('username')}
+            maxLength={validationRules.username.maxLength}
+          />
+          
+          <View style={styles.fieldFeedbackContainer}>
+              {usernameStatus === 'invalid' && touched.username && (
+                <Text style={styles.errorText}>{errors.username}</Text>
+              )}
+              <Text style={[
+                styles.charCount,
+                usernameStatus === 'invalid' && styles.charCountError,
+                usernameStatus === 'valid' && styles.charCountValid
+              ]}>
+                {username.length}/{validationRules.username.maxLength}
+              </Text>
+          </View>
         </View>
 
-        {/* RIGHT SIDE */}
-        <View style={styles.loginSection}>
-          <TouchableOpacity
-            onPress={() => navigation.navigate('UserHome')}
-            style={{ 
-              alignSelf: 'flex-start',
-              marginBottom: 50,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6
-            }}
-          >
-            <Ionicons name="arrow-back-outline" size={18} color="#3d67ee" />
-            <Text style={{ color: '#3d67ee', fontSize: 14, fontWeight: '500' }}>
-              Return to Home
-            </Text>
+        {/* Password Field */}
+        <View style={[styles.inputGroup, {marginBottom: 15}]}>
+          <TextInput 
+            style={[
+              styles.inputField, 
+              {paddingHorizontal: 15}, // More horizontal padding
+              passwordStatus === 'invalid' && styles.inputError,
+              passwordStatus === 'valid' && styles.inputValid
+            ]} 
+            placeholder="Password" 
+            placeholderTextColor="#999" 
+            secureTextEntry 
+            value={password}
+            onChangeText={handlePasswordChange}
+            onBlur={() => handleBlur('password')}
+            maxLength={validationRules.password.maxLength}
+          />
+          <View style={styles.fieldFeedbackContainer}>
+              {passwordStatus === 'invalid' && touched.password && (
+                <Text style={styles.errorText}>{errors.password}</Text>
+              )}
+              <Text style={[
+                styles.charCount,
+                passwordStatus === 'invalid' && styles.charCountError,
+                passwordStatus === 'valid' && styles.charCountValid
+              ]}>
+                {password.length}/{validationRules.password.maxLength}
+              </Text>
+          </View>
+        </View>
+
+        <View style={styles.forgotPasswordContainer}>
+          <TouchableOpacity>
+            <Text style={[styles.forgotPassword, {fontStyle: "italic"}]}>Forget Password?</Text>
           </TouchableOpacity>
 
-            <Text style={styles.agsikapTitle}>Furtopia</Text>
-            <Text style={styles.loginHeader}>Log in to your Account</Text>
-            <Text style={styles.loginSubtext}>
-                Sign in to check appointments, receive updates, and take care of your pets with ease!
-            </Text>
-
-            {/* Username Field */}
-            <View style={styles.inputGroup}>
-                <Ionicons name="person-outline" size={20} color="#888" style={styles.inputIcon} />
-                <TextInput
-                    style={[
-                      styles.inputField,
-                      usernameStatus === 'invalid' && styles.inputError,
-                      usernameStatus === 'valid' && styles.inputValid
-                    ]}
-                    placeholder="Username"
-                    placeholderTextColor="#aaa"
-                    value={username}
-                    onChangeText={handleUsernameChange}
-                    onBlur={() => handleBlur('username')}
-                    maxLength={validationRules.username.maxLength}
-                />
-                <View style={styles.fieldFeedbackContainer}>
-                    <View style={styles.errorContainer}>
-                        {usernameStatus === 'invalid' && touched.username && (
-                            <Text style={styles.errorText}>{errors.username}</Text>
-                        )}
-                    </View>
-                    <Text style={[
-                        styles.charCount,
-                        usernameStatus === 'invalid' && styles.charCountError,
-                        usernameStatus === 'valid' && styles.charCountValid
-                    ]}>
-                        {username.length}/{validationRules.username.maxLength}
-                    </Text>
-                </View>
-            </View>
-
-            {/* Password Field */}
-            <View style={styles.inputGroup}>
-                <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.inputIcon} />
-                <TextInput
-                    style={[
-                      styles.inputField,
-                      passwordStatus === 'invalid' && styles.inputError,
-                      passwordStatus === 'valid' && styles.inputValid
-                    ]}
-                    placeholder="Password"
-                    placeholderTextColor="#aaa"
-                    secureTextEntry
-                    value={password}
-                    onChangeText={handlePasswordChange}
-                    onBlur={() => handleBlur('password')}
-                    maxLength={validationRules.password.maxLength}
-                />
-                <View style={styles.fieldFeedbackContainer}>
-                    <View style={styles.errorContainer}>
-                        {passwordStatus === 'invalid' && touched.password && (
-                            <Text style={styles.errorText}>{errors.password}</Text>
-                        )}
-                    </View>
-                    <Text style={[
-                        styles.charCount,
-                        passwordStatus === 'invalid' && styles.charCountError,
-                        passwordStatus === 'valid' && styles.charCountValid
-                    ]}>
-                        {password.length}/{validationRules.password.maxLength}
-                    </Text>
-                </View>
-            </View>
-
-            {/* Login Button */}
-            <TouchableOpacity 
-                style={[
-                  styles.loginButton, 
-                  {opacity: loading ? 0.7 : 1},
-                  !isFormValid() && styles.loginButtonDisabled
-                ]} 
-                onPress={handleLogin}
-                disabled={loading || !isFormValid()}
-            >
-                {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Login</Text>}
-            </TouchableOpacity>
-
-            <View style={{ marginTop: 25, alignItems: 'center', gap: 10 }}>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('Registration')}
-              >
-                <Text style={{ fontSize: 14, color: '#555' }}>
-                  Don't have an account?
-                  <Text style={{ color: '#3d67ee', fontWeight: '600' }}> Sign up</Text>
-                </Text>
-              </TouchableOpacity>
-
-              {/* NEW: Forgot Password Link */}
-              <TouchableOpacity
-                onPress={() => navigation.navigate('ForgetPass')}
-              >
-                <Text style={{ fontSize: 14, color: '#3d67ee', fontWeight: '500' }}>
-                  Forgot Password?
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-        </View>
+        <TouchableOpacity 
+          style={[styles.loginButton, !isFormValid() && styles.loginButtonDisabled]} 
+          onPress={handleLogin}
+          disabled={!isFormValid()}
+        >
+          <Text style={styles.loginButtonText}>Login</Text>
+        </TouchableOpacity>
       </View>
 
       {/* --- CUSTOM POPUP MODAL --- */}
@@ -422,6 +256,7 @@ export default function LoginPage() {
         </View>
       </Modal>
 
+    </View>
     </View>
   )
 }
