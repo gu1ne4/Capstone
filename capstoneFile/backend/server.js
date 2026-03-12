@@ -17,7 +17,7 @@ if (process.env.SENDGRID_API_KEY) {
 
 // CORS Configuration
 const corsOptions = {
-  origin: ['http://localhost:8081', 'http://localhost:19006', 'http://localhost:19000'],
+  origin: '*',
   credentials: true,
   optionsSuccessStatus: 200
 };
@@ -28,7 +28,7 @@ app.use(express.json({ limit: '50mb' }));
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
-  database: 'hospital',
+  database: 'veterinaryDB',
   password: process.env.DB_PASSWORD,
   port: 5432,
 });
@@ -79,7 +79,81 @@ const logAccess = async ({ req, accountId, accountType, username, role, action, 
   }
 };
 
+// =================================================================================
+//  EMAIL VERIFICATION UTILITIES (ADD THIS)
+// =================================================================================
 
+// Generate a unique verification token
+function generateVerificationToken() {
+  return require('crypto').randomBytes(32).toString('hex');
+}
+
+// Send verification email
+async function sendVerificationEmail(email, fullname, token) {
+  if (!process.env.SENDGRID_API_KEY) {
+    console.log('⚠️ SendGrid not configured, skipping verification email');
+    return false;
+  }
+
+  // Construct verification link
+  const webAppUrl = 'http://localhost:8082'; // Web app port
+  const verificationLink = `${webAppUrl}/verify-email?token=${token}`;
+  
+  console.log(`🔗 Verification link for WEB: ${verificationLink}`);
+
+  try {
+    const msg = {
+      to: email,
+      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@furtopia.com',
+      subject: 'Verify Your Email - Furtopia Veterinary',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="color: #3d67ee;">Welcome to Furtopia!</h2>
+          </div>
+          
+          <p style="font-size: 16px; color: #333;">Hello <strong>${fullname}</strong>,</p>
+          
+          <p style="font-size: 16px; color: #333; line-height: 1.5;">
+            Thank you for registering with PetShield Veterinary. To complete your registration and access your account, 
+            please verify your email address by clicking the button below:
+          </p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verificationLink}" 
+               style="background-color: #3d67ee; color: white; padding: 15px 30px; 
+                      text-decoration: none; border-radius: 5px; font-weight: bold; 
+                      display: inline-block;">
+              Verify Email Address
+            </a>
+          </div>
+          
+          <p style="font-size: 14px; color: #666; line-height: 1.5;">
+            Or copy and paste this link into your browser:<br>
+            <span style="color: #3d67ee;">${verificationLink}</span>
+          </p>
+          
+          <p style="font-size: 14px; color: #666; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+            This verification link will expire in 24 hours.<br>
+            If you didn't create an account with PetShield, please ignore this email.
+          </p>
+          
+          <p style="font-size: 14px; color: #666;">
+            Best regards,<br>
+            The PetShield Team
+          </p>
+        </div>
+      `
+    };
+
+    await sgMail.send(msg);
+    console.log(`✅ Verification email sent to ${email}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send verification email:', error.response?.body || error.message);
+    return false;
+  }
+}
 
 // =================================================================================
 //  AUDIT LOGS ROUTE (Add this to server.js)
@@ -362,118 +436,216 @@ app.post('/login', async (req, res) => {
   console.log(`🔐 Employee login attempt for username: ${username}`);
   
   try {
-    let result = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
-    let user = result.rows.length > 0 ? result.rows[0] : null;
+    let result;
+    let user = null;
 
-    if (!user) {
-      result = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
-      user = result.rows.length > 0 ? result.rows[0] : null;
-    }
-
-    if (!user) {
-      await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
-      return res.status(401).json({ error: 'User not found' });
-    }
-
-    // Determine type for logging
-    const userType = result.rows[0].employeeid ? 'EMPLOYEE' : 'USER'; // Check for employee-specific field
-
-    if (user.status === 'Disabled' || user.status === 'Inactive') {
-      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
-      return res.status(403).json({ error: 'Account is disabled.' });
-    }
-
-    let passwordValid = false;
-    if (user.password && user.password.startsWith('$2')) {
-      passwordValid = await bcrypt.compare(password, user.password);
-    } else {
-      passwordValid = (user.password === password);
-    }
-
-    if (passwordValid) {
-      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'SUCCESS' });
+    // Check patient_account first
+    result = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
+    if (result.rows.length > 0) {
+      user = result.rows[0];
+      console.log("✅ Found in patient_account");
       
-      const imgBuffer = user.userImage || user.userimage;
-      let imageStr = null;
-      if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+      // Patient login logic
+      if (user.status === 'Disabled' || user.status === 'Inactive' || user.status === '0') {
+        return res.status(403).json({ error: 'Account is disabled.' });
+      }
 
-      res.json({ 
-        message: 'Login successful', 
-        user: { 
-          id: user.pk, 
-          username: user.username, 
-          fullname: user.fullName || user.fullname, 
-          role: user.role,
-          department: user.department, 
-          userImage: imageStr,
-          isInitialLogin: user.is_initial_login || false
-        } 
-      });
-    } else {
-      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
-      res.status(401).json({ error: 'Invalid password' });
+      let passwordValid = false;
+      if (user.password && user.password.startsWith('$2')) {
+        passwordValid = await bcrypt.compare(password, user.password);
+      } else {
+        passwordValid = (user.password === password);
+      }
+
+      if (passwordValid) {
+        const imgBuffer = user.userimage;
+        let imageStr = null;
+        if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+
+        return res.json({ 
+          message: 'Login successful', 
+          user: { 
+            id: user.pk, 
+            username: user.username, 
+            fullname: user.fullname, 
+            role: 'User', // Give them a role
+            userImage: imageStr,
+            userType: 'patient'
+          } 
+        });
+      } else {
+        return res.status(401).json({ error: 'Invalid password' });
+      }
     }
+    
+    // Then check accounts (employees)
+    result = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
+    if (result.rows.length > 0) {
+      user = result.rows[0];
+      console.log("✅ Found in accounts");
+      
+      // Employee login logic...
+      if (user.status === 'Disabled' || user.status === 'Inactive') {
+        return res.status(403).json({ error: 'Account is disabled.' });
+      }
+
+      let passwordValid = false;
+      if (user.password && user.password.startsWith('$2')) {
+        passwordValid = await bcrypt.compare(password, user.password);
+      } else {
+        passwordValid = (user.password === password);
+      }
+
+      if (passwordValid) {
+        const imgBuffer = user.userimage;
+        let imageStr = null;
+        if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+
+        return res.json({ 
+          message: 'Login successful', 
+          user: { 
+            id: user.pk, 
+            username: user.username, 
+            fullname: user.fullname, 
+            role: user.role,
+            department: user.department,
+            userImage: imageStr,
+            isInitialLogin: user.is_initial_login || false,
+            userType: 'employee'
+          } 
+        });
+      } else {
+        return res.status(401).json({ error: 'Invalid password' });
+      }
+    }
+
+    // If we get here, user not found
+    return res.status(401).json({ error: 'User not found' });
+
   } catch (err) {
-    console.error("❌ Employee login error:", err.message);
+    console.error("❌ Login error:", err.message);
     res.status(500).json({ error: 'Database error' });
   }
 });
 
-// Get All Employees
-app.get('/accounts', async (req, res) => {
-  try {
-    const allAccounts = await pool.query('SELECT * FROM accounts ORDER BY pk ASC');
-    const formattedAccounts = allAccounts.rows.map(account => {
-      const imgBuffer = account.userimage;
-      let imageStr = null;
-      if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
-      return { ...account, userimage: imageStr };
-    });
-    res.json(formattedAccounts);
-  } catch (err) {
-    res.status(500).json({ error: 'Server Error' });
-  }
-});
+// // ========== OLD LOGIN ROUTE (EMPLOYEE) - WITH AUDIT ==========
+// app.post('/login', async (req, res) => {
+//   const { username, password } = req.body;
+//   console.log(`🔐 Employee login attempt for username: ${username}`);
+  
+//   try {
+//     let result = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
+//     let user = result.rows.length > 0 ? result.rows[0] : null;
 
-// Update Employee Account
-app.put('/accounts/:id', async (req, res) => {
-  const { id } = req.params;
-  const { username, fullname, contactnumber, email, role, department, employeeid, userimage, status } = req.body;
+//     if (!user) {
+//       result = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
+//       user = result.rows.length > 0 ? result.rows[0] : null;
+//     }
 
-  try {
-    let imageBuffer = null;
-    if (userimage && userimage.startsWith('data:image')) {
-      const base64Data = userimage.split(',')[1]; 
-      imageBuffer = Buffer.from(base64Data, 'base64');
-    } else if (userimage) {
-      imageBuffer = Buffer.from(userimage, 'base64');
-    }
+//     if (!user) {
+//       await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
+//       return res.status(401).json({ error: 'User not found' });
+//     }
 
-    let query, values;
-    if (imageBuffer) {
-      query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8, userimage=$9 WHERE pk=$10 RETURNING *`;
-      values = [username, fullname, contactnumber, email, role, department, employeeid, status, imageBuffer, id];
-    } else {
-      query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8 WHERE pk=$9 RETURNING *`;
-      values = [username, fullname, contactnumber, email, role, department, employeeid, status, id];
-    }
+//     // Determine type for logging
+//     const userType = result.rows[0].employeeid ? 'EMPLOYEE' : 'USER'; // Check for employee-specific field
 
-    const updatedAccount = await pool.query(query, values);
-    if (updatedAccount.rows.length === 0) return res.status(404).json({ error: "Account not found" });
+//     if (user.status === 'Disabled' || user.status === 'Inactive') {
+//       await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+//       return res.status(403).json({ error: 'Account is disabled.' });
+//     }
 
-    res.json({ message: "Updated successfully", user: updatedAccount.rows[0] });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+//     let passwordValid = false;
+//     if (user.password && user.password.startsWith('$2')) {
+//       passwordValid = await bcrypt.compare(password, user.password);
+//     } else {
+//       passwordValid = (user.password === password);
+//     }
+
+//     if (passwordValid) {
+//       await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'SUCCESS' });
+      
+//       const imgBuffer = user.userImage || user.userimage;
+//       let imageStr = null;
+//       if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+
+//       res.json({ 
+//         message: 'Login successful', 
+//         user: { 
+//           id: user.pk, 
+//           username: user.username, 
+//           fullname: user.fullName || user.fullname, 
+//           role: user.role,
+//           department: user.department, 
+//           userImage: imageStr,
+//           isInitialLogin: user.is_initial_login || false
+//         } 
+//       });
+//     } else {
+//       await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+//       res.status(401).json({ error: 'Invalid password' });
+//     }
+//   } catch (err) {
+//     console.error("❌ Employee login error:", err.message);
+//     res.status(500).json({ error: 'Database error' });
+//   }
+// });
+
+// // Get All Employees
+// app.get('/accounts', async (req, res) => {
+//   try {
+//     const allAccounts = await pool.query('SELECT * FROM accounts ORDER BY pk ASC');
+//     const formattedAccounts = allAccounts.rows.map(account => {
+//       const imgBuffer = account.userimage;
+//       let imageStr = null;
+//       if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+//       return { ...account, userimage: imageStr };
+//     });
+//     res.json(formattedAccounts);
+//   } catch (err) {
+//     res.status(500).json({ error: 'Server Error' });
+//   }
+// });
+
+// // Update Employee Account
+// app.put('/accounts/:id', async (req, res) => {
+//   const { id } = req.params;
+//   const { username, fullname, contactnumber, email, role, department, employeeid, userimage, status } = req.body;
+
+//   try {
+//     let imageBuffer = null;
+//     if (userimage && userimage.startsWith('data:image')) {
+//       const base64Data = userimage.split(',')[1]; 
+//       imageBuffer = Buffer.from(base64Data, 'base64');
+//     } else if (userimage) {
+//       imageBuffer = Buffer.from(userimage, 'base64');
+//     }
+
+//     let query, values;
+//     if (imageBuffer) {
+//       query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8, userimage=$9 WHERE pk=$10 RETURNING *`;
+//       values = [username, fullname, contactnumber, email, role, department, employeeid, status, imageBuffer, id];
+//     } else {
+//       query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8 WHERE pk=$9 RETURNING *`;
+//       values = [username, fullname, contactnumber, email, role, department, employeeid, status, id];
+//     }
+
+//     const updatedAccount = await pool.query(query, values);
+//     if (updatedAccount.rows.length === 0) return res.status(404).json({ error: "Account not found" });
+
+//     res.json({ message: "Updated successfully", user: updatedAccount.rows[0] });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 // =================================================================================
-//  USER / PATIENT ROUTES (Updated to use 'USER' in logs)
+//  UPDATED PATIENT REGISTRATION (with email verification) 
 // =================================================================================
 
 app.post('/patient-register', async (req, res) => {
   console.log("📥 Patient registration request received");
-  const { fullname, username, password, contactnumber, email, userimage, status, datecreated } = req.body;
+  const { fullname, username, password, contactnumber, email, userimage, datecreated } = req.body;
   
   if (!fullname || !username || !password || !email || !contactnumber) {
     return res.status(400).json({ error: "All fields are required." });
@@ -493,45 +665,223 @@ app.post('/patient-register', async (req, res) => {
     const emailCheck = await pool.query('SELECT pk FROM patient_account WHERE email = $1', [email]);
     if (emailCheck.rows.length > 0) return res.status(400).json({ error: 'Email already registered.' });
     
-    let statusValue = status === 'Active' ? '1' : '0';
+    // Generate verification token (expires in 24 hours)
+    const verificationToken = generateVerificationToken();
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     
+    // Insert with is_verified = FALSE
     const query = `
       INSERT INTO patient_account 
-      (username, password, fullname, contactnumber, email, userimage, status, datecreated) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7::bit varying, $8) 
-      RETURNING *
+      (username, password, fullname, contactnumber, email, userimage, datecreated, 
+       is_verified, verification_token, verification_token_expiry, status) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+      RETURNING pk, username, email, fullname
     `;
-    const values = [username, hashedPassword, fullname, contactnumber.replace(/\D/g, ''), email, imageBuffer, statusValue, datecreated];
+    const values = [
+      username, hashedPassword, fullname, contactnumber.replace(/\D/g, ''), 
+      email, imageBuffer, datecreated,
+      false, verificationToken, tokenExpiry, 'Pending Verification' // Status set to pending
+    ];
     
     const newPatient = await pool.query(query, values);
     const createdPatient = newPatient.rows[0];
     
-    console.log(`✅ Patient registered: ${username}`);
-
-    // AUDIT LOG: REGISTER (Use 'USER')
+    console.log(`✅ Patient registered (unverified): ${username}`);
+    
+    // Send verification email
+    const emailSent = await sendVerificationEmail(email, fullname, verificationToken);
+    
+    // AUDIT LOG: REGISTER
     await logAccess({
       req,
       accountId: createdPatient.pk,
-      accountType: 'USER', // Changed from PATIENT to USER per request
+      accountType: 'USER',
       username: createdPatient.username,
       role: 'user',
       action: 'REGISTER',
       status: 'SUCCESS'
     });
     
+    // Return success but inform user to check email
     res.status(201).json({ 
-      message: 'Patient registered successfully', 
+      message: emailSent 
+        ? 'Registration successful! Please check your email to verify your account.' 
+        : 'Registration successful! (Verification email could not be sent - please contact support)',
       patient: { 
         pk: createdPatient.pk, 
         username: username, 
         email: email, 
         fullname: fullname,
-        status: status 
-      } 
+        requiresVerification: true
+      }
     });
     
   } catch (err) {
     console.error("❌ Patient registration error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =================================================================================
+//  EMAIL VERIFICATION ENDPOINT (ADD THIS)
+// =================================================================================
+
+app.get('/verify-email', async (req, res) => {
+  const { token } = req.query;
+  
+  if (!token) {
+    return res.status(400).send(`
+      <html>
+        <head><title>Verification Failed</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: #d9534f;">❌ Verification Failed</h2>
+          <p>No verification token provided.</p>
+          <a href="http://localhost:8081" style="color: #3d67ee;">Return to Login</a>
+        </body>
+      </html>
+    `);
+  }
+  
+  try {
+    // Find patient with this token and not expired
+    const result = await pool.query(
+      `SELECT pk, email, fullname, verification_token_expiry 
+       FROM patient_account 
+       WHERE verification_token = $1 AND is_verified = false`,
+      [token]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(400).send(`
+        <html>
+          <head><title>Verification Failed</title></head>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h2 style="color: #d9534f;">❌ Verification Failed</h2>
+            <p>Invalid verification link or account already verified.</p>
+            <a href="http://localhost:8081" style="color: #3d67ee;">Return to Login</a>
+          </body>
+        </html>
+      `);
+    }
+    
+    const patient = result.rows[0];
+    
+    // Check if token expired
+    if (new Date() > patient.verification_token_expiry) {
+      return res.status(400).send(`
+        <html>
+          <head><title>Verification Failed</title></head>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h2 style="color: #d9534f;">❌ Verification Failed</h2>
+            <p>This verification link has expired. Please request a new one.</p>
+            <a href="http://localhost:8081" style="color: #3d67ee;">Return to Login</a>
+          </body>
+        </html>
+      `);
+    }
+    
+    // Update patient as verified
+    await pool.query(
+      `UPDATE patient_account 
+       SET is_verified = true, 
+           verification_token = null, 
+           verification_token_expiry = null,
+           status = 'Active'
+       WHERE pk = $1`,
+      [patient.pk]
+    );
+    
+    // Send success HTML response
+    res.send(`
+      <html>
+        <head>
+          <title>Email Verified</title>
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+            .container { max-width: 500px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            h2 { color: #28a745; }
+            p { color: #666; line-height: 1.6; }
+            .btn { background: #3d67ee; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h2>✅ Email Verified Successfully!</h2>
+            <p>Hello <strong>${patient.fullname}</strong>,</p>
+            <p>Your email has been verified. You can now log in to your Furtopia account.</p>
+            <a href="http://localhost:8081" class="btn">Go to Login</a>
+          </div>
+        </body>
+      </html>
+    `);
+    
+  } catch (err) {
+    console.error("❌ Verification error:", err.message);
+    res.status(500).send(`
+      <html>
+        <head><title>Verification Failed</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: #d9534f;">❌ Verification Failed</h2>
+          <p>An error occurred while verifying your email.</p>
+          <a href="http://localhost:8081" style="color: #3d67ee;">Return to Login</a>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// =================================================================================
+//  RESEND VERIFICATION EMAIL (ADD THIS RIGHT HERE)
+// =================================================================================
+app.post('/resend-verification', async (req, res) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+  
+  try {
+    // Find unverified user
+    const result = await pool.query(
+      `SELECT pk, fullname, email, verification_token, verification_token_expiry 
+       FROM patient_account 
+       WHERE email = $1 AND is_verified = false`,
+      [email]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        error: 'No unverified account found with this email' 
+      });
+    }
+    
+    const user = result.rows[0];
+    
+    // Generate new token if old one expired
+    let token = user.verification_token;
+    let tokenExpiry = user.verification_token_expiry;
+    
+    if (new Date() > tokenExpiry) {
+      token = generateVerificationToken();
+      tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      
+      await pool.query(
+        `UPDATE patient_account 
+         SET verification_token = $1, verification_token_expiry = $2 
+         WHERE pk = $3`,
+        [token, tokenExpiry, user.pk]
+      );
+    }
+    
+    // Resend email
+    await sendVerificationEmail(email, user.fullname, token);
+    
+    res.json({ 
+      message: 'Verification email resent successfully' 
+    });
+    
+  } catch (err) {
+    console.error("❌ Resend verification error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -599,18 +949,18 @@ app.get('/patients', async (req, res) => {
       }
       
       // Convert status from bit to string
-      let statusStr = 'Disabled'; // Default
-      if (patient.status) {
-        // Check if it's a buffer or string
-        if (Buffer.isBuffer(patient.status)) {
-          // If it's a buffer, convert to string and check
-          const statusVal = patient.status.toString();
-          statusStr = statusVal === '1' ? 'Active' : 'Disabled';
-        } else {
-          // If it's already a string/number
-          statusStr = patient.status.toString() === '1' ? 'Active' : 'Disabled';
-        }
-      }
+      let statusStr = patient.status || 'Disabled'; // Default
+      // if (patient.status) {
+      //   // Check if it's a buffer or string
+      //   if (Buffer.isBuffer(patient.status)) {
+      //     // If it's a buffer, convert to string and check
+      //     const statusVal = patient.status.toString();
+      //     statusStr = statusVal === '1' ? 'Active' : 'Disabled';
+      //   } else {
+      //     // If it's already a string/number
+      //     statusStr = patient.status.toString() === '1' ? 'Active' : 'Disabled';
+      //   }
+      // }
       
       return { 
         ...patient, 
@@ -638,20 +988,20 @@ app.put('/patients/:id', async (req, res) => {
     }
 
     // Convert status string to bit value
-    let statusForDb;
-    if (status === 'Active') {
-      statusForDb = '1';
-    } else if (status === 'Disabled') {
-      statusForDb = '0';
-    } else {
-      statusForDb = status; // If it's already a bit value (1 or 0)
-    }
+    let statusForDb = status || 'Active';
+    // if (status === 'Active') {
+    //   statusForDb = '1';
+    // } else if (status === 'Disabled') {
+    //   statusForDb = '0';
+    // } else {
+    //   statusForDb = status; // If it's already a bit value (1 or 0)
+    // }
 
     let query, values;
     if (imageBuffer) {
       query = `
         UPDATE patient_account 
-        SET username=$1, fullname=$2, contactnumber=$3, email=$4, status=$5::bit varying, userimage=$6 
+        SET username=$1, fullname=$2, contactnumber=$3, email=$4, status=$5, userimage=$6 
         WHERE pk=$7 RETURNING *
       `;
       values = [username, fullname, contactnumber, email, statusForDb, imageBuffer, id];
@@ -880,30 +1230,65 @@ app.post('/unified-login', async (req, res) => {
     let user = null;
     let userType = null;
 
-    // Check accounts (EMPLOYEE)
-    const employeeResult = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
-    if (employeeResult.rows.length > 0) {
-      user = employeeResult.rows[0];
-      userType = 'EMPLOYEE';
+    // FIRST: Check patient_account (most common for users)
+    console.log("🔍 Checking patient_account first...");
+    const patientResult = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
+    if (patientResult.rows.length > 0) {
+      user = patientResult.rows[0];
+      userType = 'USER'; // Patient/USER
+      console.log("✅ Found in patient_account");
     } else {
-      // Check patients (USER)
-      const patientResult = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
-      if (patientResult.rows.length > 0) {
-        user = patientResult.rows[0];
-        userType = 'USER'; // Log as USER instead of PATIENT
+      // SECOND: Check accounts (employees)
+      console.log("🔍 Checking accounts table...");
+      const employeeResult = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
+      if (employeeResult.rows.length > 0) {
+        user = employeeResult.rows[0];
+        userType = 'EMPLOYEE';
+        console.log("✅ Found in accounts");
       }
     }
     
     if (!user) {
-      await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
+      // Try to log audit but handle if table doesn't exist
+      try {
+        await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
+      } catch (auditErr) {
+        console.log("⚠️ Audit log skipped (table may not exist)");
+      }
       return res.status(401).json({ error: 'Account not found' });
     }
+
+    // ADD THIS VERIFICATION CHECK RIGHT HERE:
+if (userType === 'USER') {
+  // Check if patient is verified
+  if (user.is_verified === false) {
+    try {
+      await logAccess({ req, accountId: user.pk, accountType: 'USER', username: user.username, role: 'user', action: 'LOGIN', status: 'FAILED' });
+    } catch (auditErr) {
+      console.log("⚠️ Audit log skipped");
+    }
+    return res.status(403).json({ 
+      error: 'Please verify your email before logging in. Check your inbox for the verification link.' 
+    });
+  }
+}
     
-    if (user.status === 'Disabled' || user.status === 'Inactive') {
-      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+    // Check status - handle different status formats
+    let isDisabled = false;
+    if (user.status === 'Disabled' || user.status === 'Inactive' || user.status === '0') {
+      isDisabled = true;
+    }
+    
+    if (isDisabled) {
+      try {
+        await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+      } catch (auditErr) {
+        console.log("⚠️ Audit log skipped");
+      }
       return res.status(403).json({ error: 'Account is disabled. Please contact support.' });
     }
     
+    // Check password
     let passwordValid = false;
     if (user.password && user.password.startsWith('$2')) {
       passwordValid = await bcrypt.compare(password, user.password);
@@ -912,38 +1297,55 @@ app.post('/unified-login', async (req, res) => {
     }
     
     if (passwordValid) {
-      // SUCCESS LOG
-      await logAccess({ 
-        req, 
-        accountId: user.pk, 
-        accountType: userType, 
-        username: user.username, 
-        role: user.role || 'user', 
-        action: 'LOGIN', 
-        status: 'SUCCESS' 
-      });
+      // Try to log success but handle if table doesn't exist
+      try {
+        await logAccess({ 
+          req, 
+          accountId: user.pk, 
+          accountType: userType, 
+          username: user.username, 
+          role: user.role || 'user', 
+          action: 'LOGIN', 
+          status: 'SUCCESS' 
+        });
+      } catch (auditErr) {
+        console.log("⚠️ Audit log skipped (table may not exist)");
+      }
 
+      // Prepare user response
       const userResponse = {
         id: user.pk,
         username: user.username,
-        fullname: user.fullname,
+        fullname: user.fullname || user.fullName,
         email: user.email,
-        userType: userType.toLowerCase() === 'user' ? 'patient' : 'employee', // Keep frontend response as 'patient' if needed
+        userType: userType === 'USER' ? 'patient' : 'employee',
         status: user.status
       };
       
-      const imgBuffer = user.userimage;
-      if (imgBuffer) userResponse.userImage = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+      // Handle image if exists
+      const imgBuffer = user.userimage || user.userImage;
+      if (imgBuffer) {
+        try {
+          userResponse.userImage = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+        } catch (imgErr) {
+          console.log("⚠️ Could not process image");
+        }
+      }
 
       if (userType === 'EMPLOYEE') {
         userResponse.role = user.role;
         userResponse.isInitialLogin = user.is_initial_login || false;
       }
       
+      console.log(`✅ Login successful for: ${username} as ${userType}`);
       res.json({ message: 'Login successful', user: userResponse });
     } else {
-      // FAIL LOG
-      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+      // Failed password
+      try {
+        await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+      } catch (auditErr) {
+        console.log("⚠️ Audit log skipped");
+      }
       res.status(401).json({ error: 'Invalid password' });
     }
     
@@ -952,6 +1354,90 @@ app.post('/unified-login', async (req, res) => {
     res.status(500).json({ error: 'Database error: ' + err.message });
   }
 });
+
+// // =================================================================================
+// // OLD UNIFIED LOGIN ROUTE (WITH AUDIT) - FIXED
+// // =================================================================================
+// app.post('/unified-login', async (req, res) => {
+//   const { username, password } = req.body;
+//   console.log(`🔐 Unified login attempt for: ${username}`);
+  
+//   try {
+//     let user = null;
+//     let userType = null;
+
+//     // Check accounts (EMPLOYEE)
+//     const employeeResult = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
+//     if (employeeResult.rows.length > 0) {
+//       user = employeeResult.rows[0];
+//       userType = 'EMPLOYEE';
+//     } else {
+//       // Check patients (USER)
+//       const patientResult = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
+//       if (patientResult.rows.length > 0) {
+//         user = patientResult.rows[0];
+//         userType = 'USER'; // Log as USER instead of PATIENT
+//       }
+//     }
+    
+//     if (!user) {
+//       await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
+//       return res.status(401).json({ error: 'Account not found' });
+//     }
+    
+//     if (user.status === 'Disabled' || user.status === 'Inactive') {
+//       await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+//       return res.status(403).json({ error: 'Account is disabled. Please contact support.' });
+//     }
+    
+//     let passwordValid = false;
+//     if (user.password && user.password.startsWith('$2')) {
+//       passwordValid = await bcrypt.compare(password, user.password);
+//     } else {
+//       passwordValid = (user.password === password);
+//     }
+    
+//     if (passwordValid) {
+//       // SUCCESS LOG
+//       await logAccess({ 
+//         req, 
+//         accountId: user.pk, 
+//         accountType: userType, 
+//         username: user.username, 
+//         role: user.role || 'user', 
+//         action: 'LOGIN', 
+//         status: 'SUCCESS' 
+//       });
+
+//       const userResponse = {
+//         id: user.pk,
+//         username: user.username,
+//         fullname: user.fullname,
+//         email: user.email,
+//         userType: userType.toLowerCase() === 'user' ? 'patient' : 'employee', // Keep frontend response as 'patient' if needed
+//         status: user.status
+//       };
+      
+//       const imgBuffer = user.userimage;
+//       if (imgBuffer) userResponse.userImage = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+
+//       if (userType === 'EMPLOYEE') {
+//         userResponse.role = user.role;
+//         userResponse.isInitialLogin = user.is_initial_login || false;
+//       }
+      
+//       res.json({ message: 'Login successful', user: userResponse });
+//     } else {
+//       // FAIL LOG
+//       await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+//       res.status(401).json({ error: 'Invalid password' });
+//     }
+    
+//   } catch (err) {
+//     console.error("❌ Unified login error:", err.message);
+//     res.status(500).json({ error: 'Database error: ' + err.message });
+//   }
+// });
 
 // =================================================================================
 //  LOGOUT ROUTE (NEW)

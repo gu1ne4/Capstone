@@ -227,16 +227,23 @@ export default function LoginPage() {
   };
 
   const handleLoginError = (serverError) => {
-    const errorLower = serverError.toLowerCase();
-    
-    if (errorLower.includes('found') || errorLower.includes('exist')) {
-      showPopup('Login Failed', "Account not found.", 'error');
-    } else if (errorLower.includes('disabled') || errorLower.includes('inactive')) {
-      showPopup('Account Disabled', "Your account has been disabled. Please contact support.", 'error');
-    } else {
-      showPopup('Login Failed', 'Invalid Username or Password', 'error');
-    }
-  };
+  const errorLower = serverError.toLowerCase();
+  
+  if (errorLower.includes('verify your email')) {
+    showPopup(
+      'Email Not Verified', 
+      'Please check your inbox and verify your email before logging in.', 
+      'info'
+    );
+  } else if (errorLower.includes('found') || errorLower.includes('exist')) {
+    showPopup('Login Failed', "Account not found.", 'error');
+  } else if (errorLower.includes('disabled') || errorLower.includes('inactive')) {
+    showPopup('Account Disabled', "Your account has been disabled. Please contact support.", 'error');
+  } else {
+    showPopup('Login Failed', 'Invalid Username or Password', 'error');
+  }
+};
+
   // ========== END MERGED HANDLELOGIN ==========
 
   return (

@@ -47,7 +47,7 @@ export default function App() {
     <PaperProvider theme={theme}>
       <NavigationContainer>
 
-        <CScreen.Navigator initialRouteName='DoctorHomePage'>
+        <CScreen.Navigator initialRouteName='Home'>
           <CScreen.Screen name="Home" component={DashboardPage} options={{headerShown: false}} />
           <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
           <CScreen.Screen name="Accounts" component={HomePage} options={{headerShown: false}} />

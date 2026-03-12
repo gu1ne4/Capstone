@@ -14,6 +14,9 @@ export default function RegistrationPage() {
   const [contactNumber, setContactNumber] = useState('')
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
+
+  const [showVerificationMessage, setShowVerificationMessage] = useState(false);
+  const [verificationEmail, setVerificationEmail] = useState('');
   
   const [errors, setErrors] = useState({
     fullName: '',
@@ -226,78 +229,88 @@ export default function RegistrationPage() {
       return;
     }
     
-    setLoading(true);
-    try {
-      const API_URL = 'http://localhost:3000';
-      const today = new Date();
-      const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+   setLoading(true);
 
-      // Log the data being sent
-      const requestData = { 
-        fullname: fullName,           // Backend expects lowercase
-        username: username,
-        password: password,
-        contactnumber: contactNumber, // Backend expects lowercase
-        email: email,
-        datecreated: dateCreated,  
-        userimage: null,   // Backend expects lowercase
-        status: 'Active' 
-      };
-      
-      console.log('Sending to backend:', requestData);
+  const API_URL = 'http://localhost:3000';
+  try {
+  
+    const today = new Date();
+    const dateCreated = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
 
-      const res = await fetch(`${API_URL}/patient-register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestData),
-      });
-      
-      const data = await res.json();
-      
-      if (res.ok) {
-        Alert.alert(
-          "Success", 
-          "Account created successfully! You can now log in.",
-          [
-            {
-              text: "Go to Login",
-              onPress: () => navigation.navigate("Login")
-            }
-          ]
-        );
-        
-        // Clear form
-        setFullName('');
-        setUsername('');
-        setPassword('');
-        setConfirmPassword('');
-        setContactNumber('');
-        setEmail('');
-        setErrors({});
-        setTouched({});
-        
-      } else {
-        // ============================================================
-        //  UNIQUE EMAIL / DUPLICATE HANDLING
-        // ============================================================
-        // If backend returns a duplicate email error, show specific message
-        let errorMessage = data.error || "Registration failed. Please try again.";
+    const requestData = { 
+      fullname: fullName,
+      username: username,
+      password: password,
+      contactnumber: contactNumber,
+      email: email,
+      datecreated: dateCreated,  
+      userimage: null,
+      status: 'Active' 
+    };
+    
+    console.log('📤 STEP 1: Sending to backend:', requestData);
+    console.log('📤 STEP 2: Fetching from:', `${API_URL}/patient-register`);
 
-        if (errorMessage.toLowerCase().includes('email')) {
-          errorMessage = "This email is already in use.";
-        } else if (errorMessage.toLowerCase().includes('username')) {
-          errorMessage = "This username is already taken.";
-        }
-
-        alert("Email is Already in Use", errorMessage);
-      }
-    } catch (err) {
-      console.error('Fetch error:', err);
-      Alert.alert("Network Error", "Could not connect to server. Please try again.");
-    } finally {
-      setLoading(false);
+    const res = await fetch(`${API_URL}/patient-register`, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(requestData),
+    });
+    
+    console.log('📥 STEP 3: Response received! Status:', res.status);
+    
+    const data = await res.json();
+    console.log('📦 STEP 4: Response data:', data);
+    
+   if (res.ok) {
+  console.log('✅ Registration successful, setting verification email:', email);
+  setVerificationEmail(email);
+  
+  // Show message immediately without Alert
+  setShowVerificationMessage(true);
+  
+  // Clear form
+  setFullName('');
+  setUsername('');
+  setPassword('');
+  setConfirmPassword('');
+  setContactNumber('');
+  setEmail('');
+  setErrors({});
+  setTouched({});
+  
+  // Optional: Show a brief success toast or just rely on the message
+  Alert.alert(
+    "Success", 
+    "Registration complete! Please check your email.",
+    [{ text: "OK" }]
+  );
+}else {
+      console.log('❌ STEP 5: Server returned error');
+      let errorMessage = data.error || "Registration failed. Please try again.";
+      Alert.alert("Registration Failed", errorMessage);
     }
-  };
+  } catch (err) {
+    console.error('❌ STEP 5: Network error details:', err);
+    console.error('❌ Error name:', err.name);
+    console.error('❌ Error message:', err.message);
+    
+    Alert.alert(
+      "Connection Error", 
+      `Cannot connect to ${API_URL}\n\n` +
+      "Make sure:\n" +
+      "1. ✅ Server is running (node server.js)\n" +
+      "2. ✅ You're on port 3000\n" +
+      "3. 🔥 Check if firewall is blocking\n\n" +
+      `Error: ${err.message}`
+    );
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <View style={styles.container}>
@@ -329,6 +342,7 @@ export default function RegistrationPage() {
 
         {/* RIGHT SIDE */}
         <View style={[styles.loginSection, {padding: 50}]}>
+
           <ScrollView style={{padding: 20}}>
             <TouchableOpacity
             onPress={() => navigation.navigate('UserHome')}
@@ -351,6 +365,57 @@ export default function RegistrationPage() {
           <Text style={styles.loginSubtext}>
             Fill in your details to create your account.
           </Text>
+
+          {/* ADD VERIFICATION MESSAGE HERE - AT THE TOP */}
+{showVerificationMessage && (
+  <View style={{
+    backgroundColor: '#4CAF50',
+    padding: 15,
+    borderRadius: 8,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#45a049',
+    width: '100%',
+  }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+      <Ionicons name="checkmark-circle" size={24} color="white" />
+      <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 16, marginLeft: 10 }}>
+        Registration Successful!
+      </Text>
+    </View>
+    
+    <Text style={{ color: 'white', fontSize: 14, marginBottom: 5 }}>
+      ✓ Verification email sent to:
+    </Text>
+    <Text style={{ 
+      color: 'white', 
+      fontWeight: '600', 
+      fontSize: 14,
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      padding: 8,
+      borderRadius: 5,
+      marginBottom: 8
+    }}>
+      {verificationEmail}
+    </Text>
+    
+    <Text style={{ color: 'white', fontSize: 13, lineHeight: 18 }}>
+      Please check your inbox and click the verification link to activate your account.
+    </Text>
+    
+    <TouchableOpacity
+      onPress={() => setShowVerificationMessage(false)}
+      style={{ 
+        marginTop: 10,
+        alignSelf: 'flex-end',
+      }}
+    >
+      <Text style={{ color: 'white', fontSize: 13, fontWeight: '500' }}>
+        Dismiss ✕
+      </Text>
+    </TouchableOpacity>
+  </View>
+)}
 
           {/* Full Name */}
           <View style={styles.inputGroup}>
@@ -587,6 +652,62 @@ export default function RegistrationPage() {
           >
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.loginButtonText}>Register</Text>}
           </TouchableOpacity>
+
+          {/* ADD THIS VERIFICATION MESSAGE SECTION
+{showVerificationMessage && (
+  <View style={{
+    backgroundColor: '#e8f4fd',
+    padding: 20,
+    borderRadius: 10,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: '#3d67ee',
+    width: '100%',
+  }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+      <Ionicons name="mail-outline" size={24} color="#3d67ee" />
+      <Text style={{ color: '#3d67ee', fontWeight: 'bold', fontSize: 16, marginLeft: 10 }}>
+        Verify Your Email
+      </Text>
+    </View>
+    
+    <Text style={{ color: '#333', fontSize: 14, lineHeight: 20, marginBottom: 10 }}>
+      ✓ Registration complete! We've sent a verification link to:
+    </Text>
+    
+    <Text style={{ 
+      color: '#3d67ee', 
+      fontWeight: '600', 
+      fontSize: 15, 
+      marginBottom: 15,
+      backgroundColor: '#f0f4ff',
+      padding: 10,
+      borderRadius: 5,
+      textAlign: 'center'
+    }}>
+      {verificationEmail}
+    </Text>
+    
+    <Text style={{ color: '#555', fontSize: 13, lineHeight: 18 }}>
+      Please check your inbox and click the verification link to activate your account. 
+      Don't forget to check your spam folder!
+    </Text>
+    
+    <TouchableOpacity
+      onPress={() => navigation.navigate('Login')}
+      style={{ 
+        marginTop: 15, 
+        alignItems: 'center',
+        paddingVertical: 8,
+      }}
+    >
+      <Text style={{ color: '#3d67ee', fontSize: 14, fontWeight: '500' }}>
+        Go to Login →
+      </Text>
+    </TouchableOpacity>
+  </View>
+)} */}
+
 
           {/* Login Link */}
           <TouchableOpacity
