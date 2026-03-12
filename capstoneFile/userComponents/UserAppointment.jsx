@@ -192,7 +192,7 @@ export default function UserAppointment() {
     const handleMyPets = () => {
       setDropdownVisible(false);
   
-      ns.navigate('UserPets');
+      ns.navigate('UserPetProfile');
     };
   
    const [medicalAnswers, setMedicalAnswers] = useState({
@@ -895,7 +895,7 @@ export default function UserAppointment() {
           {/* Right-side icons */}
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {/* Paw Icon Button */}
-            <TouchableOpacity onPress={()=>{ns.navigate('UserPets')}}>
+            <TouchableOpacity onPress={()=>{ns.navigate('UserPetProfile')}}>
               <View style={[userStyle.navSections, { }]}>
                 <Ionicons name="paw" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
               </View>
