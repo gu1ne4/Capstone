@@ -598,7 +598,7 @@ const saveTimeSlotsToDatabase = async () => {
       return {
         startTime: slot.startTime,
         endTime: slot.endTime,
-        capacity: slot.capacity || 1
+        capacity: slot.capacity || 1  // Make sure capacity is included
       };
     });
     
@@ -619,7 +619,7 @@ const saveTimeSlotsToDatabase = async () => {
       id: slot.id, // Use the NEW database IDs
       startTime: slot.start_time,
       endTime: slot.end_time,
-      capacity: slot.capacity
+      capacity: slot.capacity || 1
     }));
     
     // Update state with the REAL slots from database
