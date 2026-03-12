@@ -39,6 +39,35 @@ export default function UserAppointmentView() {
   // State for pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(5);
+
+  const [dropdownVisible, setDropdownVisible] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(true); 
+    const user = {
+      name: 'John Michael Santos',
+      email: 'john.santos@email.com',
+      profileImage: null
+    };
+  
+    const handleLogout = () => {
+  
+      setDropdownVisible(false);
+  
+      setIsLoggedIn(false);
+    };
+  
+    const handleViewProfile = () => {
+      setDropdownVisible(false);
+  
+      ns.navigate('UserProfile');
+    };
+  
+    const handleMyPets = () => {
+      setDropdownVisible(false);
+  
+      ns.navigate('UserPetProfile');
+    };
+
+  
   
   // Mock data for appointments with prices
   const [appointments, setAppointments] = useState([
@@ -551,25 +580,135 @@ export default function UserAppointmentView() {
   const totalPages = getTotalPages();
   const timeSlots = getTimeSlotsForDate(newDate);
 
+
+
   return (
     <View style={{backgroundColor: '#fff', flex: 1}}>
-      {/* Sticky Navigation Bar */}
-      <View style={{ zIndex: 1000 }}>
+            {/* Sticky Navigation Bar */}
+      <View style={{
+        zIndex: 1000,
+      }}>
         <View style={userStyle.navbar}>
-          {/* Profile */}
-          <TouchableOpacity onPress={()=>{ns.navigate('Login')}}>
-            <View style={[userStyle.navSections, {paddingHorizontal: 20, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 12}]}>
-              <Ionicons name="person-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
-              <View style={{flexDirection: 'column', marginRight: 5}}>
-                <Text style={[userStyle.smallText, {fontSize: 16, color: "#3d67ee", fontWeight: 600}]}>Login or Sign-up</Text>
+          {/* Profile Section with Dropdown */}
+          <View style={{position: 'relative', zIndex: 2}}>
+            {isLoggedIn ? (
+              <TouchableOpacity 
+                onPress={() => setDropdownVisible(!dropdownVisible)}
+                activeOpacity={0.7}
+                style={{zIndex: 3}} 
+              >
+                <View style={[userStyle.navSections, {paddingHorizontal: 20, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 12}]}>
+                  {user.profileImage ? (
+                    <Image 
+                      source={user.profileImage} 
+                      style={{width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: '#3d67ee'}}
+                    />
+                  ) : (
+                    <View style={{
+                      width: 30, 
+                      height: 30, 
+                      borderRadius: 15, 
+                      backgroundColor: '#3d67ee20',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: '#3d67ee'
+                    }}>
+                      <Text style={{color: '#3d67ee', fontWeight: 'bold', fontSize: 14}}>
+                        {user.name.split(' ').map(n => n[0]).join('')}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={{flexDirection: 'column', marginRight: 5}}>
+                    <Text style={[userStyle.smallText, {fontSize: 14, color: "#3d67ee", fontWeight: 600}]}>
+                      {user.name}
+                    </Text>
+                  </View>
+                  <Ionicons 
+                    name={dropdownVisible ? "chevron-up" : "chevron-down"} 
+                    size={18} 
+                    color="#3d67ee" 
+                  />
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={()=>{ns.navigate('Login')}}>
+                <View style={[userStyle.navSections, {paddingHorizontal: 20, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 12}]}>
+                  <Ionicons name="person-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
+                  <View style={{flexDirection: 'column', marginRight: 5}}>
+                    <Text style={[userStyle.smallText, {fontSize: 16, color: "#3d67ee", fontWeight: 600}]}>Login or Sign-up</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {dropdownVisible && isLoggedIn && (
+              <View style={{
+                position: 'absolute',
+                top: 48,
+                left: 13,
+                backgroundColor: 'white',
+                borderRadius: 10,
+                padding: 8,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.10,
+                shadowRadius: 8,
+                elevation: 5,
+                width: 240,
+                zIndex: 1, 
+              }}>
+                <TouchableOpacity 
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#f0f0f0',
+                    marginTop: 5,
+                    gap: 10,
+                  }}
+                  onPress={handleViewProfile}
+                >
+                  <Ionicons name="person-outline" size={18} color="#3d67ee" />
+                  <Text style={{fontSize: 14, color: '#333'}}>View Profile</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#f0f0f0',
+                    gap: 10,
+                  }}
+                  onPress={handleMyPets}
+                >
+                  <Ionicons name="paw-outline" size={18} color="#3d67ee" />
+                  <Text style={{fontSize: 14, color: '#333'}}>My Pets</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 12,
+                    gap: 10,
+                  }}
+                  onPress={handleLogout}
+                >
+                  <Ionicons name="log-out-outline" size={18} color="#ee3d5a" />
+                  <Text style={{fontSize: 14, color: '#ee3d5a'}}>Logout</Text>
+                </TouchableOpacity>
               </View>
-            </View>
-          </TouchableOpacity>
+            )}
+          </View>
 
           <View style={{ flex: 1, alignItems: 'center' }}>
             <View style={[userStyle.navSections, { flexDirection: 'row',  alignItems: 'center', gap: 60, width: '70%'}]}>
               <TouchableOpacity onPress={()=>{ns.navigate('UserHome')}}>
-                <Text style={userStyle.navText}>Home</Text>
+                <Text style={[userStyle.navText]}>Home</Text>
               </TouchableOpacity>
               <TouchableOpacity>
                 <Text style={userStyle.navText}>About Us</Text>
@@ -585,7 +724,14 @@ export default function UserAppointmentView() {
 
           {/* Right-side icons */}
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity>
+            {/* Paw Icon Button */}
+            <TouchableOpacity onPress={handleMyPets}>
+              <View style={[userStyle.navSections, { }]}>
+                <Ionicons name="paw" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
+              </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={()=>{ns.navigate('UserAppointmentView')}}>
               <View style={userStyle.navSections}>
                 <Ionicons name="calendar-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
               </View>
