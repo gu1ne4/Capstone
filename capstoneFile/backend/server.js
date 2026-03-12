@@ -28,12 +28,11 @@ app.use(express.json({ limit: '50mb' }));
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
-  database: 'veterinaryDB',
+  database: 'hospital',
   password: process.env.DB_PASSWORD,
   port: 5432,
 });
 
-// Initialize day_availability table with default records if empty
 const initializeDayAvailability = async () => {
   try {
     const result = await pool.query('SELECT COUNT(*) FROM day_availability');
@@ -53,7 +52,16 @@ const initializeDayAvailability = async () => {
       console.log('✅ Day availability initialized with default records');
     }
   } catch (err) {
-    console.error('❌ Error initializing day_availability:', err.message);
+    // Log the FULL error to see what's actually happening
+    console.error('❌ Error initializing day_availability:', err);
+    
+    // Or log specific properties
+    console.error('Error details:', {
+      message: err?.message,
+      code: err?.code,
+      stack: err?.stack,
+      name: err?.name
+    });
   }
 };
 

@@ -191,6 +191,7 @@ const styles = StyleSheet.create({
     top: 0, 
     right: 60, 
     textAlign: 'left',
+    width: '100%',
   },
 
   charCount: {
