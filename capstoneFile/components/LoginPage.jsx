@@ -66,56 +66,6 @@ export default function LoginPage() {
     }
   }, [password, touched.password]);
 
-  
-  const handleUsernameChange = (text) => {
-    setUsername(text);
-    if (!touched.username) {
-      setTouched(prev => ({...prev, username: true}));
-    }
-  };
-
-  const handlePasswordChange = (text) => {
-    setPassword(text);
-    if (!touched.password) {
-      setTouched(prev => ({...prev, password: true}));
-    }
-  };
-
-  // Handle blur
-  const handleBlur = (fieldName) => {
-    setTouched(prev => ({...prev, [fieldName]: true}));
-    const value = fieldName === 'username' ? username : password;
-    const error = validateField(fieldName, value);
-    setErrors(prev => ({...prev, [fieldName]: error}));
-  };
-
-  
-  const handleLogin = () => {
-    setTouched({
-      username: true,
-      password: true
-    });
-    
-    const usernameError = validateField('username', username);
-    const passwordError = validateField('password', password);
-    
-    setErrors({
-      username: usernameError,
-      password: passwordError
-    });
-    
-    if (!usernameError && !passwordError) {
-      navigation.replace("Accounts");
-    }
-  };
-
-  
-  const isFormValid = () => {
-    const usernameError = validateField('username', username);
-    const passwordError = validateField('password', password);
-    return !usernameError && !passwordError;
-  };
-
   // Helper to get field status
   const getFieldStatus = (fieldName, value) => {
     if (!touched[fieldName]) return 'neutral';
@@ -126,6 +76,164 @@ export default function LoginPage() {
 
   const usernameStatus = getFieldStatus('username', username);
   const passwordStatus = getFieldStatus('password', password);
+
+  const isFormValid = () => {
+    return !validateField('username', username) && !validateField('password', password);
+  };
+
+  const handleUsernameChange = (text) => {
+    setUsername(text);
+    if (!touched.username) setTouched(prev => ({...prev, username: true}));
+  };
+
+  const handlePasswordChange = (text) => {
+    setPassword(text);
+    if (!touched.password) setTouched(prev => ({...prev, password: true}));
+  };
+
+  const handleBlur = (fieldName) => {
+    setTouched(prev => ({...prev, [fieldName]: true}));
+    setErrors(prev => ({...prev, [fieldName]: validateField(fieldName, fieldName === 'username' ? username : password)}));
+  };
+
+  // ========== MERGED HANDLELOGIN FUNCTION ==========
+  const handleLogin = async () => {
+    setTouched({ username: true, password: true });
+    
+    const usernameError = validateField('username', username);
+    const passwordError = validateField('password', password);
+    
+    if (usernameError || passwordError) {
+      setErrors({ username: usernameError, password: passwordError });
+      const firstError = usernameError || passwordError;
+      showPopup('Validation Error', firstError, 'error');
+      return;
+    }
+
+    setLoading(true);
+    
+    // Determine API URL based on platform
+    const baseUrl = Platform.OS === 'web' 
+      ? 'http://localhost:3000' 
+      : 'http://10.0.2.2:3000';
+
+    try {
+      // Try the unified login endpoint first (from second version)
+      const res = await fetch(`${baseUrl}/unified-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        // Save Session
+        await AsyncStorage.setItem('userSession', JSON.stringify(data.user));
+        
+        // Unified login response handling (from second version)
+        if (data.user.userType === 'employee') {
+          // Employee login
+          if (data.user.isInitialLogin && !fromPasswordReset) {
+            // FIRST-TIME LOGIN (after admin creation)
+            showPopup('First Login', 'Please update your credentials to continue.', 'info', () => {
+              navigation.replace("UpdateAcc", { userId: data.user.id });
+            });
+          } else {
+            // REGULAR LOGIN OR PASSWORD RESET LOGIN
+            const message = fromPasswordReset 
+              ? `Password updated successfully! Welcome back ${data.user.fullname}!`
+              : `Welcome back ${data.user.fullname}!`;
+            
+            showPopup('Success', message, 'success', () => {
+              navigation.replace("Accounts");
+            });
+          }
+        } else {
+          // Patient login
+          const message = fromPasswordReset 
+            ? `Password updated successfully! Welcome ${data.user.fullname}!`
+            : `Welcome ${data.user.fullname}!`;
+          
+          showPopup('Success', message, 'success', () => {
+            navigation.replace("UserHome");
+          });
+        }
+      } else {
+        // If unified login fails, fall back to original endpoint
+        try {
+          const fallbackRes = await fetch(`${baseUrl}/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password }),
+          });
+
+          const fallbackData = await fallbackRes.json();
+
+          if (fallbackRes.ok) {
+            // 1. Save Session
+            await AsyncStorage.setItem('userSession', JSON.stringify(fallbackData.user));
+            
+            // 2. Check if first-time login
+            if (fallbackData.user.isInitialLogin) {
+              showPopup('First Login', 'Please update your credentials to continue.', 'success', () => {
+                navigation.replace("UpdateAcc", { userId: fallbackData.user.id });
+              });
+            } 
+            // 3. Normal login - Role-Based Redirection (from first version)
+            else {
+              showPopup('Success', `Welcome back, ${fallbackData.user.username}!`, 'success', () => {
+                const userRole = fallbackData.user.role; 
+
+                if (userRole === 'Admin') {
+                    navigation.replace("Accounts"); 
+                } 
+                else if (userRole === 'Veterinarian' || userRole === 'Receptionist') {
+                    navigation.replace("DashboardPage"); 
+                } 
+                else if (userRole === 'User') {
+                    navigation.replace("UserHome"); 
+                }
+                else {
+                    navigation.replace("Login"); 
+                }
+              });
+            }
+          } else {
+            handleLoginError(fallbackData.error || '');
+          }
+        } catch (fallbackError) {
+          handleLoginError(data.error || '');
+        }
+      }
+    } catch (error) {
+      console.error(error);
+      const msg = 'Network Error: Make sure server.js is running!';
+      showPopup('Connection Error', msg, 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLoginError = (serverError) => {
+  const errorLower = serverError.toLowerCase();
+  
+  if (errorLower.includes('verify your email')) {
+    showPopup(
+      'Email Not Verified', 
+      'Please check your inbox and verify your email before logging in.', 
+      'info'
+    );
+  } else if (errorLower.includes('found') || errorLower.includes('exist')) {
+    showPopup('Login Failed', "Account not found.", 'error');
+  } else if (errorLower.includes('disabled') || errorLower.includes('inactive')) {
+    showPopup('Account Disabled', "Your account has been disabled. Please contact support.", 'error');
+  } else {
+    showPopup('Login Failed', 'Invalid Username or Password', 'error');
+  }
+};
+
+  // ========== END MERGED HANDLELOGIN ==========
 
   return (
     <View style={styles.loginContainer}>

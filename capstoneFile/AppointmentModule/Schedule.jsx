@@ -8,6 +8,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { DataTable } from 'react-native-paper';
 import { Picker } from '@react-native-picker/picker';   
 import { BlurView } from 'expo-blur';
+import CancelAppointmentModal from './CancelAppointmentModal';
+import RescheduleModal from './RescheduleModal';
 
 import * as ImagePicker from 'expo-image-picker';
 import { Calendar } from 'react-native-calendars';
@@ -42,6 +44,8 @@ const CreateAppointmentModal = ({ visible, onClose, onSubmit }) => {
     const [availableTimeSlots, setAvailableTimeSlots] = useState([]);
     const [loadingTimeSlots, setLoadingTimeSlots] = useState(false);
     const [specialDates, setSpecialDates] = useState([]);
+
+  
 
     // Character limits
     const CHAR_LIMITS = {
@@ -948,6 +952,14 @@ const [selectedCalendarDate, setSelectedCalendarDate] = useState(null);
     // Create Appointment Modal State
     const [showCreateModal, setShowCreateModal] = useState(false);
 
+     // ✅ ADD THESE LINES HERE - Cancel Modal State
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [selectedAppointmentForCancel, setSelectedAppointmentForCancel] = useState(null);
+
+    // Reschedule Modal State
+    const [showRescheduleModal, setShowRescheduleModal] = useState(false);
+    const [selectedAppointmentForReschedule, setSelectedAppointmentForReschedule] = useState(null);
+
     const [userData, setUserData] = useState([]);
     const [doctors, setDoctors] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -1027,47 +1039,115 @@ const filteredAppointments = userData.filter(appointment => {
     }
     };
 
-// Update the handleCancelAppointment function to use custom modal
+
+// Updated handleCancelAppointment - opens the new modal
 const handleCancelAppointment = (appointment) => {
-  console.log('handleCancelAppointment called with:', appointment);
+  console.log('Opening cancel modal for appointment:', appointment);
   
   if (!appointment || !appointment.id) {
     Alert.alert('Error', 'Invalid appointment data');
     return;
   }
   
-  setSelectedAppointmentForAction(appointment);
-  setConfirmationType('cancel');
-  setConfirmationAction(() => async () => {
-    try {
-      setLoading(true);
-      console.log('Calling updateAppointmentStatus with status: cancelled');
-      const result = await availabilityService.updateAppointmentStatus(appointment.id, 'cancelled');
-      console.log('Update result:', result);
-      
-      if (result) {
-        // Remove from current appointments
-        const updatedUserData = userData.filter(user => user.id !== appointment.id);
-        setUserData(updatedUserData);
-        
-        // Go back to table view if we're viewing this appointment
-        if (selectedUser && selectedUser.id === appointment.id) {
-          setCurrentView('table');
-          setSelectedUser(null);
-        }
-        
-        Alert.alert('Success', 'Appointment has been cancelled and moved to history.');
-      }
-    } catch (error) {
-      console.error('Error cancelling appointment:', error);
-      Alert.alert('Error', error.message || 'Failed to cancel appointment. Please try again.');
-    } finally {
-      setLoading(false);
-      setSelectedAppointmentForAction(null);
+  setSelectedAppointmentForCancel(appointment);
+  setShowCancelModal(true);
+};
+
+// Handle cancel with reason submission
+const handleCancelWithReason = async (cancellationData) => {
+  try {
+    setLoading(true);
+    console.log('Submitting cancellation with reason:', cancellationData);
+    
+    // Get current user ID - replace with actual logged-in admin ID
+    const currentUserId = 1; // TODO: Get from your auth context
+    
+    const fullCancelData = {
+      ...cancellationData,
+      cancelled_by: currentUserId
+    };
+    
+    const result = await availabilityService.cancelAppointmentWithReason(
+      selectedAppointmentForCancel.id, 
+      fullCancelData
+    );
+    
+    console.log('Cancel result:', result);
+    
+    // Remove from current appointments
+    const updatedUserData = userData.filter(user => user.id !== selectedAppointmentForCancel.id);
+    setUserData(updatedUserData);
+    
+    // Update calendar booked dates
+    const updatedBookedDates = { ...bookedDates };
+    // You might want to remove the dot for this date if no other appointments
+    setBookedDates(updatedBookedDates);
+    
+    // Go back to table view if viewing this appointment
+    if (selectedUser && selectedUser.id === selectedAppointmentForCancel.id) {
+      setCurrentView('table');
+      setSelectedUser(null);
     }
-  });
+    
+    setShowCancelModal(false);
+    setSelectedAppointmentForCancel(null);
+    
+    // Return result for modal to show email status
+    return result;
+    
+  } catch (error) {
+    console.error('Error cancelling appointment:', error);
+    Alert.alert('Error', error.message || 'Failed to cancel appointment');
+    throw error;
+  } finally {
+    setLoading(false);
+  }
+};
+
+const handleRescheduleAppointment = (appointment) => {
+  console.log('Opening reschedule modal for appointment:', appointment);
   
-  setShowConfirmationModal(true);
+  if (!appointment || !appointment.id) {
+    Alert.alert('Error', 'Invalid appointment data');
+    return;
+  }
+  
+  setSelectedAppointmentForReschedule(appointment);
+  setShowRescheduleModal(true);
+};
+
+const handleRescheduleSubmit = async (rescheduleData) => {
+  try {
+    setLoading(true);
+    console.log('Submitting reschedule request:', rescheduleData);
+    
+    const currentUserId = 1; // TODO: Replace with actual logged-in admin ID
+    
+    const fullRescheduleData = {
+      ...rescheduleData,
+      requested_by: currentUserId
+    };
+    
+    const result = await availabilityService.createRescheduleRequest(
+      selectedAppointmentForReschedule.id,
+      fullRescheduleData
+    );
+    
+    console.log('Reschedule result:', result);
+    
+    setShowRescheduleModal(false);
+    setSelectedAppointmentForReschedule(null);
+    
+    // Return result for modal to show email status
+    return result;
+    
+  } catch (error) {
+    console.error('Error creating reschedule request:', error);
+    Alert.alert('Error', error.message || 'Failed to create reschedule request');
+    throw error;
+  } finally {
+    setLoading(false);
+  }
 };
 
 // Update handleCompleteAppointment function to use custom modal
@@ -1215,7 +1295,7 @@ const handleCompleteAppointment = (appointment) => {
         }, 300);
     };
 
-const UserDetailsView = ({ user, onBack, onCancel, onComplete, onAssignDoctor }) => {
+const UserDetailsView = ({ user, onBack, onCancel, onComplete, onAssignDoctor, onReschedule }) => {
     if (!user) return null;
     
     // Map the API properties to what your component expects
@@ -1354,7 +1434,9 @@ const UserDetailsView = ({ user, onBack, onCancel, onComplete, onAssignDoctor })
                 </View>
 
                 <View style={[apStyle.sectionContainer, { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 30 }]}>
-                    <TouchableOpacity style={[apStyle.actionButton, { backgroundColor: '#3d67ee' }]}>
+                    <TouchableOpacity style={[apStyle.actionButton, { backgroundColor: '#3d67ee' }]}
+                    
+                        onPress={() => onReschedule(user)}>
                         <Ionicons name="calendar" size={18} color="#fff" />
                         <Text style={[apStyle.actionButtonText, { color: '#fff' }]}>Reschedule</Text>
                     </TouchableOpacity>
@@ -1511,67 +1593,93 @@ const TableView = ({
             showsVerticalScrollIndicator={true}
           >
             <DataTable>
-              <DataTable.Header>
-                <DataTable.Title style={{ flex: 2, alignItems: 'center' }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700' }}>Name</Text>
-                </DataTable.Title>
-                <DataTable.Title style={{ flex: 2, justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700' }}>Service</Text>
-                </DataTable.Title>
-                <DataTable.Title style={{ flex: 2, justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700' }}>Time & Date</Text>
-                </DataTable.Title>
-                <DataTable.Title style={{ flex: 2, justifyContent: 'center' }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700' }}>Doctor</Text>
-                </DataTable.Title>
-                <DataTable.Title style={{ flex: 1, justifyContent: 'flex-end' }}>
-                  <Text style={{ fontSize: 12, fontWeight: '700' }}>View</Text>
-                </DataTable.Title>
-              </DataTable.Header>
+  <DataTable.Header>
+    <DataTable.Title style={{ flex: 2, alignItems: 'center' }}>
+      <Text style={{ fontSize: 12, fontWeight: '700' }}>Name</Text>
+    </DataTable.Title>
+    <DataTable.Title style={{ flex: 2, justifyContent: 'center' }}>
+      <Text style={{ fontSize: 12, fontWeight: '700' }}>Service</Text>
+    </DataTable.Title>
+    <DataTable.Title style={{ flex: 2, justifyContent: 'center' }}>
+      <Text style={{ fontSize: 12, fontWeight: '700' }}>Time & Date</Text>
+    </DataTable.Title>
+    <DataTable.Title style={{ flex: 1.5, justifyContent: 'center' }}>
+      <Text style={{ fontSize: 12, fontWeight: '700' }}>Status</Text> {/* NEW COLUMN */}
+    </DataTable.Title>
+    <DataTable.Title style={{ flex: 2, justifyContent: 'center' }}>
+      <Text style={{ fontSize: 12, fontWeight: '700' }}>Doctor</Text>
+    </DataTable.Title>
+    <DataTable.Title style={{ flex: 1, justifyContent: 'flex-end' }}>
+      <Text style={{ fontSize: 12, fontWeight: '700' }}>View</Text>
+    </DataTable.Title>
+  </DataTable.Header>
 
-              {/* Filtered Rows - ALL ITEMS (no pagination) */}
-              {filteredAppointments.length > 0 ? (
-                filteredAppointments.map((user) => (
-                  <DataTable.Row key={user.id}>
-                    <DataTable.Cell style={{ flex: 2 }}>
-                      <Text style={{ fontSize: 12 }}>{user.name}</Text>
-                    </DataTable.Cell>
-                    <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 12 }}>{user.service}</Text>
-                    </DataTable.Cell>
-                    <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
-                      <Text style={{ fontSize: 12 }}>{user.date_time}</Text>
-                    </DataTable.Cell>
-                    <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={{ 
-                          fontSize: 12, 
-                          color: user.doctor === 'Not Assigned' ? '#f57c00' : '#333'
-                        }}>
-                          {user.doctor}
-                        </Text>
-                        {user.doctor === 'Not Assigned' && (
-                          <Ionicons name="alert-circle" size={12} color="#f57c00" style={{ marginLeft: 5 }} />
-                        )}
-                      </View>
-                    </DataTable.Cell>
-                    <DataTable.Cell style={{ flex: 1, justifyContent: 'flex-end' }}>
-                      <TouchableOpacity onPress={() => onViewUser(user)}>
-                        <Ionicons name="eye-outline" size={15} color="#3d67ee" />
-                      </TouchableOpacity>
-                    </DataTable.Cell>
-                  </DataTable.Row>
-                ))
-              ) : (
-                <DataTable.Row>
-                  <DataTable.Cell style={{ flex: 6, justifyContent: 'center' }}>
-                    <Text style={{ textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
-                      {userData.length === 0 ? 'No appointments found' : 'No appointments matching your filters'}
-                    </Text>
-                  </DataTable.Cell>
-                </DataTable.Row>
-              )}
-            </DataTable>
+  {/* Filtered Rows */}
+  {filteredAppointments.length > 0 ? (
+    filteredAppointments.map((user) => (
+      <DataTable.Row key={user.id}>
+        <DataTable.Cell style={{ flex: 2 }}>
+          <Text style={{ fontSize: 12 }}>{user.name}</Text>
+        </DataTable.Cell>
+        <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
+          <Text style={{ fontSize: 12 }}>{user.service}</Text>
+        </DataTable.Cell>
+        <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
+          <Text style={{ fontSize: 12 }}>{user.date_time}</Text>
+        </DataTable.Cell>
+        <DataTable.Cell style={{ flex: 1.5, justifyContent: 'center' }}>
+          {/* Status Badge */}
+          <View style={[
+            { 
+              paddingHorizontal: 8, 
+              paddingVertical: 4, 
+              borderRadius: 12,
+              alignSelf: 'flex-start'
+            },
+            user.status === 'pending' ? { backgroundColor: '#fff3e0' } :
+            user.status === 'scheduled' ? { backgroundColor: '#e8f5e9' } :
+            { backgroundColor: '#ffebee' }
+          ]}>
+            <Text style={[
+              { fontSize: 11, fontWeight: '600' },
+              user.status === 'pending' ? { color: '#f57c00' } :
+              user.status === 'scheduled' ? { color: '#2e7d32' } :
+              { color: '#d32f2f' }
+            ]}>
+              {user.status ? user.status.toUpperCase() : 'SCHEDULED'}
+            </Text>
+          </View>
+        </DataTable.Cell>
+        <DataTable.Cell style={{ flex: 2, justifyContent: 'center' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ 
+              fontSize: 12, 
+              color: user.doctor === 'Not Assigned' ? '#f57c00' : '#333'
+            }}>
+              {user.doctor}
+            </Text>
+            {user.doctor === 'Not Assigned' && (
+              <Ionicons name="alert-circle" size={12} color="#f57c00" style={{ marginLeft: 5 }} />
+            )}
+          </View>
+        </DataTable.Cell>
+        <DataTable.Cell style={{ flex: 1, justifyContent: 'flex-end' }}>
+          <TouchableOpacity onPress={() => onViewUser(user)}>
+            <Ionicons name="eye-outline" size={15} color="#3d67ee" />
+          </TouchableOpacity>
+        </DataTable.Cell>
+      </DataTable.Row>
+    ))
+  ) : (
+    <DataTable.Row>
+      <DataTable.Cell style={{ flex: 6, justifyContent: 'center' }}>
+        <Text style={{ textAlign: 'center', color: '#666', fontStyle: 'italic' }}>
+          {userData.length === 0 ? 'No appointments found' : 'No appointments matching your filters'}
+        </Text>
+      </DataTable.Cell>
+    </DataTable.Row>
+  )}
+</DataTable>
           </ScrollView>
         </View>
       )}
@@ -2050,6 +2158,7 @@ const AssignDoctorModal = ({
             onCancel={handleCancelAppointment}
             onComplete={handleCompleteAppointment}
             onAssignDoctor={openDoctorModal} 
+            onReschedule={handleRescheduleAppointment}
         />
     )}
 </View>
@@ -2088,6 +2197,30 @@ const AssignDoctorModal = ({
             cancelText="No"
             type={confirmationType}
             />
+
+      {/* Cancel Appointment Modal */}
+<CancelAppointmentModal 
+  visible={showCancelModal}
+  onClose={() => {
+    setShowCancelModal(false);
+    setSelectedAppointmentForCancel(null);
+  }}
+  appointment={selectedAppointmentForCancel}
+  onSubmit={handleCancelWithReason}
+  currentUserId={1} // TODO: Replace with actual logged-in admin ID
+/>
+
+{/* Reschedule Modal */}
+<RescheduleModal 
+  visible={showRescheduleModal}
+  onClose={() => {
+    setShowRescheduleModal(false);
+    setSelectedAppointmentForReschedule(null);
+  }}
+  appointment={selectedAppointmentForReschedule}
+  onSubmit={handleRescheduleSubmit}
+  currentUserId={1} // TODO: Replace with actual logged-in admin ID
+/>
 
             
         </View>

@@ -22,7 +22,7 @@ app.use((req, res, next) => {
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
-  database: 'hospital',
+  database: 'veterinaryDB',
   password: process.env.DB_PASSWORD,
   port: 5432,
 });

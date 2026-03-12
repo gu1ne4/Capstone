@@ -4,50 +4,101 @@ const API_URL = 'http://localhost:3000';
 export const availabilityService = {
   // Get day availability (all 7 days)
   async getDayAvailability() {
-    try {
-      const response = await fetch(`${API_URL}/api/day-availability`);
-      if (!response.ok) throw new Error('Failed to load day availability');
-      const data = await response.json();
-      
-      // Convert array to object for easy access
-      const dayAvailability = {};
-      data.day_availability.forEach(day => {
-        dayAvailability[day.day_of_week] = day.is_available;
-      });
-      
-      return dayAvailability;
-    } catch (error) {
-      console.error('Error loading day availability:', error);
-      return {
-        sunday: false,
-        monday: false,
-        tuesday: false,
-        wednesday: false,
-        thursday: false,
-        friday: false,
-        saturday: false
-      };
-    }
-  },
+  try {
+    const response = await fetch(`${API_URL}/api/day-availability`);
+    if (!response.ok) throw new Error('Failed to load day availability');
+    const data = await response.json();
+    
+    const dayAvailability = {};
+    
+    // data should now be the array directly
+    data.forEach(day => {
+      const dayKey = day.day_of_week?.toLowerCase();
+      if (dayKey) {
+        dayAvailability[dayKey] = day.is_available;
+      }
+    });
+    
+    return dayAvailability;
+  } catch (error) {
+    console.error('Error loading day availability:', error);
+    return {
+      sunday: false,
+      monday: false,
+      tuesday: false,
+      wednesday: false,
+      thursday: false,
+      friday: false,
+      saturday: false
+    };
+  }
+},
 
-  // Save day availability
+  // Save day availability - FIXED VERSION
   async saveDayAvailability(dayName, isAvailable) {
-    try {
-      const response = await fetch(`${API_URL}/api/day-availability/${dayName.toLowerCase()}`, {
-        method: 'PUT',
+  try {
+    console.log('Saving day availability:', { dayName, isAvailable });
+    
+    // Format the data to match your database schema
+    const payload = {
+      day_of_week: dayName.toLowerCase(),  // Match your column name
+      is_available: isAvailable             // Match your column name
+    };
+    
+    console.log('Sending payload:', payload);
+    
+    // Try PUT first (update existing)
+    const response = await fetch(`${API_URL}/api/day-availability/${dayName.toLowerCase()}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    
+    // If PUT fails with 404, try POST (create new)
+    if (response.status === 404) {
+      console.log('Record not found, trying POST to create new');
+      const postResponse = await fetch(`${API_URL}/api/day-availability`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_available: isAvailable })
+        body: JSON.stringify(payload)
       });
       
-      if (!response.ok) throw new Error('Failed to save day availability');
-      return await response.json();
-    } catch (error) {
-      console.error('Error saving day availability:', error);
-      throw error;
+      if (!postResponse.ok) {
+        // Get more detailed error information
+        const errorText = await postResponse.text();
+        console.error('POST error response:', errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          errorData = { error: errorText };
+        }
+        throw new Error(errorData.error || `Failed to create day availability (Status: ${postResponse.status})`);
+      }
+      
+      return await postResponse.json();
     }
-  },
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('PUT error response:', errorText);
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        errorData = { error: errorText };
+      }
+      throw new Error(errorData.error || `Failed to save day availability (Status: ${response.status})`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error saving day availability:', error);
+    throw error;
+  }
+},
 
-  // Get time slots for a specific day
+  // Rest of your methods remain the same...
   async getTimeSlotsForDay(dayName) {
     try {
       const response = await fetch(`${API_URL}/api/time-slots/${dayName.toLowerCase()}`);
@@ -60,7 +111,6 @@ export const availabilityService = {
     }
   },
 
-  // Save time slots for a day
   // Save time slots for a day
 async saveTimeSlots(dayName, slots) {
   try {
@@ -79,7 +129,9 @@ async saveTimeSlots(dayName, slots) {
     
     const data = await response.json();
     console.log('API save response:', data);
-    return data;
+    
+    // Return the timeSlots array from the response
+    return data.timeSlots || [];
   } catch (error) {
     console.error('Error saving time slots:', error);
     throw error;
@@ -87,27 +139,27 @@ async saveTimeSlots(dayName, slots) {
 },
 
   // Delete a specific time slot
-async deleteTimeSlot(slotId) {
-  try {
-    console.log('Calling delete API for slot:', slotId);
-    const response = await fetch(`${API_URL}/api/time-slots/${slotId}`, {
-      method: 'DELETE'
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      console.error('Delete API error response:', errorData);
-      throw new Error(errorData.error || 'Failed to delete time slot');
+  async deleteTimeSlot(slotId) {
+    try {
+      console.log('Calling delete API for slot:', slotId);
+      const response = await fetch(`${API_URL}/api/time-slots/${slotId}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Delete API error response:', errorData);
+        throw new Error(errorData.error || 'Failed to delete time slot');
+      }
+      
+      const data = await response.json();
+      console.log('Delete API success response:', data);
+      return data;
+    } catch (error) {
+      console.error('Error deleting time slot:', error);
+      throw error;
     }
-    
-    const data = await response.json();
-    console.log('Delete API success response:', data);
-    return data;
-  } catch (error) {
-    console.error('Error deleting time slot:', error);
-    throw error;
-  }
-},
+  },
 
   // Get booked slots count for a specific time slot on a specific date
   async getBookedSlotsCount(timeSlotId, date) {
@@ -177,6 +229,94 @@ async deleteTimeSlot(slotId) {
     }
   },
 
+  // Cancel appointment with reason (NEW)
+async cancelAppointmentWithReason(appointmentId, cancellationData) {
+  try {
+    console.log('Cancelling appointment with reason:', { appointmentId, cancellationData });
+    
+    const response = await fetch(`${API_URL}/api/appointments/${appointmentId}/cancel-with-reason`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cancellationData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to cancel appointment');
+    }
+    
+    const data = await response.json();
+    console.log('Cancel response:', data);
+    return data;
+  } catch (error) {
+    console.error('Error cancelling appointment with reason:', error);
+    throw error;
+  }
+},
+
+// Cancel appointment with reason and email
+async cancelAppointmentWithReason(appointmentId, cancellationData) {
+  try {
+    console.log('Cancelling appointment with reason:', { appointmentId, cancellationData });
+    
+    const response = await fetch(`${API_URL}/api/appointments/${appointmentId}/cancel-with-reason`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cancellationData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to cancel appointment');
+    }
+    
+    const data = await response.json();
+    console.log('Cancel response:', data);
+    return data;
+  } catch (error) {
+    console.error('Error cancelling appointment with reason:', error);
+    throw error;
+  }
+},
+
+// Create reschedule request
+async createRescheduleRequest(appointmentId, rescheduleData) {
+  try {
+    console.log('Creating reschedule request:', { appointmentId, rescheduleData });
+    
+    const response = await fetch(`${API_URL}/api/appointments/${appointmentId}/reschedule`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(rescheduleData)
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to create reschedule request');
+    }
+    
+    const data = await response.json();
+    console.log('Reschedule response:', data);
+    return data;
+  } catch (error) {
+    console.error('Error creating reschedule request:', error);
+    throw error;
+  }
+},
+
+// Get available time slots for a specific date
+async getAvailableTimeSlots(date) {
+  try {
+    const response = await fetch(`${API_URL}/api/available-time-slots?date=${date}`);
+    if (!response.ok) throw new Error('Failed to load available time slots');
+    const data = await response.json();
+    return data.timeSlots || [];
+  } catch (error) {
+    console.error('Error loading available time slots:', error);
+    return [];
+  }
+},
+
   // Assign doctor to appointment
   async assignDoctor(appointmentId, doctorId) {
     try {
@@ -198,52 +338,50 @@ async deleteTimeSlot(slotId) {
     }
   },
 
-  // Add this to your availabilityService.js:
+  // Get all special dates
+  async getSpecialDates() {
+    try {
+      const response = await fetch(`${API_URL}/api/special-dates`);
+      if (!response.ok) throw new Error('Failed to load special dates');
+      const data = await response.json();
+      return data.specialDates || [];
+    } catch (error) {
+      console.error('Error loading special dates:', error);
+      return [];
+    }
+  },
 
-// Get all special dates
-async getSpecialDates() {
-  try {
-    const response = await fetch(`${API_URL}/api/special-dates`);
-    if (!response.ok) throw new Error('Failed to load special dates');
-    const data = await response.json();
-    return data.specialDates || [];
-  } catch (error) {
-    console.error('Error loading special dates:', error);
-    return [];
-  }
-},
+  // Save a special date
+  async saveSpecialDate(eventName, eventDate) {
+    try {
+      const response = await fetch(`${API_URL}/api/special-dates`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_name: eventName, event_date: eventDate })
+      });
+      
+      if (!response.ok) throw new Error('Failed to save special date');
+      return await response.json();
+    } catch (error) {
+      console.error('Error saving special date:', error);
+      throw error;
+    }
+  },
 
-// Save a special date
-async saveSpecialDate(eventName, eventDate) {
-  try {
-    const response = await fetch(`${API_URL}/api/special-dates`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ event_name: eventName, event_date: eventDate })
-    });
-    
-    if (!response.ok) throw new Error('Failed to save special date');
-    return await response.json();
-  } catch (error) {
-    console.error('Error saving special date:', error);
-    throw error;
-  }
-},
-
-// Delete a special date
-async deleteSpecialDate(eventDate) {
-  try {
-    const response = await fetch(`${API_URL}/api/special-dates/${eventDate}`, {
-      method: 'DELETE'
-    });
-    
-    if (!response.ok) throw new Error('Failed to delete special date');
-    return await response.json();
-  } catch (error) {
-    console.error('Error deleting special date:', error);
-    throw error;
-  }
-},
+  // Delete a special date
+  async deleteSpecialDate(eventDate) {
+    try {
+      const response = await fetch(`${API_URL}/api/special-dates/${eventDate}`, {
+        method: 'DELETE'
+      });
+      
+      if (!response.ok) throw new Error('Failed to delete special date');
+      return await response.json();
+    } catch (error) {
+      console.error('Error deleting special date:', error);
+      throw error;
+    }
+  },
 
   // Cancel appointment
   async cancelAppointment(appointmentId) {
@@ -264,43 +402,41 @@ async deleteSpecialDate(eventDate) {
     }
   },
 
-  // Add these methods to your availabilityService.js
-
-// Update appointment status (complete or cancel)
-async updateAppointmentStatus(appointmentId, status) {
-  try {
-    const response = await fetch(`${API_URL}/api/appointments/${appointmentId}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.error || `Failed to ${status} appointment`);
+  // Update appointment status (complete or cancel)
+  async updateAppointmentStatus(appointmentId, status) {
+    try {
+      const response = await fetch(`${API_URL}/api/appointments/${appointmentId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Failed to ${status} appointment`);
+      }
+      
+      return await response.json();
+    } catch (error) {
+      console.error(`Error ${status}ing appointment:`, error);
+      throw error;
     }
-    
-    return await response.json();
-  } catch (error) {
-    console.error(`Error ${status}ing appointment:`, error);
-    throw error;
-  }
-},
+  },
 
-// Get completed/cancelled appointments for history
-async getAppointmentHistory() {
-  try {
-    const response = await fetch(`${API_URL}/api/appointments/history`);
-    if (!response.ok) throw new Error('Failed to load appointment history');
-    const data = await response.json();
-    return data.appointments || [];
-  } catch (error) {
-    console.error('Error loading appointment history:', error);
-    return [];
-  }
-},
+  // Get completed/cancelled appointments for history
+  async getAppointmentHistory() {
+    try {
+      const response = await fetch(`${API_URL}/api/appointments/history`);
+      if (!response.ok) throw new Error('Failed to load appointment history');
+      const data = await response.json();
+      return data.appointments || [];
+    } catch (error) {
+      console.error('Error loading appointment history:', error);
+      return [];
+    }
+  },
 
-  // Check if a date is a special date (you'll need to implement this table)
+  // Check if a date is a special date
   isSpecialDate(dateString, specialDates) {
     if (!specialDates || !dateString) return false;
     return specialDates.some(event => event.event_date === dateString);

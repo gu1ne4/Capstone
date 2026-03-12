@@ -17,7 +17,7 @@ if (process.env.SENDGRID_API_KEY) {
 
 // CORS Configuration
 const corsOptions = {
-  origin: ['http://localhost:8081', 'http://localhost:19006', 'http://localhost:19000'],
+  origin: '*',
   credentials: true,
   optionsSuccessStatus: 200
 };
@@ -28,9 +28,46 @@ app.use(express.json({ limit: '50mb' }));
 const pool = new Pool({
   user: 'postgres',
   host: 'localhost',
-  database: 'hospital',
+  database: 'veterinaryDB',
   password: process.env.DB_PASSWORD,
   port: 5432,
+});
+
+// Initialize day_availability table with default records if empty
+const initializeDayAvailability = async () => {
+  try {
+    const result = await pool.query('SELECT COUNT(*) FROM day_availability');
+    const count = parseInt(result.rows[0].count);
+    
+    if (count === 0) {
+      console.log('📅 Initializing day_availability table with default records...');
+      
+      const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      for (const day of days) {
+        await pool.query(
+          `INSERT INTO day_availability (day_of_week, is_available, created_at, updated_at)
+           VALUES ($1, false, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [day]
+        );
+      }
+      console.log('✅ Day availability initialized with default records');
+    }
+  } catch (err) {
+    console.error('❌ Error initializing day_availability:', err.message);
+  }
+};
+
+// Call this function after database connection
+pool.connect((err, client, release) => {
+  if (err) return console.error('Error acquiring client', err.stack);
+  client.query('SELECT NOW()', (err, result) => {
+    release();
+    if (err) return console.error('Error executing query', err.stack);
+    console.log('✅ Connected to PostgreSQL (veterinaryDB) successfully');
+    
+    // Initialize day_availability table
+    initializeDayAvailability();
+  });
 });
 
 // Test database connection
@@ -79,7 +116,81 @@ const logAccess = async ({ req, accountId, accountType, username, role, action, 
   }
 };
 
+// =================================================================================
+//  EMAIL VERIFICATION UTILITIES (ADD THIS)
+// =================================================================================
 
+// Generate a unique verification token
+function generateVerificationToken() {
+  return require('crypto').randomBytes(32).toString('hex');
+}
+
+// Send verification email
+async function sendVerificationEmail(email, fullname, token) {
+  if (!process.env.SENDGRID_API_KEY) {
+    console.log('⚠️ SendGrid not configured, skipping verification email');
+    return false;
+  }
+
+  // Construct verification link
+  const webAppUrl = 'http://localhost:8082'; // Web app port
+  const verificationLink = `${webAppUrl}/verify-email?token=${token}`;
+  
+  console.log(`🔗 Verification link for WEB: ${verificationLink}`);
+
+  try {
+    const msg = {
+      to: email,
+      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@petshield.com',
+      subject: 'Verify Your Email - PetShield Veterinary',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h2 style="color: #3d67ee;">Welcome to PetShield!</h2>
+          </div>
+          
+          <p style="font-size: 16px; color: #333;">Hello <strong>${fullname}</strong>,</p>
+          
+          <p style="font-size: 16px; color: #333; line-height: 1.5;">
+            Thank you for registering with PetShield Veterinary. To complete your registration and access your account, 
+            please verify your email address by clicking the button below:
+          </p>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${verificationLink}" 
+               style="background-color: #3d67ee; color: white; padding: 15px 30px; 
+                      text-decoration: none; border-radius: 5px; font-weight: bold; 
+                      display: inline-block;">
+              Verify Email Address
+            </a>
+          </div>
+          
+          <p style="font-size: 14px; color: #666; line-height: 1.5;">
+            Or copy and paste this link into your browser:<br>
+            <span style="color: #3d67ee;">${verificationLink}</span>
+          </p>
+          
+          <p style="font-size: 14px; color: #666; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+            This verification link will expire in 24 hours.<br>
+            If you didn't create an account with PetShield, please ignore this email.
+          </p>
+          
+          <p style="font-size: 14px; color: #666;">
+            Best regards,<br>
+            The PetShield Team
+          </p>
+        </div>
+      `
+    };
+
+    await sgMail.send(msg);
+    console.log(`✅ Verification email sent to ${email}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to send verification email:', error.response?.body || error.message);
+    return false;
+  }
+}
 
 // =================================================================================
 //  AUDIT LOGS ROUTE (Add this to server.js)
@@ -216,8 +327,8 @@ async function sendPasswordResetEmail(email, otp, userType, username) {
   try {
     const msg = {
       to: email,
-      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@furtopia.com',
-      subject: 'Password Reset OTP - Furtopia Veterinary',
+      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@petshield.com',
+      subject: 'Password Reset OTP - PetShield Veterinary',
       text: `Your password reset OTP code is: ${otp}`,
       html: `<p>Your password reset OTP code is: <strong>${otp}</strong></p>`
     };
@@ -242,8 +353,8 @@ async function sendEmployeeCredentialsEmail(email, username, password, fullname,
   try {
     const msg = {
       to: email,
-      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@furtopia.com',
-      subject: 'Your Employee Account Credentials - Furtopia Veterinary',
+      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@petshield.com',
+      subject: 'Your Employee Account Credentials - PetShield Veterinary',
       text: `Username: ${username}, Password: ${password}`,
       html: `<p>Username: <strong>${username}</strong><br>Password: <strong>${password}</strong></p>`
     };
@@ -362,118 +473,216 @@ app.post('/login', async (req, res) => {
   console.log(`🔐 Employee login attempt for username: ${username}`);
   
   try {
-    let result = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
-    let user = result.rows.length > 0 ? result.rows[0] : null;
+    let result;
+    let user = null;
 
-    if (!user) {
-      result = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
-      user = result.rows.length > 0 ? result.rows[0] : null;
-    }
-
-    if (!user) {
-      await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
-      return res.status(401).json({ error: 'User not found' });
-    }
-
-    // Determine type for logging
-    const userType = result.rows[0].employeeid ? 'EMPLOYEE' : 'USER'; // Check for employee-specific field
-
-    if (user.status === 'Disabled' || user.status === 'Inactive') {
-      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
-      return res.status(403).json({ error: 'Account is disabled.' });
-    }
-
-    let passwordValid = false;
-    if (user.password && user.password.startsWith('$2')) {
-      passwordValid = await bcrypt.compare(password, user.password);
-    } else {
-      passwordValid = (user.password === password);
-    }
-
-    if (passwordValid) {
-      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'SUCCESS' });
+    // Check patient_account first
+    result = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
+    if (result.rows.length > 0) {
+      user = result.rows[0];
+      console.log("✅ Found in patient_account");
       
-      const imgBuffer = user.userImage || user.userimage;
-      let imageStr = null;
-      if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+      // Patient login logic
+      if (user.status === 'Disabled' || user.status === 'Inactive' || user.status === '0') {
+        return res.status(403).json({ error: 'Account is disabled.' });
+      }
 
-      res.json({ 
-        message: 'Login successful', 
-        user: { 
-          id: user.pk, 
-          username: user.username, 
-          fullname: user.fullName || user.fullname, 
-          role: user.role,
-          department: user.department, 
-          userImage: imageStr,
-          isInitialLogin: user.is_initial_login || false
-        } 
-      });
-    } else {
-      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
-      res.status(401).json({ error: 'Invalid password' });
+      let passwordValid = false;
+      if (user.password && user.password.startsWith('$2')) {
+        passwordValid = await bcrypt.compare(password, user.password);
+      } else {
+        passwordValid = (user.password === password);
+      }
+
+      if (passwordValid) {
+        const imgBuffer = user.userimage;
+        let imageStr = null;
+        if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+
+        return res.json({ 
+          message: 'Login successful', 
+          user: { 
+            id: user.pk, 
+            username: user.username, 
+            fullname: user.fullname, 
+            role: 'User', // Give them a role
+            userImage: imageStr,
+            userType: 'patient'
+          } 
+        });
+      } else {
+        return res.status(401).json({ error: 'Invalid password' });
+      }
     }
+    
+    // Then check accounts (employees)
+    result = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
+    if (result.rows.length > 0) {
+      user = result.rows[0];
+      console.log("✅ Found in accounts");
+      
+      // Employee login logic...
+      if (user.status === 'Disabled' || user.status === 'Inactive') {
+        return res.status(403).json({ error: 'Account is disabled.' });
+      }
+
+      let passwordValid = false;
+      if (user.password && user.password.startsWith('$2')) {
+        passwordValid = await bcrypt.compare(password, user.password);
+      } else {
+        passwordValid = (user.password === password);
+      }
+
+      if (passwordValid) {
+        const imgBuffer = user.userimage;
+        let imageStr = null;
+        if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+
+        return res.json({ 
+          message: 'Login successful', 
+          user: { 
+            id: user.pk, 
+            username: user.username, 
+            fullname: user.fullname, 
+            role: user.role,
+            department: user.department,
+            userImage: imageStr,
+            isInitialLogin: user.is_initial_login || false,
+            userType: 'employee'
+          } 
+        });
+      } else {
+        return res.status(401).json({ error: 'Invalid password' });
+      }
+    }
+
+    // If we get here, user not found
+    return res.status(401).json({ error: 'User not found' });
+
   } catch (err) {
-    console.error("❌ Employee login error:", err.message);
+    console.error("❌ Login error:", err.message);
     res.status(500).json({ error: 'Database error' });
   }
 });
 
-// Get All Employees
-app.get('/accounts', async (req, res) => {
-  try {
-    const allAccounts = await pool.query('SELECT * FROM accounts ORDER BY pk ASC');
-    const formattedAccounts = allAccounts.rows.map(account => {
-      const imgBuffer = account.userimage;
-      let imageStr = null;
-      if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
-      return { ...account, userimage: imageStr };
-    });
-    res.json(formattedAccounts);
-  } catch (err) {
-    res.status(500).json({ error: 'Server Error' });
-  }
-});
+// // ========== OLD LOGIN ROUTE (EMPLOYEE) - WITH AUDIT ==========
+// app.post('/login', async (req, res) => {
+//   const { username, password } = req.body;
+//   console.log(`🔐 Employee login attempt for username: ${username}`);
+  
+//   try {
+//     let result = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
+//     let user = result.rows.length > 0 ? result.rows[0] : null;
 
-// Update Employee Account
-app.put('/accounts/:id', async (req, res) => {
-  const { id } = req.params;
-  const { username, fullname, contactnumber, email, role, department, employeeid, userimage, status } = req.body;
+//     if (!user) {
+//       result = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
+//       user = result.rows.length > 0 ? result.rows[0] : null;
+//     }
 
-  try {
-    let imageBuffer = null;
-    if (userimage && userimage.startsWith('data:image')) {
-      const base64Data = userimage.split(',')[1]; 
-      imageBuffer = Buffer.from(base64Data, 'base64');
-    } else if (userimage) {
-      imageBuffer = Buffer.from(userimage, 'base64');
-    }
+//     if (!user) {
+//       await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
+//       return res.status(401).json({ error: 'User not found' });
+//     }
 
-    let query, values;
-    if (imageBuffer) {
-      query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8, userimage=$9 WHERE pk=$10 RETURNING *`;
-      values = [username, fullname, contactnumber, email, role, department, employeeid, status, imageBuffer, id];
-    } else {
-      query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8 WHERE pk=$9 RETURNING *`;
-      values = [username, fullname, contactnumber, email, role, department, employeeid, status, id];
-    }
+//     // Determine type for logging
+//     const userType = result.rows[0].employeeid ? 'EMPLOYEE' : 'USER'; // Check for employee-specific field
 
-    const updatedAccount = await pool.query(query, values);
-    if (updatedAccount.rows.length === 0) return res.status(404).json({ error: "Account not found" });
+//     if (user.status === 'Disabled' || user.status === 'Inactive') {
+//       await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+//       return res.status(403).json({ error: 'Account is disabled.' });
+//     }
 
-    res.json({ message: "Updated successfully", user: updatedAccount.rows[0] });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+//     let passwordValid = false;
+//     if (user.password && user.password.startsWith('$2')) {
+//       passwordValid = await bcrypt.compare(password, user.password);
+//     } else {
+//       passwordValid = (user.password === password);
+//     }
+
+//     if (passwordValid) {
+//       await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'SUCCESS' });
+      
+//       const imgBuffer = user.userImage || user.userimage;
+//       let imageStr = null;
+//       if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+
+//       res.json({ 
+//         message: 'Login successful', 
+//         user: { 
+//           id: user.pk, 
+//           username: user.username, 
+//           fullname: user.fullName || user.fullname, 
+//           role: user.role,
+//           department: user.department, 
+//           userImage: imageStr,
+//           isInitialLogin: user.is_initial_login || false
+//         } 
+//       });
+//     } else {
+//       await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+//       res.status(401).json({ error: 'Invalid password' });
+//     }
+//   } catch (err) {
+//     console.error("❌ Employee login error:", err.message);
+//     res.status(500).json({ error: 'Database error' });
+//   }
+// });
+
+// // Get All Employees
+// app.get('/accounts', async (req, res) => {
+//   try {
+//     const allAccounts = await pool.query('SELECT * FROM accounts ORDER BY pk ASC');
+//     const formattedAccounts = allAccounts.rows.map(account => {
+//       const imgBuffer = account.userimage;
+//       let imageStr = null;
+//       if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+//       return { ...account, userimage: imageStr };
+//     });
+//     res.json(formattedAccounts);
+//   } catch (err) {
+//     res.status(500).json({ error: 'Server Error' });
+//   }
+// });
+
+// // Update Employee Account
+// app.put('/accounts/:id', async (req, res) => {
+//   const { id } = req.params;
+//   const { username, fullname, contactnumber, email, role, department, employeeid, userimage, status } = req.body;
+
+//   try {
+//     let imageBuffer = null;
+//     if (userimage && userimage.startsWith('data:image')) {
+//       const base64Data = userimage.split(',')[1]; 
+//       imageBuffer = Buffer.from(base64Data, 'base64');
+//     } else if (userimage) {
+//       imageBuffer = Buffer.from(userimage, 'base64');
+//     }
+
+//     let query, values;
+//     if (imageBuffer) {
+//       query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8, userimage=$9 WHERE pk=$10 RETURNING *`;
+//       values = [username, fullname, contactnumber, email, role, department, employeeid, status, imageBuffer, id];
+//     } else {
+//       query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8 WHERE pk=$9 RETURNING *`;
+//       values = [username, fullname, contactnumber, email, role, department, employeeid, status, id];
+//     }
+
+//     const updatedAccount = await pool.query(query, values);
+//     if (updatedAccount.rows.length === 0) return res.status(404).json({ error: "Account not found" });
+
+//     res.json({ message: "Updated successfully", user: updatedAccount.rows[0] });
+//   } catch (err) {
+//     res.status(500).json({ error: err.message });
+//   }
+// });
 
 // =================================================================================
-//  USER / PATIENT ROUTES (Updated to use 'USER' in logs)
+//  UPDATED PATIENT REGISTRATION (with email verification) 
 // =================================================================================
 
 app.post('/patient-register', async (req, res) => {
   console.log("📥 Patient registration request received");
-  const { fullname, username, password, contactnumber, email, userimage, status, datecreated } = req.body;
+  const { fullname, username, password, contactnumber, email, userimage, datecreated } = req.body;
   
   if (!fullname || !username || !password || !email || !contactnumber) {
     return res.status(400).json({ error: "All fields are required." });
@@ -493,45 +702,223 @@ app.post('/patient-register', async (req, res) => {
     const emailCheck = await pool.query('SELECT pk FROM patient_account WHERE email = $1', [email]);
     if (emailCheck.rows.length > 0) return res.status(400).json({ error: 'Email already registered.' });
     
-    let statusValue = status === 'Active' ? '1' : '0';
+    // Generate verification token (expires in 24 hours)
+    const verificationToken = generateVerificationToken();
+    const tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
     
+    // Insert with is_verified = FALSE
     const query = `
       INSERT INTO patient_account 
-      (username, password, fullname, contactnumber, email, userimage, status, datecreated) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7::bit varying, $8) 
-      RETURNING *
+      (username, password, fullname, contactnumber, email, userimage, datecreated, 
+       is_verified, verification_token, verification_token_expiry, status) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) 
+      RETURNING pk, username, email, fullname
     `;
-    const values = [username, hashedPassword, fullname, contactnumber.replace(/\D/g, ''), email, imageBuffer, statusValue, datecreated];
+    const values = [
+      username, hashedPassword, fullname, contactnumber.replace(/\D/g, ''), 
+      email, imageBuffer, datecreated,
+      false, verificationToken, tokenExpiry, 'Pending Verification' // Status set to pending
+    ];
     
     const newPatient = await pool.query(query, values);
     const createdPatient = newPatient.rows[0];
     
-    console.log(`✅ Patient registered: ${username}`);
-
-    // AUDIT LOG: REGISTER (Use 'USER')
+    console.log(`✅ Patient registered (unverified): ${username}`);
+    
+    // Send verification email
+    const emailSent = await sendVerificationEmail(email, fullname, verificationToken);
+    
+    // AUDIT LOG: REGISTER
     await logAccess({
       req,
       accountId: createdPatient.pk,
-      accountType: 'USER', // Changed from PATIENT to USER per request
+      accountType: 'USER',
       username: createdPatient.username,
       role: 'user',
       action: 'REGISTER',
       status: 'SUCCESS'
     });
     
+    // Return success but inform user to check email
     res.status(201).json({ 
-      message: 'Patient registered successfully', 
+      message: emailSent 
+        ? 'Registration successful! Please check your email to verify your account.' 
+        : 'Registration successful! (Verification email could not be sent - please contact support)',
       patient: { 
         pk: createdPatient.pk, 
         username: username, 
         email: email, 
         fullname: fullname,
-        status: status 
-      } 
+        requiresVerification: true
+      }
     });
     
   } catch (err) {
     console.error("❌ Patient registration error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// =================================================================================
+//  EMAIL VERIFICATION ENDPOINT (ADD THIS)
+// =================================================================================
+
+app.get('/verify-email', async (req, res) => {
+  const { token } = req.query;
+  
+  if (!token) {
+    return res.status(400).send(`
+      <html>
+        <head><title>Verification Failed</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: #d9534f;">❌ Verification Failed</h2>
+          <p>No verification token provided.</p>
+          <a href="http://localhost:8081" style="color: #3d67ee;">Return to Login</a>
+        </body>
+      </html>
+    `);
+  }
+  
+  try {
+    // Find patient with this token and not expired
+    const result = await pool.query(
+      `SELECT pk, email, fullname, verification_token_expiry 
+       FROM patient_account 
+       WHERE verification_token = $1 AND is_verified = false`,
+      [token]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(400).send(`
+        <html>
+          <head><title>Verification Failed</title></head>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h2 style="color: #d9534f;">❌ Verification Failed</h2>
+            <p>Invalid verification link or account already verified.</p>
+            <a href="http://localhost:8081" style="color: #3d67ee;">Return to Login</a>
+          </body>
+        </html>
+      `);
+    }
+    
+    const patient = result.rows[0];
+    
+    // Check if token expired
+    if (new Date() > patient.verification_token_expiry) {
+      return res.status(400).send(`
+        <html>
+          <head><title>Verification Failed</title></head>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h2 style="color: #d9534f;">❌ Verification Failed</h2>
+            <p>This verification link has expired. Please request a new one.</p>
+            <a href="http://localhost:8081" style="color: #3d67ee;">Return to Login</a>
+          </body>
+        </html>
+      `);
+    }
+    
+    // Update patient as verified
+    await pool.query(
+      `UPDATE patient_account 
+       SET is_verified = true, 
+           verification_token = null, 
+           verification_token_expiry = null,
+           status = 'Active'
+       WHERE pk = $1`,
+      [patient.pk]
+    );
+    
+    // Send success HTML response
+    res.send(`
+      <html>
+        <head>
+          <title>Email Verified</title>
+          <style>
+            body { font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }
+            .container { max-width: 500px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            h2 { color: #28a745; }
+            p { color: #666; line-height: 1.6; }
+            .btn { background: #3d67ee; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h2>✅ Email Verified Successfully!</h2>
+            <p>Hello <strong>${patient.fullname}</strong>,</p>
+            <p>Your email has been verified. You can now log in to your PetShield account.</p>
+            <a href="http://localhost:8081" class="btn">Go to Login</a>
+          </div>
+        </body>
+      </html>
+    `);
+    
+  } catch (err) {
+    console.error("❌ Verification error:", err.message);
+    res.status(500).send(`
+      <html>
+        <head><title>Verification Failed</title></head>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: #d9534f;">❌ Verification Failed</h2>
+          <p>An error occurred while verifying your email.</p>
+          <a href="http://localhost:8081" style="color: #3d67ee;">Return to Login</a>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// =================================================================================
+//  RESEND VERIFICATION EMAIL (ADD THIS RIGHT HERE)
+// =================================================================================
+app.post('/resend-verification', async (req, res) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required' });
+  }
+  
+  try {
+    // Find unverified user
+    const result = await pool.query(
+      `SELECT pk, fullname, email, verification_token, verification_token_expiry 
+       FROM patient_account 
+       WHERE email = $1 AND is_verified = false`,
+      [email]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ 
+        error: 'No unverified account found with this email' 
+      });
+    }
+    
+    const user = result.rows[0];
+    
+    // Generate new token if old one expired
+    let token = user.verification_token;
+    let tokenExpiry = user.verification_token_expiry;
+    
+    if (new Date() > tokenExpiry) {
+      token = generateVerificationToken();
+      tokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      
+      await pool.query(
+        `UPDATE patient_account 
+         SET verification_token = $1, verification_token_expiry = $2 
+         WHERE pk = $3`,
+        [token, tokenExpiry, user.pk]
+      );
+    }
+    
+    // Resend email
+    await sendVerificationEmail(email, user.fullname, token);
+    
+    res.json({ 
+      message: 'Verification email resent successfully' 
+    });
+    
+  } catch (err) {
+    console.error("❌ Resend verification error:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -599,18 +986,18 @@ app.get('/patients', async (req, res) => {
       }
       
       // Convert status from bit to string
-      let statusStr = 'Disabled'; // Default
-      if (patient.status) {
-        // Check if it's a buffer or string
-        if (Buffer.isBuffer(patient.status)) {
-          // If it's a buffer, convert to string and check
-          const statusVal = patient.status.toString();
-          statusStr = statusVal === '1' ? 'Active' : 'Disabled';
-        } else {
-          // If it's already a string/number
-          statusStr = patient.status.toString() === '1' ? 'Active' : 'Disabled';
-        }
-      }
+      let statusStr = patient.status || 'Disabled'; // Default
+      // if (patient.status) {
+      //   // Check if it's a buffer or string
+      //   if (Buffer.isBuffer(patient.status)) {
+      //     // If it's a buffer, convert to string and check
+      //     const statusVal = patient.status.toString();
+      //     statusStr = statusVal === '1' ? 'Active' : 'Disabled';
+      //   } else {
+      //     // If it's already a string/number
+      //     statusStr = patient.status.toString() === '1' ? 'Active' : 'Disabled';
+      //   }
+      // }
       
       return { 
         ...patient, 
@@ -638,20 +1025,20 @@ app.put('/patients/:id', async (req, res) => {
     }
 
     // Convert status string to bit value
-    let statusForDb;
-    if (status === 'Active') {
-      statusForDb = '1';
-    } else if (status === 'Disabled') {
-      statusForDb = '0';
-    } else {
-      statusForDb = status; // If it's already a bit value (1 or 0)
-    }
+    let statusForDb = status || 'Active';
+    // if (status === 'Active') {
+    //   statusForDb = '1';
+    // } else if (status === 'Disabled') {
+    //   statusForDb = '0';
+    // } else {
+    //   statusForDb = status; // If it's already a bit value (1 or 0)
+    // }
 
     let query, values;
     if (imageBuffer) {
       query = `
         UPDATE patient_account 
-        SET username=$1, fullname=$2, contactnumber=$3, email=$4, status=$5::bit varying, userimage=$6 
+        SET username=$1, fullname=$2, contactnumber=$3, email=$4, status=$5, userimage=$6 
         WHERE pk=$7 RETURNING *
       `;
       values = [username, fullname, contactnumber, email, statusForDb, imageBuffer, id];
@@ -880,30 +1267,65 @@ app.post('/unified-login', async (req, res) => {
     let user = null;
     let userType = null;
 
-    // Check accounts (EMPLOYEE)
-    const employeeResult = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
-    if (employeeResult.rows.length > 0) {
-      user = employeeResult.rows[0];
-      userType = 'EMPLOYEE';
+    // FIRST: Check patient_account (most common for users)
+    console.log("🔍 Checking patient_account first...");
+    const patientResult = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
+    if (patientResult.rows.length > 0) {
+      user = patientResult.rows[0];
+      userType = 'USER'; // Patient/USER
+      console.log("✅ Found in patient_account");
     } else {
-      // Check patients (USER)
-      const patientResult = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
-      if (patientResult.rows.length > 0) {
-        user = patientResult.rows[0];
-        userType = 'USER'; // Log as USER instead of PATIENT
+      // SECOND: Check accounts (employees)
+      console.log("🔍 Checking accounts table...");
+      const employeeResult = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
+      if (employeeResult.rows.length > 0) {
+        user = employeeResult.rows[0];
+        userType = 'EMPLOYEE';
+        console.log("✅ Found in accounts");
       }
     }
     
     if (!user) {
-      await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
+      // Try to log audit but handle if table doesn't exist
+      try {
+        await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
+      } catch (auditErr) {
+        console.log("⚠️ Audit log skipped (table may not exist)");
+      }
       return res.status(401).json({ error: 'Account not found' });
     }
+
+    // ADD THIS VERIFICATION CHECK RIGHT HERE:
+if (userType === 'USER') {
+  // Check if patient is verified
+  if (user.is_verified === false) {
+    try {
+      await logAccess({ req, accountId: user.pk, accountType: 'USER', username: user.username, role: 'user', action: 'LOGIN', status: 'FAILED' });
+    } catch (auditErr) {
+      console.log("⚠️ Audit log skipped");
+    }
+    return res.status(403).json({ 
+      error: 'Please verify your email before logging in. Check your inbox for the verification link.' 
+    });
+  }
+}
     
-    if (user.status === 'Disabled' || user.status === 'Inactive') {
-      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+    // Check status - handle different status formats
+    let isDisabled = false;
+    if (user.status === 'Disabled' || user.status === 'Inactive' || user.status === '0') {
+      isDisabled = true;
+    }
+    
+    if (isDisabled) {
+      try {
+        await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+      } catch (auditErr) {
+        console.log("⚠️ Audit log skipped");
+      }
       return res.status(403).json({ error: 'Account is disabled. Please contact support.' });
     }
     
+    // Check password
     let passwordValid = false;
     if (user.password && user.password.startsWith('$2')) {
       passwordValid = await bcrypt.compare(password, user.password);
@@ -912,38 +1334,55 @@ app.post('/unified-login', async (req, res) => {
     }
     
     if (passwordValid) {
-      // SUCCESS LOG
-      await logAccess({ 
-        req, 
-        accountId: user.pk, 
-        accountType: userType, 
-        username: user.username, 
-        role: user.role || 'user', 
-        action: 'LOGIN', 
-        status: 'SUCCESS' 
-      });
+      // Try to log success but handle if table doesn't exist
+      try {
+        await logAccess({ 
+          req, 
+          accountId: user.pk, 
+          accountType: userType, 
+          username: user.username, 
+          role: user.role || 'user', 
+          action: 'LOGIN', 
+          status: 'SUCCESS' 
+        });
+      } catch (auditErr) {
+        console.log("⚠️ Audit log skipped (table may not exist)");
+      }
 
+      // Prepare user response
       const userResponse = {
         id: user.pk,
         username: user.username,
-        fullname: user.fullname,
+        fullname: user.fullname || user.fullName,
         email: user.email,
-        userType: userType.toLowerCase() === 'user' ? 'patient' : 'employee', // Keep frontend response as 'patient' if needed
+        userType: userType === 'USER' ? 'patient' : 'employee',
         status: user.status
       };
       
-      const imgBuffer = user.userimage;
-      if (imgBuffer) userResponse.userImage = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+      // Handle image if exists
+      const imgBuffer = user.userimage || user.userImage;
+      if (imgBuffer) {
+        try {
+          userResponse.userImage = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+        } catch (imgErr) {
+          console.log("⚠️ Could not process image");
+        }
+      }
 
       if (userType === 'EMPLOYEE') {
         userResponse.role = user.role;
         userResponse.isInitialLogin = user.is_initial_login || false;
       }
       
+      console.log(`✅ Login successful for: ${username} as ${userType}`);
       res.json({ message: 'Login successful', user: userResponse });
     } else {
-      // FAIL LOG
-      await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+      // Failed password
+      try {
+        await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+      } catch (auditErr) {
+        console.log("⚠️ Audit log skipped");
+      }
       res.status(401).json({ error: 'Invalid password' });
     }
     
@@ -952,6 +1391,90 @@ app.post('/unified-login', async (req, res) => {
     res.status(500).json({ error: 'Database error: ' + err.message });
   }
 });
+
+// // =================================================================================
+// // OLD UNIFIED LOGIN ROUTE (WITH AUDIT) - FIXED
+// // =================================================================================
+// app.post('/unified-login', async (req, res) => {
+//   const { username, password } = req.body;
+//   console.log(`🔐 Unified login attempt for: ${username}`);
+  
+//   try {
+//     let user = null;
+//     let userType = null;
+
+//     // Check accounts (EMPLOYEE)
+//     const employeeResult = await pool.query('SELECT * FROM accounts WHERE username = $1', [username]);
+//     if (employeeResult.rows.length > 0) {
+//       user = employeeResult.rows[0];
+//       userType = 'EMPLOYEE';
+//     } else {
+//       // Check patients (USER)
+//       const patientResult = await pool.query('SELECT * FROM patient_account WHERE username = $1', [username]);
+//       if (patientResult.rows.length > 0) {
+//         user = patientResult.rows[0];
+//         userType = 'USER'; // Log as USER instead of PATIENT
+//       }
+//     }
+    
+//     if (!user) {
+//       await logAccess({ req, accountId: null, accountType: 'UNKNOWN', username, role: 'UNKNOWN', action: 'LOGIN', status: 'FAILED' });
+//       return res.status(401).json({ error: 'Account not found' });
+//     }
+    
+//     if (user.status === 'Disabled' || user.status === 'Inactive') {
+//       await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+//       return res.status(403).json({ error: 'Account is disabled. Please contact support.' });
+//     }
+    
+//     let passwordValid = false;
+//     if (user.password && user.password.startsWith('$2')) {
+//       passwordValid = await bcrypt.compare(password, user.password);
+//     } else {
+//       passwordValid = (user.password === password);
+//     }
+    
+//     if (passwordValid) {
+//       // SUCCESS LOG
+//       await logAccess({ 
+//         req, 
+//         accountId: user.pk, 
+//         accountType: userType, 
+//         username: user.username, 
+//         role: user.role || 'user', 
+//         action: 'LOGIN', 
+//         status: 'SUCCESS' 
+//       });
+
+//       const userResponse = {
+//         id: user.pk,
+//         username: user.username,
+//         fullname: user.fullname,
+//         email: user.email,
+//         userType: userType.toLowerCase() === 'user' ? 'patient' : 'employee', // Keep frontend response as 'patient' if needed
+//         status: user.status
+//       };
+      
+//       const imgBuffer = user.userimage;
+//       if (imgBuffer) userResponse.userImage = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+
+//       if (userType === 'EMPLOYEE') {
+//         userResponse.role = user.role;
+//         userResponse.isInitialLogin = user.is_initial_login || false;
+//       }
+      
+//       res.json({ message: 'Login successful', user: userResponse });
+//     } else {
+//       // FAIL LOG
+//       await logAccess({ req, accountId: user.pk, accountType: userType, username: user.username, role: user.role || 'user', action: 'LOGIN', status: 'FAILED' });
+//       res.status(401).json({ error: 'Invalid password' });
+//     }
+    
+//   } catch (err) {
+//     console.error("❌ Unified login error:", err.message);
+//     res.status(500).json({ error: 'Database error: ' + err.message });
+//   }
+// });
 
 // =================================================================================
 //  LOGOUT ROUTE (NEW)
@@ -1002,7 +1525,7 @@ app.put('/update-credentials', async (req, res) => {
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({ 
-    message: 'Furtopia Unified API Server',
+    message: 'PetShield Unified API Server',
     endpoints: {
       employees: {
         login: 'POST /employee-login',
@@ -1091,8 +1614,8 @@ app.post('/test-sendgrid-connection', async (req, res) => {
       
       const testMsg = {
         to: 'test@example.com', // Use a real email for testing
-        from: process.env.SENDGRID_FROM_EMAIL || 'noreply@furtopia.com',
-        subject: 'Test Email from Furtopia',
+        from: process.env.SENDGRID_FROM_EMAIL || 'noreply@petshield.com',
+        subject: 'Test Email from PetShield',
         text: 'This is a test email.',
         html: '<strong>This is a test email.</strong>'
       };
@@ -1143,6 +1666,848 @@ app.get('/test-db-connection', async (req, res) => {
   }
 });
 
+// CANCEL APPOINTMENT WITH REASON AND EMAIL
+app.put('/api/appointments/:id/cancel-with-reason', async (req, res) => {
+  const { id } = req.params;
+  const { cancellation_reason, cancellation_details, cancelled_by } = req.body;
+  
+  console.log(`📝 Cancelling appointment ${id} with reason: ${cancellation_reason}`);
+  
+  try {
+    // Validate required fields
+    if (!cancellation_reason) {
+      return res.status(400).json({ error: 'Cancellation reason is required' });
+    }
+    
+    // Get appointment details with patient email
+    const appointmentCheck = await pool.query(
+      `SELECT a.*, ts.day_of_week, ts.start_time, ts.end_time,
+              pa.email as patient_account_email,
+              pa.fullname as patient_fullname
+       FROM appointments a
+       LEFT JOIN time_slots ts ON a.time_slot_id = ts.id
+       LEFT JOIN patient_account pa ON a.patient_email = pa.email
+       WHERE a.id = $1`,
+      [id]
+    );
+    
+    if (appointmentCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    
+    const appointment = appointmentCheck.rows[0];
+    
+    // Check if already cancelled
+    if (appointment.status === 'cancelled') {
+      return res.status(400).json({ error: 'Appointment is already cancelled' });
+    }
+    
+    // Update appointment with cancellation details
+    const updateQuery = `
+      UPDATE appointments 
+      SET status = 'cancelled',
+          cancellation_reason = $1,
+          cancellation_details = $2,
+          cancelled_by = $3,
+          cancelled_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4
+      RETURNING *
+    `;
+    
+    const result = await pool.query(updateQuery, [
+      cancellation_reason,
+      cancellation_details,
+      cancelled_by,
+      id
+    ]);
+    
+    const cancelledAppointment = result.rows[0];
+    
+    // Send email notification
+    let emailSent = false;
+    let emailError = null;
+    
+    if (process.env.SENDGRID_API_KEY && appointment.patient_email) {
+      try {
+        emailSent = await sendCancellationEmail(
+          appointment.patient_email,
+          appointment.patient_name,
+          appointment,
+          cancellation_details
+        );
+      } catch (emailErr) {
+        emailError = emailErr.message;
+        console.error('❌ Email sending failed:', emailErr.message);
+      }
+    }
+    
+    console.log(`✅ Appointment ${id} cancelled successfully. Email sent: ${emailSent}`);
+    
+    res.json({ 
+      message: 'Appointment cancelled successfully',
+      appointment: cancelledAppointment,
+      emailSent: emailSent,
+      emailError: emailError,
+      patientEmail: appointment.patient_email // Return for debugging
+    });
+    
+  } catch (err) {
+    console.error("❌ Cancel with reason error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Helper function to send cancellation email
+async function sendCancellationEmail(email, patientName, appointment, cancellationMessage) {
+  // Check if SendGrid is configured
+  if (!process.env.SENDGRID_API_KEY) {
+    console.log('⚠️ SendGrid not configured, skipping email');
+    return false;
+  }
+
+  try {
+    // Format the appointment date
+    const appointmentDate = new Date(appointment.appointment_date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    // Get the cancellation reason label
+    const reasonLabels = {
+      'doctor_unavailable': 'Doctor Unavailable',
+      'holiday': 'Holiday / Clinic Closed',
+      'emergency': 'Clinic Emergency',
+      'client_request': 'Client Request',
+      'staff_training': 'Staff Training',
+      'facility_maintenance': 'Facility Maintenance',
+      'specific': 'Specific Reason'
+    };
+    
+    const reasonLabel = reasonLabels[appointment.cancellation_reason] || appointment.cancellation_reason;
+    
+    const msg = {
+      to: email,
+      from: process.env.SENDGRID_FROM_EMAIL || 'josephdurano6a@gmail.com', // Updated email
+      subject: '❌ Important: Your Appointment Has Been Cancelled - PetShield Veterinary', // Updated
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Appointment Cancellation</title>
+        </head>
+        <body style="font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f4f4; padding: 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                  
+                  <!-- Header with Logo -->
+                  <tr>
+                    <td style="padding: 30px 30px 20px 30px; text-align: center; background: linear-gradient(135deg, #3d67ee, #0738D9); border-radius: 10px 10px 0 0;">
+                      <h1 style="color: white; margin: 0; font-size: 28px;">PetShield Veterinary</h1> <!-- Updated -->
+                      <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Your Trusted Pet Care Partner</p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Main Content -->
+                  <tr>
+                    <td style="padding: 40px 30px;">
+                      
+                      <!-- Cancellation Icon - FIXED CENTERING -->
+                      <div style="text-align: center; margin-bottom: 30px;">
+                        <div style="background-color: #ffebee; width: 80px; height: 80px; border-radius: 40px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                          <span style="font-size: 40px; line-height: 1; display: block;">❌</span> <!-- FIXED -->
+                        </div>
+                      </div>
+                      
+                      <h2 style="color: #d32f2f; text-align: center; margin-bottom: 20px;">Appointment Cancellation Notice</h2>
+                      
+                      <p style="font-size: 16px; color: #333; line-height: 1.6;">Dear <strong>${patientName}</strong>,</p>
+                      
+                      <p style="font-size: 16px; color: #333; line-height: 1.6;">
+                        We regret to inform you that your upcoming appointment at PetShield Veterinary has been cancelled. <!-- Updated -->
+                      </p>
+                      
+                      <!-- Appointment Details Card -->
+                      <table width="100%" cellpadding="15" cellspacing="0" border="0" style="background-color: #f8f9fa; border-radius: 8px; margin: 25px 0;">
+                        <tr>
+                          <td>
+                            <h3 style="color: #333; margin: 0 0 15px 0;">📋 Cancelled Appointment Details</h3>
+                            <table width="100%" cellpadding="5" cellspacing="0">
+                              <tr>
+                                <td width="120" style="color: #666;">Date:</td>
+                                <td style="color: #333; font-weight: 600;">${appointmentDate}</td>
+                              </tr>
+                              <tr>
+                                <td style="color: #666;">Time:</td>
+                                <td style="color: #333; font-weight: 600;">${appointment.time_slot_display}</td>
+                              </tr>
+                              <tr>
+                                <td style="color: #666;">Service:</td>
+                                <td style="color: #333; font-weight: 600;">${appointment.appointment_type}</td>
+                              </tr>
+                              <tr>
+                                <td style="color: #666;">Pet:</td>
+                                <td style="color: #333; font-weight: 600;">${appointment.pet_name} (${appointment.pet_type})</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- Cancellation Reason Card -->
+                      <table width="100%" cellpadding="15" cellspacing="0" border="0" style="background-color: #ffebee; border-radius: 8px; margin: 25px 0; border-left: 4px solid #d32f2f;">
+                        <tr>
+                          <td>
+                            <h3 style="color: #d32f2f; margin: 0 0 10px 0;">📝 Reason for Cancellation</h3>
+                            <p style="font-size: 15px; line-height: 1.6; color: #333; margin: 0;">
+                              </strong> ${cancellationMessage}
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- Next Steps Card -->
+                      <table width="100%" cellpadding="15" cellspacing="0" border="0" style="background-color: #e8f5e9; border-radius: 8px; margin: 25px 0;">
+                        <tr>
+                          <td>
+                            <h3 style="color: #2e7d32; margin: 0 0 10px 0;">📞 What happens next?</h3>
+                            <p style="font-size: 14px; line-height: 1.6; color: #333; margin: 0 0 15px 0;">
+                              You can book a new appointment through our website or contact us directly:
+                            </p>
+                            <table width="100%">
+                              <tr>
+                                <td width="30" valign="top">📞</td>
+                                <td style="color: #333;">(02) 1234-5678</td>
+                              </tr>
+                              <tr>
+                                <td width="30" valign="top">✉️</td>
+                                <td style="color: #333;">appointments@petshield.com</td> <!-- Updated -->
+                              </tr>
+                              <tr>
+                                <td width="30" valign="top">📍</td>
+                                <td style="color: #333;">123 Pet Street, Veterinary City</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- Refund Information -->
+                      <table width="100%" cellpadding="15" cellspacing="0" border="0" style="background-color: #fff3e0; border-radius: 8px; margin: 25px 0;">
+                        <tr>
+                          <td>
+                            <h3 style="color: #f57c00; margin: 0 0 10px 0;">💰 Refund Information</h3>
+                            <p style="font-size: 14px; line-height: 1.6; color: #333; margin: 0;">
+                              If you have made any payment, please contact our clinic for refund processing. 
+                              Refunds are handled manually and will be processed within 3-5 business days.
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- Footer Note -->
+                      <p style="font-size: 14px; color: #999; line-height: 1.6; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                        We sincerely apologize for any inconvenience this cancellation may have caused. 
+                        If you have any questions or concerns, please don't hesitate to reach out to us.
+                      </p>
+                      
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td style="padding: 30px; background-color: #f8f9fa; border-radius: 0 0 10px 10px; text-align: center;">
+                      <p style="color: #666; margin: 0 0 10px 0;">© 2026 PetShield Veterinary. All rights reserved.</p> <!-- Updated -->
+                      <p style="color: #999; font-size: 12px; margin: 0;">
+                        This is an automated message, please do not reply to this email.
+                      </p>
+                    </td>
+                  </tr>
+                  
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `
+    };
+
+    await sgMail.send(msg);
+    console.log(`✅ Cancellation email sent to ${email}`);
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Failed to send cancellation email:', error.response?.body || error.message);
+    return false;
+  }
+}
+
+// Helper function to send reschedule request email
+async function sendRescheduleEmail(email, patientName, appointment, rescheduleData, token) {
+  // Check if SendGrid is configured
+  if (!process.env.SENDGRID_API_KEY) {
+    console.log('⚠️ SendGrid not configured, skipping email');
+    return false;
+  }
+
+  try {
+    // Format dates
+    const originalDate = new Date(appointment.appointment_date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    const newDate = new Date(rescheduleData.new_date).toLocaleDateString('en-US', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    // Create approval links (you'll need to create these pages in your web app)
+    const baseUrl = 'http://localhost:3000'; // Your web app URL
+    const approveLink = `${baseUrl}/api/reschedule-respond?token=${token}&action=approve`;
+    const rejectLink = `${baseUrl}/api/reschedule-respond?token=${token}&action=reject`;
+    
+    const msg = {
+      to: email,
+      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@petshield.com',
+      subject: '📅 Appointment Reschedule Request - PetShield Veterinary',
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Reschedule Request</title>
+        </head>
+        <body style="font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 0; background-color: #f4f4f4;">
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f4f4; padding: 20px;">
+            <tr>
+              <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                  
+                  <!-- Header -->
+                  <tr>
+                    <td style="padding: 30px 30px 20px 30px; text-align: center; background: linear-gradient(135deg, #3d67ee, #0738D9); border-radius: 10px 10px 0 0;">
+                      <h1 style="color: white; margin: 0; font-size: 28px;">PetShield Veterinary</h1>
+                      <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Appointment Reschedule Request</p>
+                    </td>
+                  </tr>
+                  
+                  <!-- Main Content -->
+                  <tr>
+                    <td style="padding: 40px 30px;">
+                      
+                      <!-- Icon -->
+                      <div style="text-align: center; margin-bottom: 30px;">
+                        <div style="background-color: #e3f2fd; width: 80px; height: 80px; border-radius: 40px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
+                          <span style="font-size: 40px; line-height: 1; display: block;">📅</span>
+                        </div>
+                      </div>
+                      
+                      <h2 style="color: #1976d2; text-align: center; margin-bottom: 20px;">Appointment Reschedule Request</h2>
+                      
+                      <p style="font-size: 16px; color: #333; line-height: 1.6;">Dear <strong>${patientName}</strong>,</p>
+                      
+                      <p style="font-size: 16px; color: #333; line-height: 1.6;">
+                        We would like to request rescheduling your appointment at PetShield Veterinary. 
+                        Please review the proposed new schedule below.
+                      </p>
+                      
+                      <!-- Original Appointment Card -->
+                      <table width="100%" cellpadding="15" cellspacing="0" border="0" style="background-color: #f8f9fa; border-radius: 8px; margin: 25px 0;">
+                        <tr>
+                          <td>
+                            <h3 style="color: #666; margin: 0 0 15px 0;">📋 Original Appointment</h3>
+                            <table width="100%" cellpadding="5" cellspacing="0">
+                              <tr>
+                                <td width="120" style="color: #666;">Date:</td>
+                                <td style="color: #333; font-weight: 600;">${originalDate}</td>
+                              </tr>
+                              <tr>
+                                <td style="color: #666;">Time:</td>
+                                <td style="color: #333; font-weight: 600;">${appointment.time_slot_display}</td>
+                              </tr>
+                              <tr>
+                                <td style="color: #666;">Service:</td>
+                                <td style="color: #333; font-weight: 600;">${appointment.appointment_type}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- New Appointment Card -->
+                      <table width="100%" cellpadding="15" cellspacing="0" border="0" style="background-color: #e8f5e9; border-radius: 8px; margin: 25px 0; border-left: 4px solid #2e7d32;">
+                        <tr>
+                          <td>
+                            <h3 style="color: #2e7d32; margin: 0 0 15px 0;">📅 Proposed New Schedule</h3>
+                            <table width="100%" cellpadding="5" cellspacing="0">
+                              <tr>
+                                <td width="120" style="color: #666;">New Date:</td>
+                                <td style="color: #333; font-weight: 600;">${newDate}</td>
+                              </tr>
+                              <tr>
+                                <td style="color: #666;">New Time:</td>
+                                <td style="color: #333; font-weight: 600;">${rescheduleData.new_time_slot_display}</td>
+                              </tr>
+                            </table>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- Reason Card -->
+                      ${rescheduleData.reason ? `
+                      <table width="100%" cellpadding="15" cellspacing="0" border="0" style="background-color: #fff3e0; border-radius: 8px; margin: 25px 0;">
+                        <tr>
+                          <td>
+                            <h3 style="color: #f57c00; margin: 0 0 10px 0;">📝 Reason for Rescheduling</h3>
+                            <p style="font-size: 14px; line-height: 1.6; color: #333; margin: 0;">
+                              ${rescheduleData.reason}
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                      ` : ''}
+                      
+                      <!-- Action Required Card -->
+                      <table width="100%" cellpadding="20" cellspacing="0" border="0" style="background-color: #e3f2fd; border-radius: 8px; margin: 30px 0;">
+                        <tr>
+                          <td style="text-align: center;">
+                            <h3 style="color: #1976d2; margin: 0 0 15px 0;">⚠️ Action Required</h3>
+                            <p style="font-size: 14px; color: #333; margin-bottom: 25px;">
+                              Please confirm if this new schedule works for you:
+                            </p>
+                            
+                            <!-- Action Buttons -->
+                            <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                              <tr>
+                                <td width="50%" style="padding: 5px;">
+                                  <a href="${approveLink}" style="display: block; background-color: #2e7d32; color: white; text-decoration: none; padding: 15px; border-radius: 5px; font-weight: bold; text-align: center;">
+                                    ✅ Approve New Schedule
+                                  </a>
+                                </td>
+                                <td width="50%" style="padding: 5px;">
+                                  <a href="${rejectLink}" style="display: block; background-color: #d32f2f; color: white; text-decoration: none; padding: 15px; border-radius: 5px; font-weight: bold; text-align: center;">
+                                    ❌ Cancel Appointment
+                                  </a>
+                                </td>
+                              </tr>
+                            </table>
+                            
+                            <p style="font-size: 12px; color: #666; margin-top: 20px;">
+                              This link will expire in 7 days. If you don't respond, the appointment will remain as originally scheduled.
+                            </p>
+                          </td>
+                        </tr>
+                      </table>
+                      
+                      <!-- Footer Note -->
+                      <p style="font-size: 14px; color: #999; line-height: 1.6; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e0e0e0;">
+                        If you have any questions, please contact our clinic at (02) 1234-5678.
+                      </p>
+                      
+                    </td>
+                  </tr>
+                  
+                  <!-- Footer -->
+                  <tr>
+                    <td style="padding: 30px; background-color: #f8f9fa; border-radius: 0 0 10px 10px; text-align: center;">
+                      <p style="color: #666; margin: 0 0 10px 0;">© 2026 PetShield Veterinary. All rights reserved.</p>
+                      <p style="color: #999; font-size: 12px; margin: 0;">
+                        This is an automated message, please do not reply to this email.
+                      </p>
+                    </td>
+                  </tr>
+                  
+                </table>
+              </td>
+            </tr>
+          </table>
+        </body>
+        </html>
+      `
+    };
+
+    await sgMail.send(msg);
+    console.log(`✅ Reschedule request email sent to ${email}`);
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Failed to send reschedule email:', error.response?.body || error.message);
+    return false;
+  }
+}
+
+
+// =================================================================================
+//  RESCHEDULE APPOINTMENT ENDPOINTS
+// =================================================================================
+
+// Generate a unique token for email links
+function generateRescheduleToken() {
+  return require('crypto').randomBytes(32).toString('hex');
+}
+
+// 1. CREATE RESCHEDULE REQUEST (Admin/Doctor initiates)
+app.post('/api/appointments/:id/reschedule', async (req, res) => {
+  const { id } = req.params;
+  const { new_date, new_time_slot_id, new_time_slot_display, reason, requested_by } = req.body;
+  
+  console.log(`📅 Creating reschedule request for appointment ${id}`);
+  
+  try {
+    // Validate required fields
+    if (!new_date || !new_time_slot_id || !new_time_slot_display) {
+      return res.status(400).json({ error: 'New date and time slot are required' });
+    }
+    
+    // Check if appointment exists
+    const appointmentCheck = await pool.query(
+      `SELECT a.*, pa.email as patient_email, pa.fullname as patient_name 
+       FROM appointments a
+       LEFT JOIN patient_account pa ON a.patient_email = pa.email
+       WHERE a.id = $1`,
+      [id]
+    );
+    
+    if (appointmentCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+    
+    const appointment = appointmentCheck.rows[0];
+    
+    // Check if already has a pending reschedule
+    if (appointment.reschedule_requested) {
+      return res.status(400).json({ error: 'Appointment already has a pending reschedule request' });
+    }
+    
+    // Start transaction
+    await pool.query('BEGIN');
+    
+    // Update appointment with reschedule info
+    const updateQuery = `
+  UPDATE appointments 
+  SET reschedule_requested = TRUE,
+      status = 'pending',  -- ADD THIS LINE
+      reschedule_new_date = $1,
+      reschedule_new_time_slot_id = $2,
+      reschedule_new_time_slot_display = $3,
+      reschedule_reason = $4,
+      reschedule_requested_at = CURRENT_TIMESTAMP,
+      reschedule_approved = FALSE
+  WHERE id = $5
+  RETURNING *
+`;
+    
+    await pool.query(updateQuery, [
+      new_date,
+      new_time_slot_id,
+      new_time_slot_display,
+      reason || null,
+      id
+    ]);
+    
+    // Generate unique token for email link
+    const token = generateRescheduleToken();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days expiry
+    
+    // Save token in database
+    await pool.query(
+      `INSERT INTO reschedule_tokens 
+       (appointment_id, token, new_date, new_time_slot_display, reason, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, token, new_date, new_time_slot_display, reason || null, expiresAt]
+    );
+    
+    await pool.query('COMMIT');
+    
+    
+    // Send email to patient with approval links
+let emailSent = false;
+if (process.env.SENDGRID_API_KEY && appointment.patient_email) {
+  emailSent = await sendRescheduleEmail(
+    appointment.patient_email,
+    appointment.patient_name || appointment.patient_name,
+    appointment,
+    { new_date, new_time_slot_display, reason },
+    token
+  );
+}
+    
+    console.log(`✅ Reschedule request created for appointment ${id}`);
+    
+    res.json({
+      message: 'Reschedule request created successfully',
+      appointment_id: id,
+      token: token, // For testing - remove in production
+      emailSent: emailSent
+    });
+    
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error("❌ Reschedule request error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+// 2. GET AVAILABLE TIME SLOTS FOR A DATE (reuse from your existing logic)
+app.get('/api/available-time-slots', async (req, res) => {
+  const { date } = req.query;
+  
+  if (!date) {
+    return res.status(400).json({ error: 'Date is required' });
+  }
+  
+  try {
+    // Get day name from date
+    const dateObj = new Date(date);
+    const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayName = days[dateObj.getDay()];
+    
+    // Get time slots for that day
+    const slotsResult = await pool.query(
+      `SELECT * FROM time_slots 
+       WHERE day_of_week = $1 AND is_active = true
+       ORDER BY start_time`,
+      [dayName]
+    );
+    
+    // For each slot, check how many are booked
+    const slotsWithAvailability = await Promise.all(
+      slotsResult.rows.map(async (slot) => {
+        const bookedResult = await pool.query(
+          `SELECT COUNT(*) as booked_count 
+           FROM appointments 
+           WHERE time_slot_id = $1 
+             AND appointment_date = $2 
+             AND status NOT IN ('cancelled', 'no-show')`,
+          [slot.id, date]
+        );
+        
+        const bookedCount = parseInt(bookedResult.rows[0].booked_count) || 0;
+        const availableSlots = slot.capacity - bookedCount;
+        
+        return {
+          ...slot,
+          bookedCount,
+          availableSlots: availableSlots > 0 ? availableSlots : 0,
+          isAvailable: availableSlots > 0
+        };
+      })
+    );
+    
+    // Filter only available slots
+    const availableSlots = slotsWithAvailability.filter(slot => slot.isAvailable);
+    
+    res.json({
+      date,
+      day: dayName,
+      timeSlots: availableSlots
+    });
+    
+  } catch (err) {
+    console.error("❌ Get available time slots error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 3. HANDLE RESCHEDULE RESPONSE (Client clicks Approve/Cancel)
+app.post('/api/reschedule-respond', async (req, res) => {
+  const { token, action } = req.body;
+  console.log('📦 Request body:', req.body);
+  console.log('🔍 Looking for token:', token);
+  
+  console.log(`📝 Processing reschedule response: ${action} for token: ${token}`);
+  
+  try {
+    // Find the token
+    const tokenResult = await pool.query(
+      `SELECT rt.*, a.patient_name, a.patient_email, a.appointment_date, a.time_slot_display,
+              a.pet_name, a.pet_type, a.appointment_type
+       FROM reschedule_tokens rt
+       JOIN appointments a ON rt.appointment_id = a.id
+       WHERE rt.token = $1 AND rt.used = false AND rt.expires_at > NOW()`,
+      [token]
+    );
+    
+    if (tokenResult.rows.length === 0) {
+      return res.status(400).json({ error: 'Invalid or expired token' });
+    }
+    
+    const request = tokenResult.rows[0];
+    
+    await pool.query('BEGIN');
+    
+    // Mark token as used
+    await pool.query(
+      `UPDATE reschedule_tokens SET used = true WHERE id = $1`,
+      [request.id]
+    );
+    
+    if (action === 'approve') {
+      // Update appointment with new date/time and set status to 'scheduled'
+      await pool.query(
+        `UPDATE appointments 
+         SET appointment_date = $1,
+             time_slot_display = $2,
+             status = 'scheduled',
+             reschedule_approved = true,
+             reschedule_requested = false,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [request.new_date, request.new_time_slot_display, request.appointment_id]
+      );
+      
+      await pool.query('COMMIT');
+      
+      console.log(`✅ Appointment ${request.appointment_id} rescheduled successfully`);
+      
+      res.json({ 
+        message: 'Appointment rescheduled successfully',
+        new_date: request.new_date,
+        new_time: request.new_time_slot_display
+      });
+      
+    } else if (action === 'reject') {
+      // Cancel the appointment and set status to 'cancelled'
+      await pool.query(
+        `UPDATE appointments 
+         SET status = 'cancelled',
+             cancellation_reason = 'Client requested cancellation via reschedule email',
+             cancellation_details = 'Client chose to cancel instead of reschedule',
+             cancelled_at = CURRENT_TIMESTAMP,
+             reschedule_requested = false,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1`,
+        [request.appointment_id]
+      );
+      
+      await pool.query('COMMIT');
+      
+      console.log(`✅ Appointment ${request.appointment_id} cancelled via reschedule response`);
+      
+      res.json({ message: 'Appointment cancelled successfully' });
+      
+    } else {
+      await pool.query('ROLLBACK');
+      res.status(400).json({ error: 'Invalid action' });
+    }
+    
+  } catch (err) {
+    await pool.query('ROLLBACK');
+    console.error("❌ Reschedule response error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Handle GET requests from email links (what users click)
+app.get('/api/reschedule-respond', async (req, res) => {
+  const { token, action } = req.query;
+  
+  console.log('📨 Email link clicked:', { token, action });
+  
+  if (!token || !action) {
+    return res.status(400).send(`
+      <html>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: #d32f2f;">Invalid Link</h2>
+          <p>The link you clicked is invalid.</p>
+          <a href="http://localhost:8082" style="color: #3d67ee;">Return to Home</a>
+        </body>
+      </html>
+    `);
+  }
+  
+  try {
+    // Forward to your POST endpoint logic
+    const response = await fetch(`http://localhost:3000/api/reschedule-respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, action })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      if (action === 'approve') {
+        res.send(`
+          <html>
+            <head>
+              <style>
+                body { font-family: Arial; text-align: center; padding: 50px; background: #f5f5f5; }
+                .container { max-width: 500px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; }
+                h2 { color: #2e7d32; }
+                .btn { background: #3d67ee; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <h2>✅ Appointment Rescheduled!</h2>
+                <p>Your appointment has been successfully rescheduled to:</p>
+                <p><strong>${data.new_date} at ${data.new_time}</strong></p>
+                <a href="http://localhost:8082" class="btn">Return to Home</a>
+              </div>
+            </body>
+          </html>
+        `);
+      } else {
+        res.send(`
+          <html>
+            <head>
+              <style>
+                body { font-family: Arial; text-align: center; padding: 50px; background: #f5f5f5; }
+                .container { max-width: 500px; margin: 0 auto; background: white; padding: 40px; border-radius: 10px; }
+                h2 { color: #d32f2f; }
+                .btn { background: #3d67ee; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block; margin-top: 20px; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <h2>❌ Appointment Cancelled</h2>
+                <p>Your appointment has been cancelled as requested.</p>
+                <a href="http://localhost:8082" class="btn">Return to Home</a>
+              </div>
+            </body>
+          </html>
+        `);
+      }
+    } else {
+      res.send(`
+        <html>
+          <body style="font-family: Arial; text-align: center; padding: 50px;">
+            <h2 style="color: #d32f2f;">Error</h2>
+            <p>${data.error || 'Failed to process your request.'}</p>
+            <a href="http://localhost:8082" style="color: #3d67ee;">Return to Home</a>
+          </body>
+        </html>
+      `);
+    }
+  } catch (error) {
+    res.status(500).send(`
+      <html>
+        <body style="font-family: Arial; text-align: center; padding: 50px;">
+          <h2 style="color: #d32f2f;">Server Error</h2>
+          <p>Could not process your request. Please try again later.</p>
+          <a href="http://localhost:8082" style="color: #3d67ee;">Return to Home</a>
+        </body>
+      </html>
+    `);
+  }
+});
+
 // =================================================================================
 //  SENDGRID TEST ENDPOINT
 // =================================================================================
@@ -1161,10 +2526,10 @@ app.post('/test-email', async (req, res) => {
   try {
     const msg = {
       to: email,
-      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@furtopia.com',
-      subject: 'Test Email from Furtopia',
-      text: 'This is a test email from Furtopia Veterinary System.',
-      html: '<strong>This is a test email from Furtopia Veterinary System.</strong>'
+      from: process.env.SENDGRID_FROM_EMAIL || 'noreply@petshield.com',
+      subject: 'Test Email from PetShield',
+      text: 'This is a test email from PetShield Veterinary System.',
+      html: '<strong>This is a test email from PetShield Veterinary System.</strong>'
     };
     
     await sgMail.send(msg);
@@ -1228,7 +2593,7 @@ app.post('/debug-otp-status', async (req, res) => {
 
 // ========== NEW AVAILABILITY ROUTES (for new database structure) ==========
 
-// GET day availability (all 7 days)
+// GET day availability (all 7 days) - FIXED to return correct format
 app.get('/api/day-availability', async (req, res) => {
   console.log("📅 Fetching day availability");
   
@@ -1243,7 +2608,8 @@ app.get('/api/day-availability', async (req, res) => {
          END`
     );
     
-    res.json({ day_availability: result.rows });
+    // Make sure we return in the format the frontend expects
+    res.json(result.rows); // Return array directly, not wrapped in object
   } catch (err) {
     console.error("❌ Get day availability error:", err.message);
     res.status(500).json({ error: err.message });
@@ -1280,6 +2646,54 @@ app.put('/api/day-availability/:day', async (req, res) => {
   }
 });
 
+// CREATE day availability (NEW - add this to server.js)
+app.post('/api/day-availability', async (req, res) => {
+  const { day_of_week, is_available } = req.body;
+  
+  console.log(`📅 Creating day availability for ${day_of_week} with is_available=${is_available}`);
+  
+  try {
+    // Check if record already exists
+    const existing = await pool.query(
+      `SELECT * FROM day_availability WHERE day_of_week = $1`,
+      [day_of_week.toLowerCase()]
+    );
+    
+    if (existing.rows.length > 0) {
+      // Update existing record
+      const result = await pool.query(
+        `UPDATE day_availability 
+         SET is_available = $1, updated_at = CURRENT_TIMESTAMP
+         WHERE day_of_week = $2
+         RETURNING *`,
+        [is_available, day_of_week.toLowerCase()]
+      );
+      return res.json({ 
+        message: 'Day availability updated', 
+        day: result.rows[0] 
+      });
+    }
+    
+    // Insert new record
+    const result = await pool.query(
+      `INSERT INTO day_availability (day_of_week, is_available, created_at, updated_at)
+       VALUES ($1, $2, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+       RETURNING *`,
+      [day_of_week.toLowerCase(), is_available]
+    );
+    
+    console.log(`✅ Created day availability for ${day_of_week}`);
+    res.status(201).json({ 
+      message: 'Day availability created', 
+      day: result.rows[0] 
+    });
+    
+  } catch (err) {
+    console.error("❌ Create day availability error:", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET time slots for a specific day
 app.get('/api/time-slots/:day', async (req, res) => {
   const { day } = req.params;
@@ -1299,7 +2713,7 @@ app.get('/api/time-slots/:day', async (req, res) => {
   }
 });
 
-// SAVE time slots for a day (replace all)
+// SAVE time slots for a day (replace all) - FIXED VERSION
 app.post('/api/time-slots/:day', async (req, res) => {
   const { day } = req.params;
   const { slots } = req.body;
@@ -1317,18 +2731,22 @@ app.post('/api/time-slots/:day', async (req, res) => {
       [day.toLowerCase()]
     );
     
-    // Insert new slots
+    // Insert new slots - FIXED: Check if capacity exists in the slot data
     for (const slot of slots) {
       const startTime = convertToTimeFormat(slot.startTime);
       const endTime = convertToTimeFormat(slot.endTime);
+      
+      // Use slot.capacity if it exists, otherwise default to 1
+      const capacity = slot.capacity || 1;
       
       await pool.query(
         `INSERT INTO time_slots 
          (day_of_week, start_time, end_time, capacity, is_active)
          VALUES ($1, $2, $3, $4, true)`,
-        [day.toLowerCase(), startTime, endTime, slot.capacity || 1]
+        [day.toLowerCase(), startTime, endTime, capacity]
       );
     }
+    
     await pool.query('COMMIT');
     
     // Fetch and return updated slots
@@ -1347,6 +2765,7 @@ app.post('/api/time-slots/:day', async (req, res) => {
     
   } catch (err) {
     await pool.query('ROLLBACK');
+    console.error("❌ Error saving time slots:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -1502,13 +2921,15 @@ app.post('/api/appointments', async (req, res) => {
     }
 
     // 4. Create the appointment with reason_for_visit
-    const appointmentQuery = `
-      INSERT INTO appointments 
-      (patient_name, patient_email, patient_phone, pet_name, pet_type, pet_gender,
-       appointment_type, reason_for_visit, appointment_date, time_slot_id, time_slot_display, doctor_id, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'scheduled')
-      RETURNING *
-    `;
+    // In the appointment creation query, add status
+const appointmentQuery = `
+  INSERT INTO appointments 
+  (patient_name, patient_email, patient_phone, pet_name, pet_type, pet_gender,
+   appointment_type, reason_for_visit, appointment_date, time_slot_id, 
+   time_slot_display, doctor_id, status)  -- ADDED status
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'scheduled')  -- DEFAULT 'scheduled'
+  RETURNING *
+`;
 
     const appointmentValues = [
       patientName,
@@ -1605,7 +3026,7 @@ app.get('/api/appointments', async (req, res) => {
   }
 });
 
-// GET appointments for table (UPDATED with reason_for_visit)
+// GET appointments for table (UPDATED with status)
 app.get('/api/appointments/table', async (req, res) => {
   try {
     console.log("📋 Fetching appointments for table...");
@@ -1616,6 +3037,7 @@ app.get('/api/appointments/table', async (req, res) => {
         a.patient_name as "name",
         a.appointment_type as "service",
         a.reason_for_visit as "reasonForVisit",
+        a.status,  -- INCLUDE STATUS
         CONCAT(
           TO_CHAR(a.appointment_date, 'Mon DD, YYYY'), 
           ' - ', 
@@ -1626,7 +3048,6 @@ app.get('/api/appointments/table', async (req, res) => {
           ELSE 'Not Assigned'
         END as "doctor",
         a.doctor_id as "assignedDoctor",
-        a.status,
         a.patient_email,
         a.patient_phone,
         a.pet_name,
@@ -1634,7 +3055,7 @@ app.get('/api/appointments/table', async (req, res) => {
         COALESCE(a.pet_gender, 'Unknown') as "petGender"
       FROM appointments a
       LEFT JOIN accounts ac ON a.doctor_id = ac.pk
-      WHERE a.status != 'cancelled' OR a.status IS NULL
+      WHERE a.status != 'cancelled'  -- FILTER OUT CANCELLED
       ORDER BY a.appointment_date, a.time_slot_display
     `);
     
@@ -1828,6 +3249,7 @@ app.get('/api/appointments/history', async (req, res) => {
         a.patient_name as "name",
         a.appointment_type as "service",
         a.reason_for_visit as "reasonForVisit",
+        a.status,  -- INCLUDE STATUS
         CONCAT(
           TO_CHAR(a.appointment_date, 'Mon DD, YYYY'), 
           ' - ', 
@@ -1838,7 +3260,6 @@ app.get('/api/appointments/history', async (req, res) => {
           ELSE 'Not Assigned'
         END as "doctor",
         a.doctor_id as "assignedDoctor",
-        a.status,
         a.patient_email,
         a.patient_phone,
         a.pet_name,
@@ -1846,7 +3267,7 @@ app.get('/api/appointments/history', async (req, res) => {
         COALESCE(a.pet_gender, 'Unknown') as "petGender"
       FROM appointments a
       LEFT JOIN accounts ac ON a.doctor_id = ac.pk
-      WHERE a.status IN ('completed', 'cancelled')
+      WHERE a.status IN ('completed', 'cancelled')  -- ONLY COMPLETED OR CANCELLED
       ORDER BY a.appointment_date DESC, a.time_slot_display
     `);
     
