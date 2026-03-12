@@ -1,27 +1,37 @@
 import { View, Text, TouchableOpacity, Image, ScrollView, TextInput, Modal, Linking } from 'react-native'
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react' // Added useCallback and useEffect
 import userStyle from '../styles/UserStyle'
 import { Ionicons } from '@expo/vector-icons'
-import { useNavigation } from '@react-navigation/native'
+import { useNavigation, useFocusEffect } from '@react-navigation/native' // Added useFocusEffect
 import { Picker } from '@react-native-picker/picker'
 import * as ImagePicker from 'expo-image-picker'
 import * as DocumentPicker from 'expo-document-picker'
+// Added AsyncStorage import
+import AsyncStorage from '@react-native-async-storage/async-storage'; 
 
 export default function UserPetProfile() {
   const ns = useNavigation();
+  
+  // 1. DYNAMIC USER STATE
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // 2. CUSTOM ALERT MODAL STATE (For protection and logout)
+  const [customAlertVisible, setCustomAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    type: 'info', 
+    title: '',
+    message: '', 
+    onConfirm: null, 
+    showCancel: false,
+    confirmText: 'OK'
+  });
+
   const [dropdownVisible, setDropdownVisible] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [selectedPet, setSelectedPet] = useState(null);
   const [activeTab, setActiveTab] = useState('profile'); 
   
-  const [isLoggedIn, setIsLoggedIn] = useState(true); 
-  const user = {
-    name: 'John Michael Santos',
-    email: 'john.santos@email.com',
-    profileImage: null
-  };
-
   // Breed data based on type
   const dogBreeds = [
     'Unknown',
@@ -163,9 +173,55 @@ export default function UserPetProfile() {
   // Edit pet form state
   const [editPet, setEditPet] = useState(null);
 
+  // --- ADDED SESSION CHECK ---
+  useFocusEffect(
+    useCallback(() => {
+      const loadUser = async () => {
+        try {
+          const session = await AsyncStorage.getItem('userSession');
+          if (session) {
+            setCurrentUser(JSON.parse(session));
+          } else {
+            setCurrentUser(null);
+            // If they are not logged in, kick them back
+            ns.navigate('UserHome');
+          }
+        } catch (error) {
+          console.error("Failed to load user session", error);
+        }
+      };
+      loadUser();
+    }, [])
+  );
+
+  // --- ADDED HELPER FUNCTIONS ---
+  const showAlert = (type, title, message, onConfirm = null, showCancel = false, confirmText = 'OK') => {
+    setAlertConfig({ type, title, message, onConfirm, showCancel, confirmText });
+    setCustomAlertVisible(true);
+  };
+
+  const handleProtectedAction = (action) => {
+    if (currentUser) {
+      action(); 
+    } else {
+      showAlert(
+        'info', 
+        'Authentication Required', 
+        'You need to log in or sign up to access this feature.', 
+        () => ns.navigate('Login'), 
+        true, 
+        'Go to Login' 
+      );
+    }
+  };
+
   const handleLogout = () => {
     setDropdownVisible(false);
-    setIsLoggedIn(false);
+    showAlert('confirm', 'Log Out', 'Are you sure you want to log out?', async () => {
+      await AsyncStorage.removeItem('userSession'); 
+      setCurrentUser(null);
+      ns.navigate('Login');
+    }, true, 'Log Out');
   };
 
   const handleViewProfile = () => {
@@ -572,31 +628,104 @@ export default function UserPetProfile() {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
+  const displayName = currentUser ? (currentUser.fullname || currentUser.fullName || currentUser.username || "User") : "";
+
   return (
     <View style={{backgroundColor: '#fff', height: '100%', padding: 10}}>
-      {/* Original Navigation Bar - Kept exactly as is */}
+
+      {/* CUSTOM ALERT MODAL COMPONENT */}
+      <Modal
+        transparent={true}
+        visible={customAlertVisible}
+        animationType="fade"
+        onRequestClose={() => setCustomAlertVisible(false)}
+      >
+        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
+          <View style={{backgroundColor: 'white', padding: 25, borderRadius: 12, width: '80%', maxWidth: 350, alignItems: 'center', elevation: 5}}>
+            <Ionicons 
+              name={
+                alertConfig.type === 'success' ? "checkmark-circle-outline" :
+                alertConfig.type === 'error' ? "close-circle-outline" :
+                "alert-circle-outline"
+              } 
+              size={55} 
+              color={
+                alertConfig.type === 'success' ? "#2e9e0c" :
+                alertConfig.type === 'error' ? "#d93025" :
+                "#3d67ee"
+              } 
+            />
+            
+            <Text style={{fontSize: 20, fontWeight: 'bold', marginVertical: 10, fontFamily: 'Segoe UI', color: 'black', textAlign: 'center'}}>
+              {alertConfig.title}
+            </Text>
+            
+            {typeof alertConfig.message === 'string' ? (
+              <Text style={{textAlign: 'center', color: '#666', marginBottom: 25, fontSize: 14}}>
+                {alertConfig.message}
+              </Text>
+            ) : (
+              <View style={{marginBottom: 25}}>
+                {alertConfig.message}
+              </View>
+            )}
+            
+            <View style={{flexDirection: 'row', gap: 15, width: '100%', justifyContent: 'center'}}>
+              {alertConfig.showCancel && (
+                <TouchableOpacity 
+                  onPress={() => setCustomAlertVisible(false)} 
+                  style={{paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#f0f0f0', borderRadius: 8, minWidth: 100, alignItems: 'center'}}
+                >
+                  <Text style={{color: '#333', fontWeight: '600'}}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity 
+                onPress={() => {
+                  setCustomAlertVisible(false);
+                  if (alertConfig.onConfirm) alertConfig.onConfirm();
+                }} 
+                style={{
+                  paddingVertical: 10, 
+                  paddingHorizontal: 20, 
+                  backgroundColor: alertConfig.type === 'error' ? '#d93025' : '#3d67ee', 
+                  borderRadius: 8, 
+                  minWidth: 100, 
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{color: 'white', fontWeight: '600'}}>
+                  {alertConfig.confirmText || 'OK'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sticky Navigation Bar */}
       <View style={{ zIndex: 1000 }}>
         <View style={userStyle.navbar}>
           {/* Profile Section with Dropdown */}
           <View style={{position: 'relative', zIndex: 2}}>
-            {isLoggedIn ? (
+            {currentUser ? (
               <TouchableOpacity 
                 onPress={() => setDropdownVisible(!dropdownVisible)}
                 activeOpacity={0.7}
                 style={{zIndex: 3}} 
               >
                 <View style={[userStyle.navSections, {paddingHorizontal: 20, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 12}]}>
-                  {user.profileImage ? (
-                    <Image source={user.profileImage} style={{width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: '#3d67ee'}} />
+                  {currentUser.userImage || currentUser.userimage ? (
+                    <Image source={{uri: currentUser.userImage || currentUser.userimage}} style={{width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: '#3d67ee'}} />
                   ) : (
                     <View style={{ width: 30, height: 30, borderRadius: 15, backgroundColor: '#3d67ee20', justifyContent: 'center', alignItems: 'center', borderWidth: 1, borderColor: '#3d67ee' }}>
                       <Text style={{color: '#3d67ee', fontWeight: 'bold', fontSize: 14}}>
-                        {user.name.split(' ').map(n => n[0]).join('')}
+                        {displayName.charAt(0).toUpperCase()}
                       </Text>
                     </View>
                   )}
                   <View style={{flexDirection: 'column', marginRight: 5}}>
-                    <Text style={[userStyle.smallText, {fontSize: 14}]}>{user.name}</Text>
+                    <Text style={[userStyle.smallText, {fontSize: 14}]}>{displayName}</Text>
                   </View>
                   <Ionicons name={dropdownVisible ? "chevron-up" : "chevron-down"} size={18} color="#3d67ee" />
                 </View>
@@ -612,7 +741,7 @@ export default function UserPetProfile() {
               </TouchableOpacity>
             )}
 
-            {dropdownVisible && isLoggedIn && (
+            {dropdownVisible && currentUser && (
               <View style={{ position: 'absolute', top: 48, left: 13, backgroundColor: 'white', borderRadius: 10, padding: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.10, shadowRadius: 8, elevation: 5, width: 232, zIndex: 1 }}>
                 <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', padding: 12, borderBottomWidth: 1, borderBottomColor: '#f0f0f0', marginTop: 5, gap: 10 }} onPress={handleViewProfile}>
                   <Ionicons name="person-outline" size={16} color="#3d67ee" />
@@ -631,22 +760,22 @@ export default function UserPetProfile() {
           </View>
 
           <View style={{ flex: 1, alignItems: 'center' }}>
-            <View style={[userStyle.navSections, { flexDirection: 'row', alignItems: 'center', gap: 60, width: '70%'}]}>
+            <View style={[userStyle.navSections, { flexDirection: 'row',  alignItems: 'center', gap: 60, width: '70%'}]}>
               <TouchableOpacity onPress={()=>{ns.navigate('UserHome')}}><Text style={userStyle.navText}>Home</Text></TouchableOpacity>
               <TouchableOpacity><Text style={userStyle.navText}>About Us</Text></TouchableOpacity>
               <TouchableOpacity><Text style={userStyle.navText}>Our Services</Text></TouchableOpacity>
-              <TouchableOpacity onPress={()=>{ns.navigate('UserAppointment')}}><Text style={userStyle.navText}>Book an Appointment</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => handleProtectedAction(() => ns.navigate('UserAppointment'))}><Text style={userStyle.navText}>Book an Appointment</Text></TouchableOpacity>
             </View>
           </View>
 
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity onPress={()=>{ns.navigate('UserPets')}}>
+            <TouchableOpacity onPress={() => handleProtectedAction(() => ns.navigate('UserPets'))}>
               <View style={userStyle.navSections}><Ionicons name="paw" size={21} color="#3d67ee" style={{ marginTop: 3 }} /></View>
             </TouchableOpacity>
-            <TouchableOpacity onPress={()=>{ns.navigate('UserAppointmentView')}}>
+            <TouchableOpacity onPress={() => handleProtectedAction(() => ns.navigate('UserAppointmentView'))}>
               <View style={userStyle.navSections}><Ionicons name="calendar-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} /></View>
             </TouchableOpacity>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => handleProtectedAction(() => console.log('Notifications'))}>
               <View style={userStyle.navSections}><Ionicons name="notifications-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} /></View>
             </TouchableOpacity>
           </View>
@@ -968,7 +1097,7 @@ export default function UserPetProfile() {
                     </View>
                   </View>
 
-                  {/* Vaccination Records - Now styled like the document view with remove button */}
+                  {/* Vaccination Records */}
                   <View style={{ marginTop: 25 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
                       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -1006,7 +1135,6 @@ export default function UserPetProfile() {
                       </TouchableOpacity>
                     </View>
                     
-                    {/* Vaccination documents with remove button */}
                     <View style={{ gap: 12 }}>
                       {selectedPet.vaccinations?.map((vac) => (
                         <View key={vac.id} style={{
@@ -1106,7 +1234,7 @@ export default function UserPetProfile() {
         </View>
       </View>
 
-      {/* Add Pet Modal - REMOVED medical records section */}
+      {/* Add Pet Modal */}
       <Modal
         animationType="fade"
         transparent={true}
@@ -1449,7 +1577,7 @@ export default function UserPetProfile() {
                 </Picker>
               </View>
 
-              {/* Vaccination Upload Section - WITH REMOVE BUTTON */}
+              {/* Vaccination Upload Section */}
               <View style={{ marginBottom: 20 }}>
                 <Text style={{ fontSize: 16, fontWeight: '500', color: '#333', marginBottom: 10 }}>Vaccination Records</Text>
                 <TouchableOpacity 

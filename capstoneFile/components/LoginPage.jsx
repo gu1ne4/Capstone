@@ -151,15 +151,27 @@ export default function LoginPage() {
               navigation.replace("UpdateAcc", { userId: data.user.id });
             });
           } else {
-            // REGULAR LOGIN OR PASSWORD RESET LOGIN
-            const message = fromPasswordReset 
-              ? `Password updated successfully! Welcome back ${data.user.fullname}!`
-              : `Welcome back ${data.user.fullname}!`;
-            
-            showPopup('Success', message, 'success', () => {
-              navigation.replace("Accounts");
-            });
-          }
+          // REGULAR LOGIN OR PASSWORD RESET LOGIN
+          const message = fromPasswordReset 
+            ? `Password updated successfully! Welcome back ${data.user.fullname}!`
+            : `Welcome back ${data.user.fullname}!`;
+          
+          showPopup('Success', message, 'success', () => {
+            // Implement role-based routing here for unified login
+            const userRole = data.user.role; 
+
+            if (userRole === 'Admin') {
+              navigation.replace("Home"); 
+            } 
+            else if (userRole === 'Veterinarian' || userRole === 'Receptionist') {
+              navigation.replace("DoctorHomePage"); 
+            } 
+            else {
+              // Fallback for any other employee roles
+              navigation.replace("Accounts"); 
+            }
+          });
+        }
         } else {
           // Patient login
           const message = fromPasswordReset 
@@ -197,10 +209,10 @@ export default function LoginPage() {
                 const userRole = fallbackData.user.role; 
 
                 if (userRole === 'Admin') {
-                    navigation.replace("Accounts"); 
+                    navigation.replace("Home"); 
                 } 
                 else if (userRole === 'Veterinarian' || userRole === 'Receptionist') {
-                    navigation.replace("DashboardPage"); 
+                    navigation.replace("Home"); 
                 } 
                 else if (userRole === 'User') {
                     navigation.replace("UserHome"); 

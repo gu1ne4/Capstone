@@ -1,15 +1,30 @@
 import { View, Text, TouchableOpacity, Image, ScrollView, TextInput, Modal, FlatList } from 'react-native'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react' // Added useCallback
 import userStyle from '../styles/UserStyle'
 import { Ionicons } from '@expo/vector-icons'
 import homeStyle from '../styles/HomeStyle'
 import { LinearGradient } from 'expo-linear-gradient'
-import { useNavigation } from '@react-navigation/native'
+import { useNavigation, useFocusEffect } from '@react-navigation/native' // Added useFocusEffect
 import { Calendar } from 'react-native-calendars'
+import AsyncStorage from '@react-native-async-storage/async-storage'; // Added AsyncStorage
 
 export default function UserAppointmentView() {
   const ns = useNavigation();
   
+  // 1. DYNAMIC USER STATE
+  const [currentUser, setCurrentUser] = useState(null);
+
+  // 2. CUSTOM ALERT MODAL STATE (For protection and logout)
+  const [customAlertVisible, setCustomAlertVisible] = useState(false);
+  const [alertConfig, setAlertConfig] = useState({
+    type: 'info', 
+    title: '',
+    message: '', 
+    onConfirm: null, 
+    showCancel: false,
+    confirmText: 'OK'
+  });
+
   // State for modals
   const [cancelModalVisible, setCancelModalVisible] = useState(false);
   const [cancelStep, setCancelStep] = useState(1); // 1: Reason, 2: Confirmation
@@ -41,34 +56,7 @@ export default function UserAppointmentView() {
   const [itemsPerPage] = useState(5);
 
   const [dropdownVisible, setDropdownVisible] = useState(false);
-    const [isLoggedIn, setIsLoggedIn] = useState(true); 
-    const user = {
-      name: 'John Michael Santos',
-      email: 'john.santos@email.com',
-      profileImage: null
-    };
-  
-    const handleLogout = () => {
-  
-      setDropdownVisible(false);
-  
-      setIsLoggedIn(false);
-    };
-  
-    const handleViewProfile = () => {
-      setDropdownVisible(false);
-  
-      ns.navigate('UserProfile');
-    };
-  
-    const handleMyPets = () => {
-      setDropdownVisible(false);
-  
-      ns.navigate('UserPetProfile');
-    };
 
-  
-  
   // Mock data for appointments with prices
   const [appointments, setAppointments] = useState([
     {
@@ -240,6 +228,70 @@ export default function UserAppointmentView() {
   // Minimum character requirement for reasons
   const MIN_REASON_CHARS = 10;
 
+  // --- ADDED SESSION CHECK ---
+  useFocusEffect(
+    useCallback(() => {
+      const loadUser = async () => {
+        try {
+          const session = await AsyncStorage.getItem('userSession');
+          if (session) {
+            setCurrentUser(JSON.parse(session));
+          } else {
+            setCurrentUser(null);
+            // Kicks user out if they somehow bypass the protection
+            ns.navigate('UserHome');
+          }
+        } catch (error) {
+          console.error("Failed to load user session", error);
+        }
+      };
+      loadUser();
+    }, [])
+  );
+
+  // --- ADDED HELPER FUNCTIONS ---
+  const showAlert = (type, title, message, onConfirm = null, showCancel = false, confirmText = 'OK') => {
+    setAlertConfig({ type, title, message, onConfirm, showCancel, confirmText });
+    setCustomAlertVisible(true);
+  };
+
+  const handleProtectedAction = (action) => {
+    if (currentUser) {
+      action(); 
+    } else {
+      showAlert(
+        'info', 
+        'Authentication Required', 
+        'You need to log in or sign up to access this feature.', 
+        () => ns.navigate('Login'), 
+        true, 
+        'Go to Login' 
+      );
+    }
+  };
+
+  const handleLogout = () => {
+    setDropdownVisible(false);
+    showAlert('confirm', 'Log Out', 'Are you sure you want to log out?', async () => {
+      await AsyncStorage.removeItem('userSession'); 
+      setCurrentUser(null);
+      ns.navigate('Login');
+    }, true, 'Log Out');
+  };
+
+  const handleViewProfile = () => {
+    setDropdownVisible(false);
+    ns.navigate('UserProfile');
+  };
+
+  const handleMyPets = () => {
+    setDropdownVisible(false);
+    ns.navigate('UserPets');
+  };
+
+  // Helper to grab the correct name formatting
+  const displayName = currentUser ? (currentUser.fullname || currentUser.fullName || currentUser.username || "User") : "";
+
   // Get today's date for calendar min date
   const getTodayDate = () => {
     const today = new Date();
@@ -289,9 +341,9 @@ export default function UserAppointmentView() {
       if (clinicHours[dayName] && clinicHours[dayName].length > 0) {
         markedDates[dateString] = {
           selected: newDate === dateString,
-          selectedColor: '#3d67ee',
+          selectedColor: '#ffffff',
           marked: true,
-          dotColor: '#ffffff',
+          dotColor: '#3d67ee',
         };
       }
     }
@@ -580,27 +632,94 @@ export default function UserAppointmentView() {
   const totalPages = getTotalPages();
   const timeSlots = getTimeSlotsForDate(newDate);
 
-
-
   return (
     <View style={{backgroundColor: '#fff', flex: 1}}>
-            {/* Sticky Navigation Bar */}
-      <View style={{
-        zIndex: 1000,
-      }}>
+
+      {/* CUSTOM ALERT MODAL COMPONENT */}
+      <Modal
+        transparent={true}
+        visible={customAlertVisible}
+        animationType="fade"
+        onRequestClose={() => setCustomAlertVisible(false)}
+      >
+        <View style={{flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)'}}>
+          <View style={{backgroundColor: 'white', padding: 25, borderRadius: 12, width: '80%', maxWidth: 350, alignItems: 'center', elevation: 5}}>
+            <Ionicons 
+              name={
+                alertConfig.type === 'success' ? "checkmark-circle-outline" :
+                alertConfig.type === 'error' ? "close-circle-outline" :
+                "alert-circle-outline"
+              } 
+              size={55} 
+              color={
+                alertConfig.type === 'success' ? "#2e9e0c" :
+                alertConfig.type === 'error' ? "#d93025" :
+                "#3d67ee"
+              } 
+            />
+            
+            <Text style={{fontSize: 20, fontWeight: 'bold', marginVertical: 10, fontFamily: 'Segoe UI', color: 'black', textAlign: 'center'}}>
+              {alertConfig.title}
+            </Text>
+            
+            {typeof alertConfig.message === 'string' ? (
+              <Text style={{textAlign: 'center', color: '#666', marginBottom: 25, fontSize: 14}}>
+                {alertConfig.message}
+              </Text>
+            ) : (
+              <View style={{marginBottom: 25}}>
+                {alertConfig.message}
+              </View>
+            )}
+            
+            <View style={{flexDirection: 'row', gap: 15, width: '100%', justifyContent: 'center'}}>
+              {alertConfig.showCancel && (
+                <TouchableOpacity 
+                  onPress={() => setCustomAlertVisible(false)} 
+                  style={{paddingVertical: 10, paddingHorizontal: 20, backgroundColor: '#f0f0f0', borderRadius: 8, minWidth: 100, alignItems: 'center'}}
+                >
+                  <Text style={{color: '#333', fontWeight: '600'}}>Cancel</Text>
+                </TouchableOpacity>
+              )}
+              
+              <TouchableOpacity 
+                onPress={() => {
+                  setCustomAlertVisible(false);
+                  if (alertConfig.onConfirm) alertConfig.onConfirm();
+                }} 
+                style={{
+                  paddingVertical: 10, 
+                  paddingHorizontal: 20, 
+                  backgroundColor: alertConfig.type === 'error' ? '#d93025' : '#3d67ee', 
+                  borderRadius: 8, 
+                  minWidth: 100, 
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{color: 'white', fontWeight: '600'}}>
+                  {alertConfig.confirmText || 'OK'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sticky Navigation Bar */}
+      <View style={{ zIndex: 1000 }}>
         <View style={userStyle.navbar}>
           {/* Profile Section with Dropdown */}
           <View style={{position: 'relative', zIndex: 2}}>
-            {isLoggedIn ? (
+            {currentUser ? (
               <TouchableOpacity 
                 onPress={() => setDropdownVisible(!dropdownVisible)}
                 activeOpacity={0.7}
                 style={{zIndex: 3}} 
               >
                 <View style={[userStyle.navSections, {paddingHorizontal: 20, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 12}]}>
-                  {user.profileImage ? (
+                  {currentUser.userImage || currentUser.userimage ? (
                     <Image 
-                      source={user.profileImage} 
+                      source={{ uri: currentUser.userImage || currentUser.userimage }} 
                       style={{width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: '#3d67ee'}}
                     />
                   ) : (
@@ -615,13 +734,13 @@ export default function UserAppointmentView() {
                       borderColor: '#3d67ee'
                     }}>
                       <Text style={{color: '#3d67ee', fontWeight: 'bold', fontSize: 14}}>
-                        {user.name.split(' ').map(n => n[0]).join('')}
+                        {displayName.charAt(0).toUpperCase()}
                       </Text>
                     </View>
                   )}
                   <View style={{flexDirection: 'column', marginRight: 5}}>
                     <Text style={[userStyle.smallText, {fontSize: 14, color: "#3d67ee", fontWeight: 600}]}>
-                      {user.name}
+                      {displayName}
                     </Text>
                   </View>
                   <Ionicons 
@@ -642,7 +761,7 @@ export default function UserAppointmentView() {
               </TouchableOpacity>
             )}
 
-            {dropdownVisible && isLoggedIn && (
+            {dropdownVisible && currentUser && (
               <View style={{
                 position: 'absolute',
                 top: 48,
@@ -708,7 +827,7 @@ export default function UserAppointmentView() {
           <View style={{ flex: 1, alignItems: 'center' }}>
             <View style={[userStyle.navSections, { flexDirection: 'row',  alignItems: 'center', gap: 60, width: '70%'}]}>
               <TouchableOpacity onPress={()=>{ns.navigate('UserHome')}}>
-                <Text style={[userStyle.navText]}>Home</Text>
+                <Text style={userStyle.navText}>Home</Text>
               </TouchableOpacity>
               <TouchableOpacity>
                 <Text style={userStyle.navText}>About Us</Text>
@@ -716,7 +835,7 @@ export default function UserAppointmentView() {
               <TouchableOpacity>
                 <Text style={userStyle.navText}>Our Services</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={()=>{ns.navigate('UserAppointment')}}>
+              <TouchableOpacity onPress={() => handleProtectedAction(() => ns.navigate('UserAppointment'))}>
                 <Text style={userStyle.navText}>Book an Appointment</Text>
               </TouchableOpacity>
             </View>
@@ -724,19 +843,17 @@ export default function UserAppointmentView() {
 
           {/* Right-side icons */}
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            {/* Paw Icon Button */}
-            <TouchableOpacity onPress={handleMyPets}>
-              <View style={[userStyle.navSections, { }]}>
+            <TouchableOpacity onPress={() => handleProtectedAction(() => ns.navigate('UserPets'))}>
+              <View style={userStyle.navSections}>
                 <Ionicons name="paw" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
               </View>
             </TouchableOpacity>
-            
-            <TouchableOpacity onPress={()=>{ns.navigate('UserAppointmentView')}}>
+            <TouchableOpacity onPress={() => handleProtectedAction(() => ns.navigate('UserAppointmentView'))}>
               <View style={userStyle.navSections}>
                 <Ionicons name="calendar-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
               </View>
             </TouchableOpacity>
-            <TouchableOpacity>
+            <TouchableOpacity onPress={() => handleProtectedAction(() => console.log('Notifications clicked'))}>
               <View style={userStyle.navSections}>
                 <Ionicons name="notifications-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
               </View>

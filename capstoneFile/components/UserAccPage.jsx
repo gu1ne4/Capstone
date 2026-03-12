@@ -1,6 +1,8 @@
 import { View, Text, TouchableOpacity, Image, TextInput, Modal, Switch, Pressable, Platform, ActivityIndicator } from 'react-native';
-import React, { useState, useEffect } from 'react';
-import { useNavigation, useRoute } from '@react-navigation/native';
+// 1. Added useCallback
+import React, { useState, useEffect, useCallback } from 'react';
+// 2. Added useFocusEffect
+import { useNavigation, useRoute, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import homeStyle from '../styles/HomeStyle';
 
@@ -22,7 +24,7 @@ export default function UserAccPage() {
   // ==========================================
   //  STATE MANAGEMENT
   // ==========================================
-  const [currentUser, setCurrentUser] = useState({ fullName: 'Loading...', role: '', userImage: null });
+  const [currentUser, setCurrentUser] = useState(null);
   const [accounts, setAccounts] = useState([]); 
   const [loading, setLoading] = useState(true);
   
@@ -50,7 +52,7 @@ export default function UserAccPage() {
   const itemsPerPage = 8;
 
   const [showAppointmentsDropdown, setShowAppointmentsDropdown] = useState(false);
-  
+
   // Form Data
   const [editingId, setEditingId] = useState(null);
   const [selectedAccount, setSelectedAccount] = useState({});
@@ -75,12 +77,25 @@ export default function UserAccPage() {
     setModalVisible(true);
   };
 
-  const loadCurrentUser = async () => {
-    try {
-      const session = await AsyncStorage.getItem('userSession');
-      if (session) setCurrentUser(JSON.parse(session));
-    } catch (error) { console.log('Error loading session', error); }
-  };
+  // 3. Replaced standard loadCurrentUser with useFocusEffect
+  // This ensures the session is checked EVERY time the page is viewed
+  useFocusEffect(
+    useCallback(() => {
+      const loadUser = async () => {
+        try {
+          const session = await AsyncStorage.getItem('userSession');
+          if (session) {
+            setCurrentUser(JSON.parse(session));
+          } else {
+            setCurrentUser(null);
+          }
+        } catch (error) {
+          console.error("Failed to load user session", error);
+        }
+      };
+      loadUser();
+    }, [])
+  );
 
   const fetchAccounts = async () => {
     setLoading(true);
@@ -98,7 +113,6 @@ export default function UserAccPage() {
 
   useEffect(() => {
     fetchAccounts();
-    loadCurrentUser();
   }, []);
 
   const resetForm = () => {
@@ -224,36 +238,32 @@ export default function UserAccPage() {
     }
   };
 
+  // 4. Fully bulletproof logout sequence
   const handleLogoutPress = () => {
     showAlert('confirm', 'Log Out', 'Are you sure you want to log out?', async () => {
       
       try {
-        // 1. Tell Backend to audit the logout
-        // Check if we have user data to send
         if (currentUser) {
           console.log("Sending logout audit for:", currentUser.username);
-          
           await fetch(`${API_URL}/logout`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              userId: currentUser.id || currentUser.pk, // Handle different ID naming conventions
-              userType: 'EMPLOYEE',   // Since this is the Employee/Admin Home Page
+              userId: currentUser.id || currentUser.pk, 
+              userType: 'EMPLOYEE',   
               username: currentUser.username || currentUser.fullName,
               role: currentUser.role
             })
           });
         }
       } catch (error) {
-        // If the server is down or internet is bad, we log the error 
-        // BUT we still let the user logout locally so they aren't stuck.
         console.error("Logout audit failed:", error);
       }
 
-      // 2. Clear Local Data
+      // Explicitly clear local storage AND local state
       await AsyncStorage.removeItem('userSession'); 
+      setCurrentUser(null);
       
-      // 3. Navigate to Login
       ns.navigate('Login'); 
     }, true);
   };
@@ -386,10 +396,19 @@ export default function UserAccPage() {
           </View>
           <View style={[homeStyle.glassContainer, {paddingLeft: 8}]}>
             <View style={[homeStyle.navAccount, {gap: 8}]}>
-              <Image source={currentUser.userImage ? { uri: currentUser.userImage } : require('../assets/userImg.jpg')} style={{ width: 35, height: 35, borderRadius: 25, marginTop: 2 }}/>
+              <Image 
+                source={(currentUser && currentUser.userImage) 
+                  ? { uri: currentUser.userImage } 
+                  : require('../assets/userImg.jpg')} 
+                style={{ width: 35, height: 35, borderRadius: 25, marginTop: 2 }}
+              />
               <View>
-                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{currentUser.fullName || "User"}</Text>
-                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 10 }}>{currentUser.role || "Role"}</Text>
+                <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
+                  {currentUser ? currentUser.username : "Loading..."}
+                </Text>
+                <Text style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: 10 }}>
+                  {currentUser ? currentUser.role : "..."}
+                </Text>
               </View>
             </View>
           </View>
