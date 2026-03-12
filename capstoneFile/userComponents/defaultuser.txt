@@ -36,7 +36,7 @@ export default function UserHome() {
   const handleMyPets = () => {
     setDropdownVisible(false);
 
-    ns.navigate('UserPetProfile');
+    ns.navigate('UserPets');
   };
 
   return (
@@ -182,7 +182,7 @@ export default function UserHome() {
           {/* Right-side icons */}
           <View style={{ flexDirection: 'row', gap: 10 }}>
             {/* Paw Icon Button */}
-            <TouchableOpacity onPress={handleMyPets}>
+            <TouchableOpacity onPress={()=>{ns.navigate('UserPets')}}>
               <View style={[userStyle.navSections, { }]}>
                 <Ionicons name="paw" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
               </View>

@@ -1,4 +1,4 @@
-import { View, Text, TouchableOpacity, Image, ScrollView, ImageBackground, FlatList, Modal, Animated } from 'react-native'
+import { View, Text, TouchableOpacity, Image, ScrollView, ImageBackground, FlatList, Modal, Animated, TextInput } from 'react-native'
 import React, { useState, useRef, useEffect } from 'react'
 import { Calendar } from 'react-native-calendars'
 import userStyle from '../styles/UserStyle'
@@ -7,117 +7,17 @@ import homeStyle from '../styles/HomeStyle'
 import { LinearGradient } from 'expo-linear-gradient'
 import { useNavigation } from '@react-navigation/native'
 import docStyle from '../styles/DoctorStyles'
+import * as ImagePicker from 'expo-image-picker'
 
-// Mock data for doctor schedules - UPDATED with March dates only
-const doctorSchedules = {
-  'Dr. Sarah Johnson': {
-    availableDates: {
-      '2026-03-06': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '2:00PM - 3:00PM'],
-      '2026-03-07': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM'],
-      '2026-03-08': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-09': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-10': ['9:00AM - 10:00AM', '12:00PM - 1:00PM', '4:00PM - 5:00PM'],
-      '2026-03-11': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '2:00PM - 3:00PM'],
-      '2026-03-12': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM'],
-      '2026-03-13': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM']
-    }
-  },
-  'Dr. Michael Chen': {
-    availableDates: {
-      '2026-03-06': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '3:00PM - 4:00PM'],
-      '2026-03-07': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-08': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '4:00PM - 5:00PM'],
-      '2026-03-09': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '3:00PM - 4:00PM'],
-      '2026-03-10': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-11': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '3:00PM - 4:00PM'],
-      '2026-03-12': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-13': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '4:00PM - 5:00PM']
-    }
-  },
-  'Dr. Lisa Garcia': {
-    availableDates: {
-      '2026-03-06': ['10:00AM - 11:00AM', '12:00PM - 1:00PM', '2:00PM - 3:00PM'],
-      '2026-03-07': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-08': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM'],
-      '2026-03-09': ['10:00AM - 11:00AM', '12:00PM - 1:00PM', '2:00PM - 3:00PM'],
-      '2026-03-10': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-11': ['10:00AM - 11:00AM', '12:00PM - 1:00PM', '2:00PM - 3:00PM'],
-      '2026-03-12': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-13': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM']
-    }
-  },
-  'Dr. James Wilson': {
-    availableDates: {
-      '2026-03-06': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '2:00PM - 3:00PM'],
-      '2026-03-07': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM'],
-      '2026-03-08': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-09': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-10': ['9:00AM - 10:00AM', '12:00PM - 1:00PM', '4:00PM - 5:00PM'],
-      '2026-03-11': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '2:00PM - 3:00PM'],
-      '2026-03-12': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM'],
-      '2026-03-13': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM']
-    }
-  },
-  'Dr. Emily Brown': {
-    availableDates: {
-      '2026-03-06': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '3:00PM - 4:00PM'],
-      '2026-03-07': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-08': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '4:00PM - 5:00PM'],
-      '2026-03-09': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '3:00PM - 4:00PM'],
-      '2026-03-10': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-11': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '3:00PM - 4:00PM'],
-      '2026-03-12': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-13': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '4:00PM - 5:00PM']
-    }
-  },
-  'Dr. Robert Taylor': {
-    availableDates: {
-      '2026-03-06': ['10:00AM - 11:00AM', '12:00PM - 1:00PM', '2:00PM - 3:00PM'],
-      '2026-03-07': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-08': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM'],
-      '2026-03-09': ['10:00AM - 11:00AM', '12:00PM - 1:00PM', '2:00PM - 3:00PM'],
-      '2026-03-10': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-11': ['10:00AM - 11:00AM', '12:00PM - 1:00PM', '2:00PM - 3:00PM'],
-      '2026-03-12': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-13': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM']
-    }
-  },
-  'Dr. Amanda Lee': {
-    availableDates: {
-      '2026-03-06': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '2:00PM - 3:00PM'],
-      '2026-03-07': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM'],
-      '2026-03-08': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-09': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-10': ['9:00AM - 10:00AM', '12:00PM - 1:00PM', '4:00PM - 5:00PM'],
-      '2026-03-11': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '2:00PM - 3:00PM'],
-      '2026-03-12': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM'],
-      '2026-03-13': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM']
-    }
-  },
-  'Dr. David Kim': {
-    availableDates: {
-      '2026-03-06': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '3:00PM - 4:00PM'],
-      '2026-03-07': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-08': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '4:00PM - 5:00PM'],
-      '2026-03-09': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '3:00PM - 4:00PM'],
-      '2026-03-10': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-11': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '3:00PM - 4:00PM'],
-      '2026-03-12': ['10:00AM - 11:00AM', '2:00PM - 3:00PM', '5:00PM - 6:00PM'],
-      '2026-03-13': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '4:00PM - 5:00PM']
-    }
-  },
-  'Dr. Patricia Martinez': {
-    availableDates: {
-      '2026-03-06': ['10:00AM - 11:00AM', '12:00PM - 1:00PM', '2:00PM - 3:00PM'],
-      '2026-03-07': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-08': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM'],
-      '2026-03-09': ['10:00AM - 11:00AM', '12:00PM - 1:00PM', '2:00PM - 3:00PM'],
-      '2026-03-10': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-11': ['10:00AM - 11:00AM', '12:00PM - 1:00PM', '2:00PM - 3:00PM'],
-      '2026-03-12': ['8:00AM - 9:00AM', '11:00AM - 12:00PM', '3:00PM - 4:00PM'],
-      '2026-03-13': ['9:00AM - 10:00AM', '1:00PM - 2:00PM', '4:00PM - 5:00PM']
-    }
-  }
+// Default clinic hours (Monday to Friday)
+const clinicHours = {
+  'Monday': ['8:00AM - 9:00AM', '9:00AM - 10:00AM', '10:00AM - 11:00AM', '11:00AM - 12:00PM', '1:00PM - 2:00PM', '2:00PM - 3:00PM', '3:00PM - 4:00PM', '4:00PM - 5:00PM'],
+  'Tuesday': ['8:00AM - 9:00AM', '9:00AM - 10:00AM', '10:00AM - 11:00AM', '11:00AM - 12:00PM', '1:00PM - 2:00PM', '2:00PM - 3:00PM', '3:00PM - 4:00PM', '4:00PM - 5:00PM'],
+  'Wednesday': ['8:00AM - 9:00AM', '9:00AM - 10:00AM', '10:00AM - 11:00AM', '11:00AM - 12:00PM', '1:00PM - 2:00PM', '2:00PM - 3:00PM', '3:00PM - 4:00PM', '4:00PM - 5:00PM'],
+  'Thursday': ['8:00AM - 9:00AM', '9:00AM - 10:00AM', '10:00AM - 11:00AM', '11:00AM - 12:00PM', '1:00PM - 2:00PM', '2:00PM - 3:00PM', '3:00PM - 4:00PM', '4:00PM - 5:00PM'],
+  'Friday': ['8:00AM - 9:00AM', '9:00AM - 10:00AM', '10:00AM - 11:00AM', '11:00AM - 12:00PM', '1:00PM - 2:00PM', '2:00PM - 3:00PM', '3:00PM - 4:00PM', '4:00PM - 5:00PM'],
+  'Saturday': [], // Closed
+  'Sunday': [] // Closed
 };
 
 // Vet Branches
@@ -170,7 +70,6 @@ const userPets = [
   }
 ];
 
-
 const userAccount = {
   fullName: 'John Michael Santos',
   email: 'john.santos@email.com',
@@ -186,7 +85,6 @@ const getTodayDate = () => {
   const day = String(today.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
-
 
 const getMaxDate = () => {
   const maxDate = new Date();
@@ -206,6 +104,16 @@ const groomingOptions = [
   { id: 'g5', name: 'Bath Only', price: '₱300', description: 'Shampoo, conditioner, blow dry' },
 ];
 
+// Haircut styles for grooming
+const haircutStyles = [
+  { id: 'h1', name: 'Puppy Cut', description: 'Even length all over, short and easy maintenance' },
+  { id: 'h2', name: 'Lion Cut', description: 'Shaved body with full mane and tail tip' },
+  { id: 'h3', name: 'Teddy Bear Cut', description: 'Round face with fluffy body' },
+  { id: 'h4', name: 'Summer Cut', description: 'Very short all over for hot weather' },
+  { id: 'h5', name: 'Show Cut', description: 'Breed-specific standard cut' },
+  { id: 'h6', name: 'Custom Style', description: 'Specify your preferred style' },
+];
+
 // Laboratory options
 const laboratoryOptions = [
   { id: 'l1', name: 'Complete Blood Count', price: '₱800', description: 'CBC with differential' },
@@ -216,30 +124,98 @@ const laboratoryOptions = [
   { id: 'l6', name: 'Ultrasound', price: '₱2000', description: 'Abdominal ultrasound' },
 ];
 
-// meow
-export default function UserAppointment() {
+// Medical questionnaire
+const medicalQuestions = [
+  {
+    id: 'q1',
+    question: 'WERE THERE ANY MEDICATIONS GIVEN TO YOUR PET IN THE PAST 72 HOURS?',
+    key: 'medications72h',
+    hasDetails: true
+  },
+  {
+    id: 'q2',
+    question: 'MY PET HAS RECEIVED UP-TO-DATE FLEA AND TICK PREVENTION AND IS NOT INFESTED WITH FLEAS OR TICKS',
+    key: 'fleaPrevention',
+    hasDetails: false 
+  },
+  {
+    id: 'q3',
+    question: 'MY CAT HAS UP-TO-DATE ANTI RABIES+4IN1',
+    key: 'catVaccinations',
+    hasDetails: false 
+  },
+  {
+    id: 'q4',
+    question: 'MY PET IS NOT PREGNANT',
+    key: 'notPregnant',
+    hasDetails: false 
+  }
+];
 
+export default function UserAppointment() {
   const ns = useNavigation();
   const [step, setStep] = useState(1);
   const [selectedServices, setSelectedServices] = useState([]);
-  const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedTime, setSelectedTime] = useState(null);
   const [selectedPet, setSelectedPet] = useState(null);
   const [selectedBranch, setSelectedBranch] = useState(null);
   const [isChecked, setIsChecked] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
-  const [currentCardIndex, setCurrentCardIndex] = useState(1); // Start at index 1 (Consultation)
+  const [currentCardIndex, setCurrentCardIndex] = useState(1);
   const [expandedService, setExpandedService] = useState(null);
   const [selectedGroomingOptions, setSelectedGroomingOptions] = useState([]);
   const [selectedLabOptions, setSelectedLabOptions] = useState([]);
 
+  const [dropdownVisible, setDropdownVisible] = useState(false);
+
+    const [isLoggedIn, setIsLoggedIn] = useState(true); 
+    const user = {
+      name: 'John Michael Santos',
+      email: 'john.santos@email.com',
+      profileImage: null
+    };
+  
+    const handleLogout = () => {
+  
+      setDropdownVisible(false);
+  
+      setIsLoggedIn(false);
+    };
+  
+    const handleViewProfile = () => {
+      setDropdownVisible(false);
+  
+      ns.navigate('UserProfile');
+    };
+  
+    const handleMyPets = () => {
+      setDropdownVisible(false);
+  
+      ns.navigate('UserPets');
+    };
+  
+   const [medicalAnswers, setMedicalAnswers] = useState({
+    medications72h: null,
+    fleaPrevention: null,
+    catVaccinations: null,
+    notPregnant: null
+  });
+  const [medicationDetails, setMedicationDetails] = useState(''); // New state for medication details
+  const [additionalNotes, setAdditionalNotes] = useState('');
+  
+  
+  // Grooming specific state
+  const [selectedHaircutStyle, setSelectedHaircutStyle] = useState(null);
+  const [customHaircutDescription, setCustomHaircutDescription] = useState('');
+  const [haircutImage, setHaircutImage] = useState(null);
+
   const [panelPosition, setPanelPosition] = useState({ x: 0, y: 0 });
-const cardRef = useRef(null);
+  const cardRef = useRef(null);
   
   // Animation values
   const slideAnim = useRef(new Animated.Value(0)).current;
-  const panelWidth = 280; // Width of the extension panel
+  const panelWidth = 280;
 
   const scrollViewRef = useRef(null);
 
@@ -250,7 +226,6 @@ const cardRef = useRef(null);
       icon: 'cut-outline',
       description: ['Brushing, Nail', 'Trimming, Haircut,', 'Bathing, etc.'],
       basePrice: '₱500',
-      doctors: ['Dr. Sarah Johnson', 'Dr. Michael Chen', 'Dr. Lisa Garcia'],
       hasOptions: true,
       options: groomingOptions
     },
@@ -260,7 +235,6 @@ const cardRef = useRef(null);
       icon: 'medical',
       description: ['Preventative service', 'to assess your', "pet's overall health"],
       basePrice: '₱500',
-      doctors: ['Dr. James Wilson', 'Dr. Emily Brown', 'Dr. Robert Taylor'],
       hasOptions: false
     },
     {
@@ -269,7 +243,6 @@ const cardRef = useRef(null);
       icon: 'medical',
       description: ['Teeth cleaning,', 'plaque removal,', 'oral health check'],
       basePrice: '₱800',
-      doctors: ['Dr. Amanda Lee', 'Dr. David Kim', 'Dr. Patricia Martinez'],
       hasOptions: false
     },
     {
@@ -278,7 +251,6 @@ const cardRef = useRef(null);
       icon: 'home',
       description: ['Overnight stay,', 'feeding,', 'supervision'],
       basePrice: '₱1,200/night',
-      doctors: ['Dr. Thomas Wright', 'Dr. Jennifer Lopez', 'Dr. William Davis'],
       hasOptions: false
     },
     {
@@ -287,7 +259,6 @@ const cardRef = useRef(null);
       icon: 'bed',
       description: ['Medical care,', 'monitoring, IV', 'fluids, medication'],
       basePrice: '₱2,500/day',
-      doctors: ['Dr. Richard Moore', 'Dr. Elizabeth White', 'Dr. Charles Harris'],
       hasOptions: false
     },
     {
@@ -296,7 +267,6 @@ const cardRef = useRef(null);
       icon: 'scan',
       description: ['Radiography for', 'bone, chest,', 'abdominal imaging'],
       basePrice: '₱1,500',
-      doctors: ['Dr. Susan Miller', 'Dr. Joseph Clark', 'Dr. Margaret Lewis'],
       hasOptions: false
     },
     {
@@ -305,7 +275,6 @@ const cardRef = useRef(null);
       icon: 'radio',
       description: ['Soft tissue,', 'abdominal, cardiac,', 'pregnancy check'],
       basePrice: '₱2,000',
-      doctors: ['Dr. Daniel Walker', 'Dr. Nancy Hall', 'Dr. Kevin Allen'],
       hasOptions: false
     },
     {
@@ -314,7 +283,6 @@ const cardRef = useRef(null);
       icon: 'flask',
       description: ['Blood work,', 'urinalysis, fecal,', 'chemistry panel'],
       basePrice: '₱1,800',
-      doctors: ['Dr. Helen Young', 'Dr. George King', 'Dr. Carol Scott'],
       hasOptions: true,
       options: laboratoryOptions
     },
@@ -324,13 +292,11 @@ const cardRef = useRef(null);
       icon: 'flask',
       description: ['Core vaccines,', 'boosters,', 'rabies shot'],
       basePrice: '₱1,200',
-      doctors: ['Dr. Steven Adams', 'Dr. Rachel Green', 'Dr. Brian Nelson'],
       hasOptions: false
     }
   ];
 
   useEffect(() => {
-    // Animate slide when expanded service changes
     Animated.spring(slideAnim, {
       toValue: expandedService ? 1 : 0,
       friction: 8,
@@ -340,7 +306,6 @@ const cardRef = useRef(null);
   }, [expandedService]);
 
   const handleServiceSelect = (service) => {
-    // Only allow clicking on the center card (100% opacity)
     const isCenterCard = getVisibleCards().find(card => card.position === 0)?.service.id === service.id;
     
     if (!isCenterCard) return;
@@ -348,16 +313,18 @@ const cardRef = useRef(null);
     const isSelected = selectedServices.some(s => s.id === service.id);
     
     if (isSelected) {
-      // Remove service
       setSelectedServices(selectedServices.filter(s => s.id !== service.id));
-      if (service.id === 1) setSelectedGroomingOptions([]);
+      if (service.id === 1) {
+        setSelectedGroomingOptions([]);
+        setSelectedHaircutStyle(null);
+        setCustomHaircutDescription('');
+        setHaircutImage(null);
+      }
       if (service.id === 8) setSelectedLabOptions([]);
       setExpandedService(null);
     } else {
-      // Add service
       setSelectedServices([...selectedServices, service]);
       
-      // Toggle expanded state for services with options
       if (service.hasOptions) {
         setExpandedService(expandedService === service.id ? null : service.id);
       } else {
@@ -386,7 +353,7 @@ const cardRef = useRef(null);
 
   const handleProceed = () => {
     if (selectedServices.length > 0) {
-      setStep(2);
+      setStep(2); // Now goes to Select Pet
     } else {
       alert('Please select at least one service first');
     }
@@ -395,61 +362,48 @@ const cardRef = useRef(null);
   const handleBack = () => {
     if (step === 2) {
       setStep(1);
-      setSelectedDoctor(null);
-      setSelectedDate(null);
-      setSelectedTime(null);
       setSelectedPet(null);
-      setSelectedBranch(null);
     } else if (step === 3) {
       setStep(2);
-      setSelectedDate(null);
-      setSelectedTime(null);
-      setSelectedPet(null);
       setSelectedBranch(null);
     } else if (step === 4) {
       setStep(3);
-      setSelectedPet(null);
-      setSelectedBranch(null);
+      setSelectedDate(null);
+      setSelectedTime(null);
     } else if (step === 5) {
       setStep(4);
-      setSelectedBranch(null);
+      // Don't reset medical answers to preserve data when going back
     } else if (step === 6) {
       setStep(5);
     }
   };
 
-  const handleDoctorSelect = (doctor) => {
-    setSelectedDoctor(doctor);
-    setSelectedDate(null);
-    setSelectedTime(null);
-    setSelectedPet(null);
-    setSelectedBranch(null);
-  };
-
   const handleContinue = () => {
     if (step === 2) {
-      if (selectedDoctor) {
-        setStep(3);
+      if (selectedPet) {
+        setStep(3); // Go to Branch Selection
       } else {
-        alert('Please select a doctor first');
+        alert('Please select a pet first');
       }
     } else if (step === 3) {
-      if (selectedDate && selectedTime) {
-        setStep(4);
-      } else {
-        alert('Please select date and time');
-      }
-    } else if (step === 4) {
       if (selectedBranch) {
-        setStep(5);
+        setStep(4); // Go to Date & Time Selection
       } else {
         alert('Please select a branch');
       }
-    } else if (step === 5) {
-      if (selectedPet) {
-        setStep(6);
+    } else if (step === 4) {
+      if (selectedDate && selectedTime) {
+        setStep(5); // Go to Medical Questionnaire
       } else {
-        alert('Please select a pet');
+        alert('Please select date and time');
+      }
+    } else if (step === 5) {
+      // Validate medical questionnaire
+      const allAnswered = medicalQuestions.every(q => medicalAnswers[q.key] !== null);
+      if (allAnswered) {
+        setStep(6); // Go to Confirmation
+      } else {
+        alert('Please answer all medical questions');
       }
     } else if (step === 6) {
       setModalVisible(true);
@@ -475,26 +429,49 @@ const cardRef = useRef(null);
 
   const handleAddPet = () => {
     alert('Navigate to Add Pet screen');
-    // Navigate to add pet screen
   };
 
   const handleModalClose = () => {
     setModalVisible(false);
     setIsChecked(false);
-    // Navigate back to home or appointment list
     ns.navigate('UserHome');
   };
 
-  // Get available time slots for selected doctor and date
-  const getTimeSlotsForSelectedDate = () => {
-    if (selectedDoctor && selectedDate && doctorSchedules[selectedDoctor]) {
-      const doctorSchedule = doctorSchedules[selectedDoctor];
-      return doctorSchedule.availableDates[selectedDate] || [];
-    }
-    return [];
+  const handleMedicalAnswer = (questionKey, answer) => {
+    setMedicalAnswers({
+      ...medicalAnswers,
+      [questionKey]: answer
+    });
   };
 
-  // Format date for display
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [4, 3],
+      quality: 1,
+    });
+
+    if (!result.canceled) {
+      setHaircutImage(result.assets[0].uri);
+    }
+  };
+
+  // Get day name from date string
+  const getDayName = (dateString) => {
+    if (!dateString) return null;
+    const date = new Date(dateString);
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[date.getDay()];
+  };
+
+  // Get time slots based on day of week
+  const getTimeSlotsForSelectedDate = () => {
+    if (!selectedDate) return [];
+    const dayName = getDayName(selectedDate);
+    return clinicHours[dayName] || [];
+  };
+
   const formatSelectedDate = () => {
     if (!selectedDate) return '';
     const date = new Date(selectedDate);
@@ -508,24 +485,27 @@ const cardRef = useRef(null);
   const getMarkedDates = () => {
     let markedDates = {};
     
-    if (selectedDoctor && doctorSchedules[selectedDoctor]) {
-      const doctorSchedule = doctorSchedules[selectedDoctor];
+    // Mark all weekdays (Monday to Friday) as available
+    const startDate = new Date(getTodayDate());
+    const endDate = new Date(getMaxDate());
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateString = d.toISOString().split('T')[0];
+      const dayName = getDayName(dateString);
       
-      // Mark available dates with full opacity and dot
-      Object.keys(doctorSchedule.availableDates).forEach(date => {
-        markedDates[date] = {
-          selected: selectedDate === date,
+      if (clinicHours[dayName] && clinicHours[dayName].length > 0) {
+        markedDates[dateString] = {
+          selected: selectedDate === dateString,
           selectedColor: '#ffffff',
           marked: true,
           dotColor: '#3d67ee',
         };
-      });
+      }
     }
     
     return markedDates;
   };
 
-  // Custom header to show only month and year
   const customHeader = (date) => {
     const monthNames = ["January", "February", "March", "April", "May", "June",
       "July", "August", "September", "October", "November", "December"
@@ -543,13 +523,11 @@ const cardRef = useRef(null);
     );
   };
 
-  // Custom day renderer to control opacity
   const dayComponent = ({ date, state, marking, onPress }) => {
     const isAvailable = marking && marking.marked;
     const isSelected = marking && marking.selected;
     const isDisabled = state === 'disabled' || state === 'inactive';
     
-    // Determine opacity - available dates have full opacity, others have low opacity
     const opacity = isAvailable ? 1 : 0.3;
     
     return (
@@ -591,14 +569,14 @@ const cardRef = useRef(null);
   const goToPreviousCard = () => {
     if (currentCardIndex > 0) {
       setCurrentCardIndex(currentCardIndex - 1);
-      setExpandedService(null); // Close expanded panel when changing cards
+      setExpandedService(null);
     }
   };
 
   const goToNextCard = () => {
     if (currentCardIndex < services.length - 1) {
       setCurrentCardIndex(currentCardIndex + 1);
-      setExpandedService(null); // Close expanded panel when changing cards
+      setExpandedService(null);
     }
   };
 
@@ -617,24 +595,19 @@ const cardRef = useRef(null);
     return cards;
   };
 
-  // Calculate total price from selected services and options
   const getTotalPrice = () => {
     let total = 0;
     
-    // Add base prices of selected services
     selectedServices.forEach(service => {
-      // Remove '₱' and '/night' or '/day' for calculation
       const basePrice = parseFloat(service.basePrice.replace(/[₱,]/g, '').split('/')[0]);
       total += basePrice;
     });
     
-    // Add grooming options
     selectedGroomingOptions.forEach(option => {
       const price = parseFloat(option.price.replace(/[₱,]/g, ''));
       total += price;
     });
     
-    // Add lab options
     selectedLabOptions.forEach(option => {
       const price = parseFloat(option.price.replace(/[₱,]/g, ''));
       total += price;
@@ -643,7 +616,6 @@ const cardRef = useRef(null);
     return total;
   };
 
-  // Get the center card service
   const centerService = getVisibleCards().find(card => card.position === 0)?.service;
 
   return (
@@ -672,7 +644,23 @@ const cardRef = useRef(null);
             shadowOpacity: 0.25,
             shadowRadius: 4,
             elevation: 5,
+            position: 'relative', // Add this for absolute positioning of the X button
           }}>
+            
+            {/* X Button in upper right corner */}
+            <TouchableOpacity 
+              style={{
+                position: 'absolute',
+                top: 15,
+                right: 15,
+                zIndex: 10,
+                padding: 5,
+              }}
+              onPress={() => setModalVisible(false)}
+            >
+              <Ionicons name="close" size={24} color="#999" />
+            </TouchableOpacity>
+            
             <View style={{
               width: 80,
               height: 80,
@@ -680,6 +668,7 @@ const cardRef = useRef(null);
               justifyContent: 'center',
               alignItems: 'center',
               marginBottom: 20,
+              marginTop: 10, // Add some top margin to account for the X button
             }}>
               <Ionicons name="hourglass-outline" size={70} color="#3d67ee" />
             </View>
@@ -770,20 +759,126 @@ const cardRef = useRef(null);
         zIndex: 1000,
       }}>
         <View style={userStyle.navbar}>
-          {/* Profile */}
-          <TouchableOpacity onPress={()=>{ns.navigate('Login')}}>
-            <View style={[userStyle.navSections, {paddingHorizontal: 20, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 12}]}>
-              <Ionicons name="person-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
-              <View style={{flexDirection: 'column', marginRight: 5}}>
-                <Text style={[userStyle.smallText, {fontSize: 16, color: "#3d67ee", fontWeight: 600}]}>Login or Sign-up</Text>
+          {/* Profile Section with Dropdown */}
+          <View style={{position: 'relative', zIndex: 2}}>
+            {isLoggedIn ? (
+              <TouchableOpacity 
+                onPress={() => setDropdownVisible(!dropdownVisible)}
+                activeOpacity={0.7}
+                style={{zIndex: 3}} 
+              >
+                <View style={[userStyle.navSections, {paddingHorizontal: 20, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 12}]}>
+                  {user.profileImage ? (
+                    <Image 
+                      source={user.profileImage} 
+                      style={{width: 30, height: 30, borderRadius: 15, borderWidth: 1, borderColor: '#3d67ee'}}
+                    />
+                  ) : (
+                    <View style={{
+                      width: 30, 
+                      height: 30, 
+                      borderRadius: 15, 
+                      backgroundColor: '#3d67ee20',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      borderWidth: 1,
+                      borderColor: '#3d67ee'
+                    }}>
+                      <Text style={{color: '#3d67ee', fontWeight: 'bold', fontSize: 14}}>
+                        {user.name.split(' ').map(n => n[0]).join('')}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={{flexDirection: 'column', marginRight: 5}}>
+                    <Text style={[userStyle.smallText, {fontSize: 14, color: "#3d67ee", fontWeight: 600}]}>
+                      {user.name}
+                    </Text>
+                  </View>
+                  <Ionicons 
+                    name={dropdownVisible ? "chevron-up" : "chevron-down"} 
+                    size={18} 
+                    color="#3d67ee" 
+                  />
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity onPress={()=>{ns.navigate('Login')}}>
+                <View style={[userStyle.navSections, {paddingHorizontal: 20, marginLeft: 10, flexDirection: 'row', alignItems: 'center', gap: 12}]}>
+                  <Ionicons name="person-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
+                  <View style={{flexDirection: 'column', marginRight: 5}}>
+                    <Text style={[userStyle.smallText, {fontSize: 16, color: "#3d67ee", fontWeight: 600}]}>Login or Sign-up</Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
+            )}
+
+            {dropdownVisible && isLoggedIn && (
+              <View style={{
+                position: 'absolute',
+                top: 48,
+                left: 13,
+                backgroundColor: 'white',
+                borderRadius: 10,
+                padding: 8,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.10,
+                shadowRadius: 8,
+                elevation: 5,
+                width: 240,
+                zIndex: 1, 
+              }}>
+                <TouchableOpacity 
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#f0f0f0',
+                    marginTop: 5,
+                    gap: 10,
+                  }}
+                  onPress={handleViewProfile}
+                >
+                  <Ionicons name="person-outline" size={18} color="#3d67ee" />
+                  <Text style={{fontSize: 14, color: '#333'}}>View Profile</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 12,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#f0f0f0',
+                    gap: 10,
+                  }}
+                  onPress={handleMyPets}
+                >
+                  <Ionicons name="paw-outline" size={18} color="#3d67ee" />
+                  <Text style={{fontSize: 14, color: '#333'}}>My Pets</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 12,
+                    gap: 10,
+                  }}
+                  onPress={handleLogout}
+                >
+                  <Ionicons name="log-out-outline" size={18} color="#ee3d5a" />
+                  <Text style={{fontSize: 14, color: '#ee3d5a'}}>Logout</Text>
+                </TouchableOpacity>
               </View>
-            </View>
-          </TouchableOpacity>
+            )}
+          </View>
 
           <View style={{ flex: 1, alignItems: 'center' }}>
             <View style={[userStyle.navSections, { flexDirection: 'row',  alignItems: 'center', gap: 60, width: '70%'}]}>
               <TouchableOpacity onPress={()=>{ns.navigate('UserHome')}}>
-                <Text>Home</Text>
+                <Text style={[userStyle.navText]}>Home</Text>
               </TouchableOpacity>
               <TouchableOpacity>
                 <Text style={userStyle.navText}>About Us</Text>
@@ -791,7 +886,7 @@ const cardRef = useRef(null);
               <TouchableOpacity>
                 <Text style={userStyle.navText}>Our Services</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[userStyle.glassContainer]}>
+              <TouchableOpacity style={[userStyle.glassContainer]}  onPress={()=>{ns.navigate('UserAppointment')}}>
                 <Text style={[userStyle.navText, {color: '#3d67ee', fontWeight: '600'}]}>Book an Appointment</Text>
               </TouchableOpacity>
             </View>
@@ -799,7 +894,14 @@ const cardRef = useRef(null);
 
           {/* Right-side icons */}
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <TouchableOpacity>
+            {/* Paw Icon Button */}
+            <TouchableOpacity onPress={()=>{ns.navigate('UserPets')}}>
+              <View style={[userStyle.navSections, { }]}>
+                <Ionicons name="paw" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
+              </View>
+            </TouchableOpacity>
+            
+            <TouchableOpacity onPress={()=>{ns.navigate('UserAppointmentView')}}>
               <View style={userStyle.navSections}>
                 <Ionicons name="calendar-outline" size={21} color="#3d67ee" style={{ marginTop: 3 }} />
               </View>
@@ -813,7 +915,6 @@ const cardRef = useRef(null);
         </View>
       </View>
 
-      {/* Scrollable Content */}
       <ScrollView ref={scrollViewRef} style={{flex: 1, backgroundColor: '#fff'}}>
         <View style={{padding: 10}}>
           {/* Progress Indicator with Labels */}
@@ -830,28 +931,28 @@ const cardRef = useRef(null);
                 <View style={{width: 50, height: 50, borderRadius: 25, backgroundColor: step >= 2 ? '#3d67ee' : '#ccc', justifyContent: 'center', alignItems: 'center'}}>
                   <Text style={{color: 'white', fontWeight: 'bold', fontSize: 18}}>2</Text>
                 </View>
-                <Text style={{marginTop: 8, fontSize: 14, fontWeight: step === 2 ? 'bold' : 'normal', color: step === 2 ? '#3d67ee' : '#666'}}>Choose Doctor</Text>
+                <Text style={{marginTop: 8, fontSize: 14, fontWeight: step === 2 ? 'bold' : 'normal', color: step === 2 ? '#3d67ee' : '#666'}}>Select Pet</Text>
               </View>
               <View style={{width: 60, height: 2, backgroundColor: step >= 3 ? '#3d67ee' : '#ccc', marginHorizontal: 10}} />
               <View style={{alignItems: 'center'}}>
                 <View style={{width: 50, height: 50, borderRadius: 25, backgroundColor: step >= 3 ? '#3d67ee' : '#ccc', justifyContent: 'center', alignItems: 'center'}}>
                   <Text style={{color: 'white', fontWeight: 'bold', fontSize: 18}}>3</Text>
                 </View>
-                <Text style={{marginTop: 8, fontSize: 14, fontWeight: step === 3 ? 'bold' : 'normal', color: step === 3 ? '#3d67ee' : '#666'}}>Select Time & Date</Text>
+                <Text style={{marginTop: 8, fontSize: 14, fontWeight: step === 3 ? 'bold' : 'normal', color: step === 3 ? '#3d67ee' : '#666'}}>Select Branch</Text>
               </View>
               <View style={{width: 60, height: 2, backgroundColor: step >= 4 ? '#3d67ee' : '#ccc', marginHorizontal: 10}} />
               <View style={{alignItems: 'center'}}>
                 <View style={{width: 50, height: 50, borderRadius: 25, backgroundColor: step >= 4 ? '#3d67ee' : '#ccc', justifyContent: 'center', alignItems: 'center'}}>
                   <Text style={{color: 'white', fontWeight: 'bold', fontSize: 18}}>4</Text>
                 </View>
-                <Text style={{marginTop: 8, fontSize: 14, fontWeight: step === 4 ? 'bold' : 'normal', color: step === 4 ? '#3d67ee' : '#666'}}>Select Branch</Text>
+                <Text style={{marginTop: 8, fontSize: 14, fontWeight: step === 4 ? 'bold' : 'normal', color: step === 4 ? '#3d67ee' : '#666'}}>Select Date & Time</Text>
               </View>
               <View style={{width: 60, height: 2, backgroundColor: step >= 5 ? '#3d67ee' : '#ccc', marginHorizontal: 10}} />
               <View style={{alignItems: 'center'}}>
                 <View style={{width: 50, height: 50, borderRadius: 25, backgroundColor: step >= 5 ? '#3d67ee' : '#ccc', justifyContent: 'center', alignItems: 'center'}}>
                   <Text style={{color: 'white', fontWeight: 'bold', fontSize: 18}}>5</Text>
                 </View>
-                <Text style={{marginTop: 8, fontSize: 14, fontWeight: step === 5 ? 'bold' : 'normal', color: step === 5 ? '#3d67ee' : '#666'}}>Select Pet</Text>
+                <Text style={{marginTop: 8, fontSize: 14, fontWeight: step === 5 ? 'bold' : 'normal', color: step === 5 ? '#3d67ee' : '#666'}}>Medical Info</Text>
               </View>
               <View style={{width: 60, height: 2, backgroundColor: step >= 6 ? '#65eb6c' : '#ccc', marginHorizontal: 10}} />
               <View style={{alignItems: 'center'}}>
@@ -866,31 +967,29 @@ const cardRef = useRef(null);
           {/* Step Title */}
           <Text style={{fontSize: 40, fontWeight: 'bold', textAlign: 'center', marginTop: 20}}>
             {step === 1 ? 'Book an Appointment' : 
-             step === 2 ? 'Choose a Doctor' : 
-             step === 3 ? 'Select Date & Time' : 
-             step === 4 ? 'Select Branch' : 
-             step === 5 ? 'Select Your Pet' :
+             step === 2 ? 'Select Your Pet' : 
+             step === 3 ? 'Select Branch' : 
+             step === 4 ? 'Select Date & Time' :
+             step === 5 ? 'Medical Information' :
              'Confirm Booking'}
           </Text>
           <Text style={{fontSize: 16, textAlign: 'center', marginTop: 10, color: '#555', marginBottom: 30}}>
             {step === 1 
               ? 'Choose a service and schedule your appointment with ease with PetShield.'
               : step === 2
-              ? `Select your preferred doctor for your selected services`
-              : step === 3
-              ? `Select available date and time for ${selectedDoctor}`
-              : step === 4
-              ? 'Select which branch you prefer for your appointment'
-              : step === 5
               ? 'Select which pet will receive the service'
+              : step === 3
+              ? 'Select which branch you prefer for your appointment'
+              : step === 4
+              ? 'Select available date and time for your appointment'
+              : step === 5
+              ? 'Please answer the following medical questions about your pet'
               : 'Please review your booking details before confirming'}
           </Text>
 
           {step === 1 && (
             <>
-
               <View style={{flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginBottom: 30, gap: 20}}>
-  
                 <View style={{justifyContent: 'center', height: 300}}>
                   <TouchableOpacity 
                     onPress={goToPreviousCard}
@@ -904,143 +1003,135 @@ const cardRef = useRef(null);
                   </TouchableOpacity>
                 </View>
 
-
                 <View style={{flexDirection: 'row', alignItems: 'center', height: 350, marginHorizontal: 10, gap: 20}}>
-                {getVisibleCards().map(({service, position, index}) => {
-                  const isSelected = selectedServices.some(s => s.id === service.id);
-                  const opacity = position === 0 ? 1 : 0.5;
-                  const scale = position === 0 ? 1 : 0.85;
-                  
-                  let zIndex = 1;
-                  
-                  if (position === 0) {
-                    zIndex = 30; 
-                    if (expandedService === service.id) {
-                      zIndex = 50; 
+                  {getVisibleCards().map(({service, position, index}) => {
+                    const isSelected = selectedServices.some(s => s.id === service.id);
+                    const opacity = position === 0 ? 1 : 0.5;
+                    const scale = position === 0 ? 1 : 0.85;
+                    
+                    let zIndex = 1;
+                    
+                    if (position === 0) {
+                      zIndex = 30; 
+                      if (expandedService === service.id) {
+                        zIndex = 50; 
+                      }
+                    } else if (position === -1) {
+                      zIndex = 20; 
+                    } else if (position === 1) {
+                      zIndex = 10; 
                     }
-                  } else if (position === -1) {
-                    zIndex = 20; 
-                  } else if (position === 1) {
-                    zIndex = 10; 
-                  }
-                  
 
-                  let marginLeft = 0;
-                  let marginRight = 0;
-                  
-                  if (position === -1) {
-                    marginRight = expandedService ? -panelWidth/2 : -20;
-
-                    if (expandedService) {
-                      marginLeft = -20;
+                    let marginLeft = 0;
+                    let marginRight = 0;
+                    
+                    if (position === -1) {
+                      marginRight = expandedService ? -panelWidth/2 : -20;
+                      if (expandedService) {
+                        marginLeft = -20;
+                      }
+                    } else if (position === 1) {
+                      marginLeft = expandedService ? panelWidth/2 : -20;
+                      if (expandedService) {
+                        marginRight = -20;
+                      }
                     }
-                  } else if (position === 1) {
-                    marginLeft = expandedService ? panelWidth/2 : -20;
-
-                    if (expandedService) {
-                      marginRight = -20;
-                    }
-                  }
-                  
-                  return (
-                    <View 
-                      key={service.id} 
-                      style={{
-                        position: 'relative',
-                        zIndex: zIndex,
-                        elevation: zIndex, 
-                      }}
-                      ref={position === 0 ? cardRef : null}
-                      onLayout={(event) => {
-                        if (position === 0 && expandedService === service.id) {
-  
-                          cardRef.current?.measure((x, y, width, height, pageX, pageY) => {
-                            setPanelPosition({
-                              x: pageX + width, 
-                              y: pageY,
-                            });
-                          });
-                        }
-                      }}
-                    >
-                      <TouchableOpacity 
+                    
+                    return (
+                      <View 
+                        key={service.id} 
                         style={{
-                          width: 220,
-                          height: 300,
-                          marginLeft,
-                          marginRight,
-                          transform: [{ scale }],
-                          opacity,
-                          
-                          shadowColor: '#000',
-                          shadowOffset: { width: position === 0 ? 0 : 2, height: position === 0 ? 4 : 2 },
-                          shadowOpacity: position === 0 ? 0.25 : 0.15,
-                          shadowRadius: position === 0 ? 8 : 4,
-
-                          borderRadius: 15,
+                          position: 'relative',
+                          zIndex: zIndex,
+                          elevation: zIndex, 
                         }}
-                        onPress={() => handleServiceSelect(service)}
-                        activeOpacity={position === 0 ? 0.7 : 1}
-                        disabled={position !== 0}
+                        ref={position === 0 ? cardRef : null}
+                        onLayout={(event) => {
+                          if (position === 0 && expandedService === service.id) {
+                            cardRef.current?.measure((x, y, width, height, pageX, pageY) => {
+                              setPanelPosition({
+                                x: pageX + width, 
+                                y: pageY,
+                              });
+                            });
+                          }
+                        }}
                       >
-                        {isSelected ? (
-                          <LinearGradient
-                            colors={['#3dcbee','#3db6ee', '#3d67ee', '#2565db', '#3dcbee']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={[
-                              userStyle.serviceCard, 
-                              {
-                                padding: 20, 
-                                height: '100%', 
-                                justifyContent: 'space-between', 
-                                borderRadius: 15,
-                                borderWidth: 2,
-                                borderColor: '#2565db',
-                               
-                                shadowColor: '#000',
-                                shadowOffset: { width: 0, height: 4 },
-                                shadowOpacity: 0.25,
-                                shadowRadius: 8,
-                                elevation: 5,
-                              }
-                            ]}
-                          >
-                            <Ionicons name={service.icon} size={40} color="#ffffffee" style={{alignSelf: 'center', marginTop: 8}}/>
-                            <Text style={[userStyle.serviceName, {textAlign: 'center', fontSize: 18, color: 'white', fontWeight: 'bold'}]}>{service.name}</Text>
-                            <View style={{alignItems: 'center'}}>
-                              {service.description.map((line, index) => (
-                                <Text key={index} style={[userStyle.serviceDescription, {textAlign: 'center', fontSize: 13, color: 'white'}]}>{line}</Text>
-                              ))}
-                            </View>
-                            <Text style={[userStyle.servicePrice, {textAlign: 'center', fontSize: 18, color: 'white', fontWeight: 'bold'}]}>{service.basePrice}</Text>
-                          </LinearGradient>
-                        ) : (
-                          <View style={[userStyle.serviceCard, {
-                            padding: 20, 
-                            height: '100%', 
-                            justifyContent: 'space-between', 
-                            borderRadius: 15, 
-                            backgroundColor: 'white', 
-                            borderWidth: 1, 
-                            borderColor: '#3d67ee',
+                        <TouchableOpacity 
+                          style={{
+                            width: 220,
+                            height: 300,
+                            marginLeft,
+                            marginRight,
+                            transform: [{ scale }],
+                            opacity,
                             shadowColor: '#000',
                             shadowOffset: { width: position === 0 ? 0 : 2, height: position === 0 ? 4 : 2 },
                             shadowOpacity: position === 0 ? 0.25 : 0.15,
                             shadowRadius: position === 0 ? 8 : 4,
-                            elevation: position === 0 ? 5 : 3,
-                          }]}>
-                            <Ionicons name={service.icon} size={40} color="#3d67ee" style={{alignSelf: 'center', marginTop: 8}}/>
-                            <Text style={[userStyle.serviceName, {textAlign: 'center', fontSize: 18, color: '#3d67ee', fontWeight: 'bold'}]}>{service.name}</Text>
-                            <View style={{alignItems: 'center'}}>
-                              {service.description.map((line, index) => (
-                                <Text key={index} style={[userStyle.serviceDescription, {textAlign: 'center', fontSize: 13, color: '#444'}]}>{line}</Text>
-                              ))}
+                            borderRadius: 15,
+                          }}
+                          onPress={() => handleServiceSelect(service)}
+                          activeOpacity={position === 0 ? 0.7 : 1}
+                          disabled={position !== 0}
+                        >
+                          {isSelected ? (
+                            <LinearGradient
+                              colors={['#3dcbee','#3db6ee', '#3d67ee', '#2565db', '#3dcbee']}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={[
+                                userStyle.serviceCard, 
+                                {
+                                  padding: 20, 
+                                  height: '100%', 
+                                  justifyContent: 'space-between', 
+                                  borderRadius: 15,
+                                  borderWidth: 2,
+                                  borderColor: '#2565db',
+                                  shadowColor: '#000',
+                                  shadowOffset: { width: 0, height: 4 },
+                                  shadowOpacity: 0.25,
+                                  shadowRadius: 8,
+                                  elevation: 5,
+                                }
+                              ]}
+                            >
+                              <Ionicons name={service.icon} size={40} color="#ffffffee" style={{alignSelf: 'center', marginTop: 8}}/>
+                              <Text style={[userStyle.serviceName, {textAlign: 'center', fontSize: 18, color: 'white', fontWeight: 'bold'}]}>{service.name}</Text>
+                              <View style={{alignItems: 'center'}}>
+                                {service.description.map((line, index) => (
+                                  <Text key={index} style={[userStyle.serviceDescription, {textAlign: 'center', fontSize: 13, color: 'white'}]}>{line}</Text>
+                                ))}
+                              </View>
+                              <Text style={[userStyle.servicePrice, {textAlign: 'center', fontSize: 18, color: 'white', fontWeight: 'bold'}]}>{service.basePrice}</Text>
+                            </LinearGradient>
+                          ) : (
+                            <View style={[userStyle.serviceCard, {
+                              padding: 20, 
+                              height: '100%', 
+                              justifyContent: 'space-between', 
+                              borderRadius: 15, 
+                              backgroundColor: 'white', 
+                              borderWidth: 1, 
+                              borderColor: '#3d67ee',
+                              shadowColor: '#000',
+                              shadowOffset: { width: position === 0 ? 0 : 2, height: position === 0 ? 4 : 2 },
+                              shadowOpacity: position === 0 ? 0.25 : 0.15,
+                              shadowRadius: position === 0 ? 8 : 4,
+                              elevation: position === 0 ? 5 : 3,
+                            }]}>
+                              <Ionicons name={service.icon} size={40} color="#3d67ee" style={{alignSelf: 'center', marginTop: 8}}/>
+                              <Text style={[userStyle.serviceName, {textAlign: 'center', fontSize: 18, color: '#3d67ee', fontWeight: 'bold'}]}>{service.name}</Text>
+                              <View style={{alignItems: 'center'}}>
+                                {service.description.map((line, index) => (
+                                  <Text key={index} style={[userStyle.serviceDescription, {textAlign: 'center', fontSize: 13, color: '#444'}]}>{line}</Text>
+                                ))}
+                              </View>
+                              <Text style={[userStyle.servicePrice, {textAlign: 'center', fontSize: 18, color: '#3d67ee', fontWeight: 'bold'}]}>{service.basePrice}</Text>
                             </View>
-                            <Text style={[userStyle.servicePrice, {textAlign: 'center', fontSize: 18, color: '#3d67ee', fontWeight: 'bold'}]}>{service.basePrice}</Text>
-                          </View>
-                        )}
-                      </TouchableOpacity>
+                          )}
+                        </TouchableOpacity>
 
                         {/* Extension Panel for Options */}
                         {position === 0 && centerService?.hasOptions && expandedService === centerService.id && (
@@ -1069,7 +1160,6 @@ const cardRef = useRef(null);
                                   }),
                                 },
                               ],
-                              
                               opacity: slideAnim,
                               shadowColor: '#000',
                               shadowOffset: { width: 4, height: 2 },
@@ -1138,12 +1228,11 @@ const cardRef = useRef(null);
                             </ScrollView>
                           </Animated.View>
                         )}
-                          </View>
-                        );
-                      })}
+                      </View>
+                    );
+                  })}
                 </View>
 
-                {/* Right Arrow - Centered vertically with cards */}
                 <View style={{justifyContent: 'center', height: 300}}>
                   <TouchableOpacity 
                     onPress={goToNextCard}
@@ -1158,18 +1247,24 @@ const cardRef = useRef(null);
                 </View>
               </View>
 
-              {/* Selected Services Display - Moved to bottom of cards */}
               {selectedServices.length > 0 && (
                 <View style={{
-                  backgroundColor: '#f0f5ff',
+                  alignSelf: 'center',
+                  backgroundColor: '#ffffff',
+                  width: 600,
                   padding: 15,
                   borderRadius: 10,
                   marginHorizontal: 100,
                   marginBottom: 20,
                   borderWidth: 1,
                   borderColor: '#3d67ee',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.12,
+                  shadowRadius: 8,
+                  pointerEvents: 'auto',
                 }}>
-                  <Text style={{fontSize: 16, fontWeight: 'bold', color: '#3d67ee', marginBottom: 10}}>
+                  <Text style={{fontSize: 16, fontWeight: '500', color: '#3d67ee', marginBottom: 10}}>
                     Selected Services:
                   </Text>
                   <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 10}}>
@@ -1225,233 +1320,107 @@ const cardRef = useRef(null);
                 </View>
               )}
 
-              {/* Proceed Button */}
               <View style={{alignItems: 'center', marginTop: 20, marginBottom: 30}}>
                 <TouchableOpacity style={userStyle.btnStyle} onPress={handleProceed}>
-                    <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Proceed</Text>
+                  <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Proceed</Text>
                 </TouchableOpacity>
               </View>
             </>
           )}
 
-          {/* Rest of the code remains the same for steps 2-6 */}
-          {step === 2 && selectedServices.length > 0 && (
+          {/* Step 2 - Select Pet */}
+          {step === 2 && (
             <>
-              {/* Doctors List - Larger Cards */}
-              <View style={{paddingHorizontal: 20}}>
-                <View style={{flexDirection: 'row', justifyContent: 'center', gap: 40, flexWrap: 'wrap'}}>
-                  {/* Combine all doctors from selected services (remove duplicates) */}
-                  {[...new Set(selectedServices.flatMap(s => s.doctors))].map((doctor, index) => (
+              <View style={{paddingHorizontal: 100, marginBottom: 40}}>
+                <View style={{flexDirection: 'row', justifyContent: 'center', gap: 30, flexWrap: 'wrap'}}>
+                  {userPets.map((pet) => (
                     <TouchableOpacity 
-                      key={index}
+                      key={pet.id}
                       style={{
+                        width: 200,
+                        height: 250,
                         backgroundColor: '#ffffff',
-                        padding: 25,
                         borderRadius: 20,
+                        padding: 20,
                         shadowColor: '#000',
                         shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: 0.15,
-                        shadowRadius: 12,
-                        elevation: 5,
-                        alignItems: 'center',
-                        width: 220,
-                        opacity: selectedDoctor === doctor ? 1 : 0.7,
-                        borderWidth: selectedDoctor === doctor ? 2 : 1,
-                        borderColor: selectedDoctor === doctor ? '#3d67ee' : '#e0e0e0',
-                        justifyContent: 'center',
+                        shadowOpacity: 0.1,
+                        shadowRadius: 8,
+                        elevation: 4,
+                        opacity: selectedPet?.id === pet.id ? 1 : 0.5,
+                        borderWidth: selectedPet?.id === pet.id ? 2 : 1,
+                        borderColor: selectedPet?.id === pet.id ? '#3d67ee' : '#e0e0e0',
                       }}
-                      onPress={() => handleDoctorSelect(doctor)}
+                      onPress={() => handlePetSelect(pet)}
                     >
-                      <Image 
-                        source={require('../assets/sampleDoc.jpg')} 
-                        style={{width: 100, height: 100, borderRadius: 50, marginBottom: 15}}
-                      />
                       <View style={{alignItems: 'center'}}>
-                        <Text style={{fontSize: 18, fontWeight: 'bold', color: '#333', textAlign: 'center', marginBottom: 5}}>{doctor}</Text>
-                        <Text style={{color: '#666', fontSize: 14, textAlign: 'center'}}>Veterinarian</Text>
-                        <Text style={{color: '#3d67ee', fontSize: 14, fontWeight: '500', marginTop: 8}}>Available</Text>
+                        <Image 
+                          source={pet.image}
+                          style={{
+                            width: 100,
+                            height: 100,
+                            borderRadius: 50,
+                            marginBottom: 12,
+                          }}
+                        />
+                        <Text style={{fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 5}}>{pet.name}</Text>
+                        <Text style={{fontSize: 14, color: '#666'}}>{pet.species} • {pet.breed}</Text>
+                        <Text style={{fontSize: 14, color: '#666', marginTop: 2}}>{pet.gender} • {pet.age} years</Text>
                       </View>
                     </TouchableOpacity>
                   ))}
-                </View>
-              </View>
 
-              {/* Navigation Buttons */}
-              <View style={{flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 50, marginBottom: 30}}>
-                <TouchableOpacity style={[userStyle.btnStyle, {backgroundColor: '#ccc'}]} onPress={handleBack}>
-                    <Text style={{color: '#fffefe', fontSize: 16, fontWeight: '500'}}>Back</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={userStyle.btnStyle} onPress={handleContinue}>     
-                    <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Proceed</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          )}
-
-          {step === 3 && selectedDoctor && (
-            <>
-            <View style={{alignItems: 'center', marginBottom: 20, marginTop: 10}}>
-              {/* Selected Date & Time Display */}
-                  {selectedDate && (
-                    <LinearGradient
-                      colors={['#3db6ee', '#3d67ee', '#0738D9', '#0f3bca', '#3db6ee']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={{
-                        paddingVertical: 12,
-                        paddingHorizontal: 20,
-                        width: '40%',
-                        borderRadius: 30,
-                        marginBottom: 20,
-                        alignItems: 'center',
-                      }}
-                    >
-                      <Text style={{color: 'white', fontSize: 16, fontWeight: '600'}}>
-                        {formatSelectedDate()}
-                        {selectedTime ? ` at ${selectedTime}` : ''}
-                      </Text>
-                    </LinearGradient>
-                  )}
-            </View>
-
-              <View style={{flexDirection: 'row', gap: 30, paddingHorizontal: 100, marginBottom: 30, justifyContent: 'center', flexWrap: 'wrap'}}>
-                
-                <View style={{flex: 0.4, borderRadius: 20, overflow: 'hidden', elevation: 8, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.2, shadowRadius: 8}}>
-                  <LinearGradient
-                    colors={['#3db6ee', '#3d67ee', '#0738D9', '#0f3bca', '#3db6ee']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={{padding: 15, borderRadius: 20}}
+                  <TouchableOpacity 
+                    style={{
+                      width: 200,
+                      height: 250,
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: 20,
+                      padding: 20,
+                      shadowColor: '#000',
+                      shadowOffset: { width: 0, height: 4 },
+                      shadowOpacity: 0.1,
+                      shadowRadius: 8,
+                      elevation: 4,
+                      borderWidth: 1,
+                      borderColor: '#e0e0e0',
+                      borderStyle: 'dashed',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                    onPress={handleAddPet}
                   >
-                    <Calendar
-                      style={{
-                        borderRadius: 15,
-                        overflow: 'hidden',
-                        width: '100%',
-                      }}
-                      theme={{
-                        backgroundColor: 'transparent',
-                        calendarBackground: 'transparent',
-                        textSectionTitleColor: 'white',
-                        selectedDayBackgroundColor: '#ffffff',
-                        selectedDayTextColor: '#3d67ee',
-                        todayTextColor: '#ffffff',
-                        dayTextColor: 'white',
-                        textDisabledColor: 'rgba(255,255,255,0.2)',
-                        dotColor: '#3d67ee',
-                        selectedDotColor: '#ffffff',
-                        arrowColor: 'white',
-                        monthTextColor: 'white',
-                        textMonthFontWeight: 'bold',
-                        textDayHeaderFontWeight: 'bold',
-                        textDayFontSize: 12,
-                        textMonthFontSize: 14,
-                        textDayHeaderFontSize: 11,
-                        'stylesheet.calendar.main': {
-                          week: {
-                            marginTop: 3,
-                            marginBottom: 3,
-                            flexDirection: 'row',
-                            justifyContent: 'space-around',
-                          },
-                        },
-                      }}
-                      markedDates={getMarkedDates()}
-                      onDayPress={handleDateSelect}
-                      enableSwipeMonths={true}
-                      minDate={getTodayDate()}
-                      maxDate={getMaxDate()}
-                      hideArrows={false}
-                      hideExtraDays={true}
-                      renderHeader={(date) => customHeader(date)}
-                      dayComponent={dayComponent}
-                    />
-                  </LinearGradient>
-                </View>
-
-                {/* Right Column - White Container with Time Slots */}
-                <View style={{
-                  flex: 0.4,
-                  backgroundColor: 'white',
-                  borderRadius: 20,
-                  padding: 20,
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.15,
-                  shadowRadius: 12,
-                  elevation: 8,
-                  borderWidth: 1,
-                  borderColor: '#f0f0f0',
-                }}>
-
-                  <Text style={{fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 8,marginBottom: 20, textAlign: 'center'}}>
-                    Available Time Slots
-                  </Text>
-                  
-                  {!selectedDate ? (
-                    <View style={{padding: 20, alignItems: 'center'}}>
-                      <Text style={{color: '#999', fontSize: 14}}>
-                        Please select a date from the calendar
-                      </Text>
+                    <View style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 40,
+                      backgroundColor: '#3d67ee20',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginBottom: 15,
+                    }}>
+                      <Ionicons name="add" size={50} color="#3d67ee" />
                     </View>
-                  ) : timeSlots.length > 0 ? (
-                    <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center'}}>
-                      {timeSlots.map((time, index) => {
-                        const isSelected = selectedTime === time;
-                        return (
-                          <TouchableOpacity
-                            key={index}
-                            style={{
-                              paddingVertical: 10,
-                              paddingHorizontal: 14,
-                              borderRadius: 8,
-                              backgroundColor: isSelected ? '#3d67ee' : '#ffffff',
-                              borderWidth: 1,
-                              borderColor: isSelected ? '#3d67ee' : '#3d67ee',
-                              marginRight: 6,
-                              marginBottom: 6,
-                              minWidth: 110,
-                            }}
-                            onPress={() => handleTimeSelect(time)}
-                          >
-                            <Text style={{
-                              color: isSelected ? '#ffffff' : '#333',
-                              fontWeight: isSelected ? '500' : 'normal',
-                              textAlign: 'center',
-                              fontSize: 13,
-                            }}>
-                              {time}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-                  ) : (
-                    <View style={{padding: 20, alignItems: 'center'}}>
-                      <Text style={{color: '#999', fontSize: 14}}>
-                        No time slots available for this date
-                      </Text>
-                    </View>
-                  )}
+                    <Text style={{fontSize: 18, color: '#3d67ee', fontWeight: '500'}}>Add Pet</Text>
+                  </TouchableOpacity>
                 </View>
               </View>
 
               <View style={{flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 20, marginBottom: 30}}>
                 <TouchableOpacity style={[userStyle.btnStyle, {backgroundColor: '#ccc'}]} onPress={handleBack}>
-                    <Text style={{color: '#fffefe', fontSize: 16, fontWeight: '500'}}>Back</Text>
+                  <Text style={{color: '#fffefe', fontSize: 16, fontWeight: '500'}}>Back</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={userStyle.btnStyle} onPress={handleContinue}>     
-                    <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Proceed</Text>
+                  <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Proceed</Text>
                 </TouchableOpacity>
               </View>
             </>
           )}
 
-          {step === 4 && (
+          {/* Step 3 - Select Branch */}
+          {step === 3 && (
             <>
-              {/* Branch Selection */}
               <View style={{paddingHorizontal: 150, marginBottom: 40}}>
                 <View style={{flexDirection: 'row', justifyContent: 'center', gap: 40, flexWrap: 'wrap'}}>
                   {vetBranches.map((branch) => (
@@ -1510,107 +1479,443 @@ const cardRef = useRef(null);
 
               <View style={{flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 20, marginBottom: 30}}>
                 <TouchableOpacity style={[userStyle.btnStyle, {backgroundColor: '#ccc'}]} onPress={handleBack}>
-                    <Text style={{color: '#fffefe', fontSize: 16, fontWeight: '500'}}>Back</Text>
+                  <Text style={{color: '#fffefe', fontSize: 16, fontWeight: '500'}}>Back</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={userStyle.btnStyle} onPress={handleContinue}>     
-                    <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Proceed</Text>
+                  <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Proceed</Text>
                 </TouchableOpacity>
               </View>
             </>
           )}
 
-          {step === 5 && (
+          {/* Step 4 - Select Date & Time */}
+          {step === 4 && (
             <>
-              <View style={{paddingHorizontal: 100, marginBottom: 40}}>
-                <View style={{flexDirection: 'row', justifyContent: 'center', gap: 30, flexWrap: 'wrap'}}>
-                  {/* Pet Cards - UPDATED with images and larger size */}
-                  {userPets.map((pet) => (
-                    <TouchableOpacity 
-                      key={pet.id}
-                      style={{
-                        width: 200,
-                        height: 250,
-                        backgroundColor: '#ffffff',
-                        borderRadius: 20,
-                        padding: 20,
-                        shadowColor: '#000',
-                        shadowOffset: { width: 0, height: 4 },
-                        shadowOpacity: 0.1,
-                        shadowRadius: 8,
-                        elevation: 4,
-                        opacity: selectedPet?.id === pet.id ? 1 : 0.5,
-                        borderWidth: selectedPet?.id === pet.id ? 2 : 1,
-                        borderColor: selectedPet?.id === pet.id ? '#3d67ee' : '#e0e0e0',
-                      }}
-                      onPress={() => handlePetSelect(pet)}
-                    >
-                      <View style={{alignItems: 'center'}}>
-                        <Image 
-                          source={pet.image}
-                          style={{
-                            width: 100,
-                            height: 100,
-                            borderRadius: 50,
-                            marginBottom: 12,
-                          }}
-                        />
-                        <Text style={{fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 5}}>{pet.name}</Text>
-                        <Text style={{fontSize: 14, color: '#666'}}>{pet.species} • {pet.breed}</Text>
-                        <Text style={{fontSize: 14, color: '#666', marginTop: 2}}>{pet.gender} • {pet.age} years</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-
-                  {/* Add Pet Card */}
-                  <TouchableOpacity 
+              <View style={{alignItems: 'center', marginBottom: 20, marginTop: 10}}>
+                {selectedDate && (
+                  <LinearGradient
+                    colors={['#3db6ee', '#3d67ee', '#0738D9', '#0f3bca', '#3db6ee']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
                     style={{
-                      width: 200,
-                      height: 250,
-                      backgroundColor: '#f8f9fa',
-                      borderRadius: 20,
-                      padding: 20,
-                      shadowColor: '#000',
-                      shadowOffset: { width: 0, height: 4 },
-                      shadowOpacity: 0.1,
-                      shadowRadius: 8,
-                      elevation: 4,
-                      borderWidth: 1,
-                      borderColor: '#e0e0e0',
-                      borderStyle: 'dashed',
-                      justifyContent: 'center',
+                      paddingVertical: 12,
+                      paddingHorizontal: 20,
+                      width: '40%',
+                      borderRadius: 30,
+                      marginBottom: 20,
                       alignItems: 'center',
                     }}
-                    onPress={handleAddPet}
                   >
-                    <View style={{
-                      width: 80,
-                      height: 80,
-                      borderRadius: 40,
-                      backgroundColor: '#3d67ee20',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      marginBottom: 15,
-                    }}>
-                      <Ionicons name="add" size={50} color="#3d67ee" />
+                    <Text style={{color: 'white', fontSize: 16, fontWeight: '600'}}>
+                      {formatSelectedDate()}
+                      {selectedTime ? ` at ${selectedTime}` : ''}
+                    </Text>
+                  </LinearGradient>
+                )}
+              </View>
+
+              <View style={{flexDirection: 'row', gap: 30, paddingHorizontal: 100, marginBottom: 30, justifyContent: 'center', flexWrap: 'wrap'}}>
+                <View style={{
+                  borderRadius: 20, 
+                  overflow: 'hidden', 
+                  elevation: 8, 
+                  shadowColor: '#000', 
+                  shadowOffset: { width: 0, height: 4 }, 
+                  shadowOpacity: 0.2, 
+                  shadowRadius: 8,
+                  backgroundColor: 'red',
+                  width: 400,
+                  alignItems: 'center',
+                }}>
+                  <LinearGradient
+                    colors={['#3db6ee', '#3d67ee', '#0738D9', '#0f3bca', '#3db6ee']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{padding: 15, borderRadius: 20, width: 400, height: '100%'}}
+                  >
+                    <Calendar
+                      style={{
+                        borderRadius: 15,
+                        overflow: 'hidden',
+                        width: '100%',
+                      }}
+                      theme={{
+                        backgroundColor: 'transparent',
+                        calendarBackground: 'transparent',
+                        textSectionTitleColor: 'white',
+                        selectedDayBackgroundColor: '#ffffff',
+                        selectedDayTextColor: '#3d67ee',
+                        todayTextColor: '#ffffff',
+                        dayTextColor: 'white',
+                        textDisabledColor: 'rgba(255,255,255,0.2)',
+                        dotColor: '#3d67ee',
+                        selectedDotColor: '#ffffff',
+                        arrowColor: 'white',
+                        monthTextColor: 'white',
+                        textMonthFontWeight: 'bold',
+                        textDayHeaderFontWeight: 'bold',
+                        textDayFontSize: 12,
+                        textMonthFontSize: 14,
+                        textDayHeaderFontSize: 11,
+                        'stylesheet.calendar.main': {
+                          week: {
+                            marginTop: 3,
+                            marginBottom: 3,
+                            flexDirection: 'row',
+                            justifyContent: 'space-around',
+                          },
+                        },
+                      }}
+                      markedDates={getMarkedDates()}
+                      onDayPress={handleDateSelect}
+                      enableSwipeMonths={true}
+                      minDate={getTodayDate()}
+                      maxDate={getMaxDate()}
+                      hideArrows={false}
+                      hideExtraDays={true}
+                      renderHeader={(date) => customHeader(date)}
+                      dayComponent={dayComponent}
+                    />
+                  </LinearGradient>
+                </View>
+
+                <View style={{
+                  width: 400,
+                  backgroundColor: 'white',
+                  borderRadius: 20,
+                  padding: 20,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.15,
+                  shadowRadius: 12,
+                  elevation: 8,
+                  borderWidth: 1,
+                  borderColor: '#f0f0f0',
+                }}>
+                  <Text style={{fontSize: 18, fontWeight: 'bold', color: '#333', marginTop: 8, marginBottom: 20, textAlign: 'center'}}>
+                    Available Time Slots
+                  </Text>
+                  
+                  {!selectedDate ? (
+                    <View style={{padding: 20, alignItems: 'center'}}>
+                      <Text style={{color: '#999', fontSize: 14}}>
+                        Please select a date from the calendar
+                      </Text>
                     </View>
-                    <Text style={{fontSize: 18, color: '#3d67ee', fontWeight: '500'}}>Add Pet</Text>
-                  </TouchableOpacity>
+                  ) : timeSlots.length > 0 ? (
+                    <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 8, justifyContent: 'center'}}>
+                      {timeSlots.map((time, index) => {
+                        const isSelected = selectedTime === time;
+                        return (
+                          <TouchableOpacity
+                            key={index}
+                            style={{
+                              paddingVertical: 9,
+                              paddingHorizontal: 10,
+                              borderRadius: 8,
+                              backgroundColor: isSelected ? '#3d67ee' : '#ffffff',
+                              borderWidth: 1,
+                              borderColor: isSelected ? '#3d67ee' : '#3d67ee',
+                              marginRight: 6,
+                              marginBottom: 6,
+                              width: 140,
+                            }}
+                            onPress={() => handleTimeSelect(time)}
+                          >
+                            <Text style={{
+                              color: isSelected ? '#ffffff' : '#333',
+                              fontWeight: isSelected ? '500' : 'normal',
+                              textAlign: 'center',
+                              fontSize: 13,
+                            }}>
+                              {time}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View style={{padding: 20, alignItems: 'center'}}>
+                      <Text style={{color: '#999', fontSize: 14}}>
+                        No time slots available for this date
+                      </Text>
+                    </View>
+                  )}
                 </View>
               </View>
 
               <View style={{flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 20, marginBottom: 30}}>
                 <TouchableOpacity style={[userStyle.btnStyle, {backgroundColor: '#ccc'}]} onPress={handleBack}>
-                    <Text style={{color: '#fffefe', fontSize: 16, fontWeight: '500'}}>Back</Text>
+                  <Text style={{color: '#fffefe', fontSize: 16, fontWeight: '500'}}>Back</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={userStyle.btnStyle} onPress={handleContinue}>     
-                    <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Proceed</Text>
+                  <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Proceed</Text>
                 </TouchableOpacity>
               </View>
             </>
           )}
 
+          {/* Step 5 - Medical Questionnaire */}
+          {step === 5 && (
+            <>
+              <View style={{paddingHorizontal: 200, marginBottom: 30}}>
+                <View style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: 20,
+                  padding: 30,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 8,
+                  elevation: 4,
+                  borderWidth: 1,
+                  borderColor: '#3d67ee',
+                  width: '100%',
+                }}>
+                  
+                  {/* Required Fields Indication */}
+                  <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 20, backgroundColor: '#f8f9fa', padding: 15, borderRadius: 10}}>
+                    <Ionicons name="information-circle-outline" size={24} color="#ee3d5a" style={{marginRight: 10}} />
+                    <Text style={{fontSize: 14, color: '#333', flex: 1}}>
+                      <Text style={{fontWeight: 'bold', color: '#ee3d5a'}}>Required:</Text> All medical questions must be answered before proceeding.
+                    </Text>
+                  </View>
+                  
+                  {/* Medical Questions */}
+                  <View style={{gap: 25, marginBottom: 30}}>
+                    {medicalQuestions.map((q) => (
+                      <View key={q.id} style={{marginBottom: 15}}>
+                        <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 12}}>
+                          <Text style={{fontSize: 16, fontWeight: '500', color: '#333'}}>
+                            {q.question}
+                          </Text>
+                          <Text style={{color: '#ee3d5a', marginLeft: 5, fontSize: 16}}>*</Text>
+                        </View>
+                        
+                        <View style={{flexDirection: 'row', gap: 30, marginBottom: q.hasDetails && medicalAnswers[q.key] === true ? 15 : 0}}>
+                          <TouchableOpacity 
+                            style={{flexDirection: 'row', alignItems: 'center'}}
+                            onPress={() => {
+                              handleMedicalAnswer(q.key, true);
+                              // Reset medication details if switching from Yes to No
+                              if (q.key === 'medications72h' && medicalAnswers[q.key] === true) {
+                                setMedicationDetails('');
+                              }
+                            }}
+                          >
+                            <View style={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: 10,
+                              borderWidth: 2,
+                              borderColor: '#3d67ee',
+                              backgroundColor: medicalAnswers[q.key] === true ? '#3d67ee' : 'transparent',
+                              marginRight: 8,
+                            }} />
+                            <Text style={{fontSize: 16, color: '#333'}}>Yes</Text>
+                          </TouchableOpacity>
+                          
+                          <TouchableOpacity 
+                            style={{flexDirection: 'row', alignItems: 'center'}}
+                            onPress={() => {
+                              handleMedicalAnswer(q.key, false);
+                              // Clear medication details if switching to No
+                              if (q.key === 'medications72h') {
+                                setMedicationDetails('');
+                              }
+                            }}
+                          >
+                            <View style={{
+                              width: 20,
+                              height: 20,
+                              borderRadius: 10,
+                              borderWidth: 2,
+                              borderColor: '#3d67ee',
+                              backgroundColor: medicalAnswers[q.key] === false ? '#3d67ee' : 'transparent',
+                              marginRight: 8,
+                            }} />
+                            <Text style={{fontSize: 16, color: '#333'}}>No</Text>
+                          </TouchableOpacity>
+                        </View>
+                        
+                        {/* Medication Details Field - Shows only if Yes is selected for medications question */}
+                        {q.key === 'medications72h' && medicalAnswers[q.key] === true && (
+                          <View style={{marginTop: 15, marginLeft: 30}}>
+                            <Text style={{fontSize: 14, fontWeight: '500', color: '#3d67ee', marginBottom: 8}}>
+                              Please specify the medication(s) given: <Text style={{color: '#ee3d5a'}}>*</Text>
+                            </Text>
+                            <TextInput
+                              style={{
+                                borderWidth: 1,
+                                borderColor: '#3d67ee',
+                                borderRadius: 10,
+                                padding: 12,
+                                fontSize: 15,
+                                backgroundColor: '#f8f9fa',
+                              }}
+                              placeholder="e.g., Antibiotics, Pain medication, etc."
+                              value={medicationDetails}
+                              onChangeText={setMedicationDetails}
+                            />
+                            <Text style={{fontSize: 12, color: '#999', marginTop: 5}}>
+                              Include medication names, dosage, and when it was given
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Additional Notes */}
+                  <View style={{marginBottom: 20}}>
+                    <Text style={{fontSize: 16, fontWeight: '500', color: '#333', marginBottom: 10}}>
+                      Additional Notes (Optional)
+                    </Text>
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: '#3d67ee',
+                        borderRadius: 10,
+                        padding: 15,
+                        fontSize: 16,
+                        minHeight: 100,
+                        textAlignVertical: 'top',
+                      }}
+                      placeholder="Any specific concerns or information you'd like to share..."
+                      value={additionalNotes}
+                      onChangeText={setAdditionalNotes}
+                      multiline
+                      numberOfLines={4}
+                    />
+                  </View>
+
+                  {/* Grooming-specific section */}
+                  {selectedServices.some(s => s.id === 1) && selectedGroomingOptions.length > 0 && (
+                    <View style={{marginTop: 20, borderTopWidth: 1, borderTopColor: '#3d67ee20', paddingTop: 20}}>
+                      <Text style={{fontSize: 18, fontWeight: 'bold', color: '#3d67ee', marginBottom: 15}}>
+                        Grooming Preferences
+                      </Text>
+                      
+                      {/* Haircut Style Selection */}
+                      <Text style={{fontSize: 16, fontWeight: '500', color: '#333', marginBottom: 10}}>
+                        Preferred Haircut Style
+                      </Text>
+                      <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 20}}>
+                        {haircutStyles.map((style) => (
+                          <TouchableOpacity
+                            key={style.id}
+                            style={{
+                              paddingVertical: 8,
+                              paddingHorizontal: 16,
+                              borderRadius: 20,
+                              backgroundColor: selectedHaircutStyle === style.id ? '#3d67ee' : '#f0f0f0',
+                              borderWidth: 1,
+                              borderColor: '#3d67ee',
+                            }}
+                            onPress={() => setSelectedHaircutStyle(style.id)}
+                          >
+                            <Text style={{
+                              color: selectedHaircutStyle === style.id ? 'white' : '#3d67ee',
+                              fontWeight: '500',
+                            }}>
+                              {style.name}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+
+                      {/* Custom Style Description */}
+                      {selectedHaircutStyle === 'h6' && (
+                        <TextInput
+                          style={{
+                            borderWidth: 1,
+                            borderColor: '#3d67ee',
+                            borderRadius: 10,
+                            padding: 12,
+                            fontSize: 16,
+                            marginBottom: 20,
+                          }}
+                          placeholder="Please describe the desired haircut style..."
+                          value={customHaircutDescription}
+                          onChangeText={setCustomHaircutDescription}
+                        />
+                      )}
+
+                      {/* Reference Image Upload */}
+                      <Text style={{fontSize: 16, fontWeight: '500', color: '#333', marginBottom: 10}}>
+                        Reference Image (Optional)
+                      </Text>
+                      <TouchableOpacity
+                        style={{
+                          borderWidth: 2,
+                          borderColor: '#3d67ee',
+                          borderStyle: 'dashed',
+                          borderRadius: 10,
+                          padding: 20,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          backgroundColor: '#f8f9fa',
+                          marginBottom: 10,
+                        }}
+                        onPress={pickImage}
+                      >
+                        {haircutImage ? (
+                          <View style={{alignItems: 'center'}}>
+                            <Image 
+                              source={{uri: haircutImage}} 
+                              style={{width: 200, height: 200, borderRadius: 10, marginBottom: 10}}
+                            />
+                            <Text style={{color: '#3d67ee'}}>Tap to change image</Text>
+                          </View>
+                        ) : (
+                          <>
+                            <Ionicons name="cloud-upload-outline" size={50} color="#3d67ee" />
+                            <Text style={{color: '#3d67ee', marginTop: 10, fontSize: 16}}>
+                              Upload Reference Image
+                            </Text>
+                            <Text style={{color: '#999', marginTop: 5, fontSize: 14}}>
+                              (Optional - show desired hairstyle)
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              </View>
+
+              <View style={{flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 20, marginBottom: 30}}>
+                <TouchableOpacity style={[userStyle.btnStyle, {backgroundColor: '#ccc'}]} onPress={handleBack}>
+                  <Text style={{color: '#fffefe', fontSize: 16, fontWeight: '500'}}>Back</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity 
+                  style={[
+                    userStyle.btnStyle, 
+                    {
+                      opacity: (medicalAnswers.medications72h === null || 
+                              medicalAnswers.fleaPrevention === null || 
+                              medicalAnswers.catVaccinations === null || 
+                              medicalAnswers.notPregnant === null ||
+                              (medicalAnswers.medications72h === true && !medicationDetails.trim())) ? 0.5 : 1
+                    }
+                  ]} 
+                  onPress={handleContinue}
+                  disabled={medicalAnswers.medications72h === null || 
+                          medicalAnswers.fleaPrevention === null || 
+                          medicalAnswers.catVaccinations === null || 
+                          medicalAnswers.notPregnant === null ||
+                          (medicalAnswers.medications72h === true && !medicationDetails.trim())}
+                >     
+                  <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Proceed</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          )}
+
+          {/* Step 6 - Confirmation */}
           {step === 6 && (
             <>
               {/* Booking Confirmation Details */}
@@ -1632,8 +1937,8 @@ const cardRef = useRef(null);
                   alignSelf: 'center',
                 }}>
                   <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 20}}>
-                    <Ionicons name="person-circle-outline" size={30} color="#3d67ee" style={{ marginRight: 10, marginTop: 3 }} />
-                    <Text style={{fontSize: 22, fontWeight: '500', color: '#3d67ee'}}>Owner Details</Text>
+                    <Ionicons name="person-circle-outline" size={27} color="#3d67ee" style={{ marginRight: 10, marginTop: 3 }} />
+                    <Text style={{fontSize: 20, fontWeight: '500', color: '#3d67ee'}}>Owner Details</Text>
                   </View>
                   
                   <View style={{gap: 12}}>
@@ -1674,8 +1979,8 @@ const cardRef = useRef(null);
                     alignSelf: 'center',
                   }}>
                     <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 20}}>
-                      <Ionicons name="paw" size={28} color="#3d67ee" style={{ marginRight: 12, marginTop: 3 }} />
-                      <Text style={{fontSize: 22, fontWeight: '500', color: '#3d67ee'}}>Pet Details</Text>
+                      <Ionicons name="paw" size={22} color="#3d67ee" style={{ marginRight: 12, marginTop: 3 }} />
+                      <Text style={{fontSize: 20, fontWeight: '500', color: '#3d67ee'}}>Pet Details</Text>
                     </View>
                     
                     <View style={{flexDirection: 'row', marginBottom: 15}}>
@@ -1705,9 +2010,136 @@ const cardRef = useRef(null);
                   </View>
                 )}
 
+                {/* Medical Information Card */}
+                <View style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: 20,
+                  padding: 25,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 8,
+                  elevation: 4,
+                  borderWidth: 1,
+                  borderColor: '#3d67ee',
+                  marginBottom: 20,
+                  width: '60%',
+                  alignSelf: 'center',
+                }}>
+                  <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 20}}>
+                    <Ionicons name="medical" size={22} color="#3d67ee" style={{marginRight: 12}}/>
+                    <Text style={{fontSize: 20, fontWeight: '500', color: '#3d67ee'}}>Medical Information</Text>
+                  </View>
+                  
+                  <View style={{gap: 15, width: '100%'}}>
+                    {/* Medications */}
+                    <View style={{flexDirection: 'row', alignItems: 'flex-start'}}>
+                      <Text style={{width: 220, fontSize: 14, color: '#333', fontWeight: '500'}}>
+                        Medication in the past 72 Hours
+                      </Text>
+                      <View style={{flex: 1}}>
+                        <Text style={{fontSize: 14, color: medicalAnswers.medications72h ? '#00aa00' : '#ee3d5a', fontWeight: '600'}}>
+                          {medicalAnswers.medications72h ? 'Yes' : 'No'}
+                        </Text>
+                        {medicalAnswers.medications72h && medicationDetails && (
+                          <Text style={{fontSize: 13, color: '#666', marginTop: 5, fontStyle: 'italic'}}>
+                            Medications: {medicationDetails}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Flea & Tick Prevention */}
+                    <View style={{flexDirection: 'row'}}>
+                      <Text style={{width: 220, fontSize: 14, color: '#333', fontWeight: '500'}}>
+                        Up-to-date Flea and Tick Prevention & Not Infested
+                      </Text>
+                      <Text style={{flex: 1, fontSize: 14, color: medicalAnswers.fleaPrevention ? '#00aa00' : '#ee3d5a', fontWeight: '600'}}>
+                        {medicalAnswers.fleaPrevention ? 'Yes' : 'No'}
+                      </Text>
+                    </View>
+
+                    {/* Rabies + 4in1 */}
+                    <View style={{flexDirection: 'row'}}>
+                      <Text style={{width: 220, fontSize: 14, color: '#333', fontWeight: '500'}}>
+                        Up-to-Date Anti Rabies + 4in1
+                      </Text>
+                      <Text style={{flex: 1, fontSize: 14, color: medicalAnswers.catVaccinations ? '#00aa00' : '#ee3d5a', fontWeight: '600'}}>
+                        {medicalAnswers.catVaccinations ? 'Yes' : 'No'}
+                      </Text>
+                    </View>
+
+                    {/* Pregnant */}
+                    <View style={{flexDirection: 'row'}}>
+                      <Text style={{width: 220, fontSize: 14, color: '#333', fontWeight: '500'}}>
+                        Pregnant
+                      </Text>
+                      <Text style={{flex: 1, fontSize: 14, color: medicalAnswers.notPregnant ? '#00aa00' : '#ee3d5a', fontWeight: '600'}}>
+                        {medicalAnswers.notPregnant ? 'No' : 'Yes'}
+                      </Text>
+                    </View>
+                    
+                    {additionalNotes ? (
+                      <View style={{marginTop: 10, borderTopWidth: 1, borderTopColor: '#3d67ee20', paddingTop: 15}}>
+                        <Text style={{fontSize: 16, fontWeight: '500', color: '#3d67ee', marginBottom: 8}}>Additional Notes:</Text>
+                        <Text style={{fontSize: 14, color: '#333', lineHeight: 20}}>{additionalNotes}</Text>
+                      </View>
+                    ) : null}
+                  </View>
+                </View>
+
+                {/* Grooming Preferences Card (if applicable) */}
+                {selectedServices.some(s => s.id === 1) && selectedGroomingOptions.length > 0 && selectedHaircutStyle && (
+                  <View style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: 20,
+                    padding: 25,
+                    shadowColor: '#000',
+                    shadowOffset: { width: 0, height: 4 },
+                    shadowOpacity: 0.1,
+                    shadowRadius: 8,
+                    elevation: 4,
+                    borderWidth: 1,
+                    borderColor: '#3d67ee',
+                    marginBottom: 20,
+                    width: '60%',
+                    alignSelf: 'center',
+                  }}>
+                    <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 20}}>
+                      <Ionicons name="cut-outline" size={25} color="#3d67ee" style={{marginRight: 12}}/>
+                      <Text style={{fontSize: 22, fontWeight: '500', color: '#3d67ee'}}>Grooming Preferences</Text>
+                    </View>
+                    
+                    <View style={{gap: 12}}>
+                      <View style={{flexDirection: 'row'}}>
+                        <Text style={{width: 120, fontSize: 16, color: '#333', fontWeight: '500'}}>Haircut Style</Text>
+                        <Text style={{flex: 1, fontSize: 16, color: '#333'}}>
+                          {haircutStyles.find(s => s.id === selectedHaircutStyle)?.name}
+                        </Text>
+                      </View>
+                      
+                      {selectedHaircutStyle === 'h6' && customHaircutDescription ? (
+                        <View style={{flexDirection: 'row'}}>
+                          <Text style={{width: 120, fontSize: 16, color: '#333', fontWeight: '500'}}>Custom Style</Text>
+                          <Text style={{flex: 1, fontSize: 16, color: '#333'}}>{customHaircutDescription}</Text>
+                        </View>
+                      ) : null}
+                      
+                      {haircutImage ? (
+                        <View style={{marginTop: 15}}>
+                          <Text style={{fontSize: 16, fontWeight: '500', color: '#333', marginBottom: 10}}>Reference Image:</Text>
+                          <Image 
+                            source={{uri: haircutImage}} 
+                            style={{width: 200, height: 200, borderRadius: 10, borderWidth: 1, borderColor: '#3d67ee'}}
+                          />
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+                )}
 
                 {/* Appointment Details Card */}
-                {selectedServices.length > 0 && selectedDoctor && selectedDate && selectedTime && (
+                {selectedServices.length > 0 && selectedDate && selectedTime && (
                   <View style={{
                     backgroundColor: '#ffffff',
                     borderRadius: 20,
@@ -1723,8 +2155,8 @@ const cardRef = useRef(null);
                     alignSelf: 'center',
                   }}>
                     <View style={{flexDirection: 'row', alignItems: 'center', marginBottom: 20}}>
-                      <Ionicons name="calendar-outline" size={25} color="#3d67ee" style={{marginRight: 12, marginTop: 2}}/>
-                      <Text style={{fontSize: 22, fontWeight: '500', color: '#3d67ee'}}>Appointment Details</Text>
+                      <Ionicons name="calendar-outline" size={22} color="#3d67ee" style={{marginRight: 12, marginTop: 2}}/>
+                      <Text style={{fontSize: 20, fontWeight: '500', color: '#3d67ee'}}>Appointment Details</Text>
                     </View>
                     
                     <View style={{gap: 15}}>
@@ -1743,10 +2175,6 @@ const cardRef = useRef(null);
                         </View>
                       </View>
                       <View style={{flexDirection: 'row'}}>
-                        <Text style={{width: 120, fontSize: 16, color: '#000000', fontWeight: '500'}}>Doctor</Text>
-                        <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{selectedDoctor}</Text>
-                      </View>
-                      <View style={{flexDirection: 'row'}}>
                         <Text style={{width: 120, fontSize: 16, color: '#000000', fontWeight: '500'}}>Date</Text>
                         <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{formatSelectedDate()}</Text>
                       </View>
@@ -1755,15 +2183,15 @@ const cardRef = useRef(null);
                         <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{selectedTime}</Text>
                       </View>
                       <View style={{gap: 17, borderTopWidth: 1, borderTopColor: '#3d66ee57', paddingTop: 15, marginTop: 10}}>
-                      <View style={{flexDirection: 'row', marginTop: 10}}>
-                        <Text style={{width: 100, fontSize: 16, color: '#000000', fontWeight: '500'}}>Branch</Text>
-                        <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{selectedBranch.name}</Text>
+                        <View style={{flexDirection: 'row', marginTop: 10}}>
+                          <Text style={{width: 100, fontSize: 16, color: '#000000', fontWeight: '500'}}>Branch</Text>
+                          <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{selectedBranch.name}</Text>
+                        </View>
+                        <View style={{flexDirection: 'row', marginBottom: 10}}>
+                          <Text style={{width: 100, fontSize: 16, color: '#000000', fontWeight: '500'}}>Address</Text>
+                          <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{selectedBranch.address}</Text>
+                        </View>
                       </View>
-                      <View style={{flexDirection: 'row', marginBottom: 10}}>
-                        <Text style={{width: 100, fontSize: 16, color: '#000000', fontWeight: '500'}}>Address</Text>
-                        <Text style={{flex: 1, fontSize: 16, color: '#000000'}}>{selectedBranch.address}</Text>
-                      </View>
-                    </View>
                       <View style={{flexDirection: 'row', borderTopWidth: 1, borderTopColor: '#3d66ee57', paddingTop: 15, marginTop: 5}}>
                         <Text style={{width: 120, fontSize: 16, color: '#000000', fontWeight: '500', marginTop: 10}}>Total</Text>
                         <Text style={{flex: 1, fontSize: 22, fontWeight: '500', color: '#ee3d5a', marginTop: 5}}>₱{getTotalPrice().toLocaleString()}</Text>
@@ -1773,14 +2201,13 @@ const cardRef = useRef(null);
                 )}
               </View>
 
-              {/* Navigation Buttons for Step 6 */}
               <View style={{flexDirection: 'row', justifyContent: 'center', gap: 20, marginTop: 20, marginBottom: 30}}>
                 <TouchableOpacity style={[userStyle.btnStyle, {backgroundColor: '#ccc'}]} onPress={handleBack}>
-                    <Text style={{color: '#fffefe', fontSize: 16, fontWeight: '500'}}>Back</Text>
+                  <Text style={{color: '#fffefe', fontSize: 16, fontWeight: '500'}}>Back</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={userStyle.btnStyle} onPress={handleContinue}>     
-                    <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Confirm Booking</Text>
+                  <Text style={{color: 'white', fontSize: 16, fontWeight: '500'}}>Confirm Booking</Text>
                 </TouchableOpacity>
               </View>
             </>
@@ -1789,4 +2216,4 @@ const cardRef = useRef(null);
       </ScrollView>
     </View>
   )
-}
+}      

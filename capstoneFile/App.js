@@ -29,7 +29,8 @@ import DoctorSchedule from './components/DoctorInterface/DoctorSchedule';
 import DoctorAvailability from './components/DoctorInterface/DoctorAvailability';
 import DoctorHistory from './components/DoctorInterface/DoctorHistory';
 import UserAppointment from './userComponents/UserAppointment';
-
+import UserAppointmentView from './userComponents/UserAppointmentView';
+import UserPetProfile from './userComponents/UserPetProfile';
 
 export default function App() {
   const CScreen = createNativeStackNavigator();
@@ -47,14 +48,14 @@ export default function App() {
     <PaperProvider theme={theme}>
       <NavigationContainer>
 
-        <CScreen.Navigator initialRouteName='DoctorHomePage'>
+        <CScreen.Navigator initialRouteName='UserAppointmentView'>
           <CScreen.Screen name="Home" component={DashboardPage} options={{headerShown: false}} />
           <CScreen.Screen name="Login" component={LoginPage} options={{headerShown: false}} />
           <CScreen.Screen name="Accounts" component={HomePage} options={{headerShown: false}} />
           <CScreen.Screen name="UserAccounts" component={UserAccPage} options={{headerShown: false}} />
           <CScreen.Screen name="Settings" component={SettingsPage} options={{headerShown: false}} />
           <CScreen.Screen name="Audit" component={AuditPage} options={{headerShown: false}} />
-          <CScreen.Screen name="UserHome" component={UserHome} options={{headerShown: false}} />
+          
           <CScreen.Screen name="Registration" component={RegistrationPage} options={{headerShown: false}} />
           <CScreen.Screen name="ChangeCreds" component={ChangeCreds} options={{headerShown: false}} />
           <CScreen.Screen name="ChangePassOTP" component={ChangePassOTP} options={{headerShown: false}} />
@@ -79,6 +80,10 @@ export default function App() {
 
         {/* User Screens */}
         <CScreen.Screen name="UserAppointment" component={UserAppointment} options={{headerShown: false}} />
+        <CScreen.Screen name="UserHome" component={UserHome} options={{headerShown: false}} />
+        <CScreen.Screen name="UserAppointmentView" component={UserAppointmentView} options={{headerShown: false}} />
+        <CScreen.Screen name="UserPetProfile" component={UserPetProfile} options={{headerShown: false}} />
+        
 
         </CScreen.Navigator>
       </NavigationContainer>
