@@ -1,1 +1,1 @@
-SELECT * FROM accounts
+SELECT * FROM day_availability

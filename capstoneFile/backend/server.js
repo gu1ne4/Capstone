@@ -636,53 +636,53 @@ app.post('/login', async (req, res) => {
 //   }
 // });
 
-// // Get All Employees
-// app.get('/accounts', async (req, res) => {
-//   try {
-//     const allAccounts = await pool.query('SELECT * FROM accounts ORDER BY pk ASC');
-//     const formattedAccounts = allAccounts.rows.map(account => {
-//       const imgBuffer = account.userimage;
-//       let imageStr = null;
-//       if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
-//       return { ...account, userimage: imageStr };
-//     });
-//     res.json(formattedAccounts);
-//   } catch (err) {
-//     res.status(500).json({ error: 'Server Error' });
-//   }
-// });
 
-// // Update Employee Account
-// app.put('/accounts/:id', async (req, res) => {
-//   const { id } = req.params;
-//   const { username, fullname, contactnumber, email, role, department, employeeid, userimage, status } = req.body;
+app.get('/accounts', async (req, res) => {
+  try {
+    const allAccounts = await pool.query('SELECT * FROM accounts ORDER BY pk ASC');
+    const formattedAccounts = allAccounts.rows.map(account => {
+      const imgBuffer = account.userimage;
+      let imageStr = null;
+      if (imgBuffer) imageStr = `data:image/jpeg;base64,${imgBuffer.toString('base64')}`;
+      return { ...account, userimage: imageStr };
+    });
+    res.json(formattedAccounts);
+  } catch (err) {
+    res.status(500).json({ error: 'Server Error' });
+  }
+});
 
-//   try {
-//     let imageBuffer = null;
-//     if (userimage && userimage.startsWith('data:image')) {
-//       const base64Data = userimage.split(',')[1]; 
-//       imageBuffer = Buffer.from(base64Data, 'base64');
-//     } else if (userimage) {
-//       imageBuffer = Buffer.from(userimage, 'base64');
-//     }
+// Update Employee Account
+app.put('/accounts/:id', async (req, res) => {
+  const { id } = req.params;
+  const { username, fullname, contactnumber, email, role, department, employeeid, userimage, status } = req.body;
 
-//     let query, values;
-//     if (imageBuffer) {
-//       query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8, userimage=$9 WHERE pk=$10 RETURNING *`;
-//       values = [username, fullname, contactnumber, email, role, department, employeeid, status, imageBuffer, id];
-//     } else {
-//       query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8 WHERE pk=$9 RETURNING *`;
-//       values = [username, fullname, contactnumber, email, role, department, employeeid, status, id];
-//     }
+  try {
+    let imageBuffer = null;
+    if (userimage && userimage.startsWith('data:image')) {
+      const base64Data = userimage.split(',')[1]; 
+      imageBuffer = Buffer.from(base64Data, 'base64');
+    } else if (userimage) {
+      imageBuffer = Buffer.from(userimage, 'base64');
+    }
 
-//     const updatedAccount = await pool.query(query, values);
-//     if (updatedAccount.rows.length === 0) return res.status(404).json({ error: "Account not found" });
+    let query, values;
+    if (imageBuffer) {
+      query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8, userimage=$9 WHERE pk=$10 RETURNING *`;
+      values = [username, fullname, contactnumber, email, role, department, employeeid, status, imageBuffer, id];
+    } else {
+      query = `UPDATE accounts SET username=$1, fullname=$2, contactnumber=$3, email=$4, role=$5, department=$6, employeeid=$7, status=$8 WHERE pk=$9 RETURNING *`;
+      values = [username, fullname, contactnumber, email, role, department, employeeid, status, id];
+    }
 
-//     res.json({ message: "Updated successfully", user: updatedAccount.rows[0] });
-//   } catch (err) {
-//     res.status(500).json({ error: err.message });
-//   }
-// });
+    const updatedAccount = await pool.query(query, values);
+    if (updatedAccount.rows.length === 0) return res.status(404).json({ error: "Account not found" });
+
+    res.json({ message: "Updated successfully", user: updatedAccount.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // =================================================================================
 //  UPDATED PATIENT REGISTRATION (with email verification) 

@@ -175,6 +175,7 @@ const styles = StyleSheet.create({
   },
 
   fieldFeedbackContainer: {
+  display: 'flex',
   flexDirection: 'row',
   justifyContent: 'flex-end', 
   alignItems: 'center',
@@ -183,13 +184,22 @@ const styles = StyleSheet.create({
   position: 'relative', 
   },
 
+  errorContainer: {
+    width: '100%',
+    marginLeft: 50,
+
+
+    color: 'green'
+  },
+
   errorText: {
     color: '#ff4444',
     fontSize: 12,
-    position: 'absolute', 
-    left: 0, 
-    top: 0, 
-    right: 60, 
+    // position: 'absolute', 
+    // left: 0, 
+    // top: 0, 
+    // right: 60, 
+    paddingLeft: 30,
     textAlign: 'left',
     width: '100%',
   },

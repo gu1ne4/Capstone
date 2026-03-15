@@ -310,13 +310,13 @@ export default function LoginPage() {
             </Text>
 
             {/* Username Field */}
-            <View style={styles.inputGroup}>
-                <Ionicons name="person-outline" size={20} color="#888" style={styles.inputIcon} />
+            <View style={[styles.inputGroup, {backgroundColor: 'white'}]}>
+                {/* <Ionicons name="person-outline" size={20} color="#888" style={styles.inputIcon} /> */}
                 <TextInput
                     style={[
                       styles.inputField,
                       usernameStatus === 'invalid' && styles.inputError,
-                      usernameStatus === 'valid' && styles.inputValid
+                      usernameStatus === 'valid' && styles.inputValid,
                     ]}
                     placeholder="Username"
                     placeholderTextColor="#aaa"
@@ -325,8 +325,8 @@ export default function LoginPage() {
                     onBlur={() => handleBlur('username')}
                     maxLength={validationRules.username.maxLength}
                 />
-                <View style={styles.fieldFeedbackContainer}>
-                    <View style={styles.errorContainer}>
+                <View style={[styles.fieldFeedbackContainer ]}>
+                    <View style={[styles.errorContainer]}>
                         {usernameStatus === 'invalid' && touched.username && (
                             <Text style={styles.errorText}>{errors.username}</Text>
                         )}
@@ -334,7 +334,8 @@ export default function LoginPage() {
                     <Text style={[
                         styles.charCount,
                         usernameStatus === 'invalid' && styles.charCountError,
-                        usernameStatus === 'valid' && styles.charCountValid
+                        usernameStatus === 'valid' && styles.charCountValid,
+                        {width: '100%', }
                     ]}>
                         {username.length}/{validationRules.username.maxLength}
                     </Text>
@@ -343,7 +344,7 @@ export default function LoginPage() {
 
             {/* Password Field */}
             <View style={styles.inputGroup}>
-                <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.inputIcon} />
+                {/* <Ionicons name="lock-closed-outline" size={20} color="#888" style={styles.inputIcon} /> */}
                 <TextInput
                     style={[
                       styles.inputField,
